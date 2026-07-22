@@ -1,0 +1,61 @@
+CSV Upload
+      ↓
+Chunk Processing
+      ↓
+Feature Extraction
+      ↓
+Rule-Based Detection
+      ↓
+ML Prediction
+      ↓
+Graph Analysis
+      ↓
+PostgreSQL
+      ↓
+Dashboard
+
+
+current problem is reading >10mb files will leading to crash or slows the
+projects  sol is 
+| Component             | Recommended                                                         |
+| --------------------- | ------------------------------------------------------------------- |
+| Backend               | FastAPI                                                             |
+| CSV Processing        | **Polars** (or Pandas with chunks)                                  |
+| Database              | PostgreSQL                                                          |
+| Background Processing | FastAPI `BackgroundTasks` (Celery if you want advanced scalability) |
+| Graph Analysis        | NetworkX                                                            |
+| ML                    | Scikit-learn                                                        |
+| Frontend              | React        
+
+
+
+
+                                                       |
+                Upload CSV
+                     │
+                     ▼
+          Validate File Format
+                     │
+                     ▼
+       Read CSV in Chunks (5,000 rows)
+                     │
+                     ▼
+         Data Cleaning & Validation
+                     │
+                     ▼
+          Feature Extraction
+                     │
+                     ▼
+     Rule-Based Fraud Detection
+                     │
+                     ▼
+       ML Model (Risk Scoring)
+                     │
+                     ▼
+   Graph/Network Pattern Analysis
+                     │
+                     ▼
+ Save Results to PostgreSQL Database
+                     │
+                     ▼
+      Dashboard + Reports + Charts

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Api</title>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #f0f6fc;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 0.3em;
+        }
+        a { color: #58a6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code {
+            background-color: rgba(110,118,129,0.4);
+            padding: 0.2em 0.4em;
+            border-radius: 6px;
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+        }
+        pre {
+            background-color: #161b22;
+            padding: 16px;
+            border-radius: 6px;
+            overflow: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #30363d;
+            padding: 8px 13px;
+        }
+        th { background-color: #161b22; }
+        tr:nth-child(even) { background-color: #161b22; }
+    </style>
+</head>
+<body>
+    <h1>API Documentation</h1>
+<p>This document describes all endpoints exposed by the Money Muling Detection API.</p>
+<hr />
+<h2>🔐 Authentication</h2>
+<p>All endpoints except <code>/auth/register</code>, <code>/auth/login</code>, and <code>/sample-generator</code> require a Bearer token:
+<code>Authorization: Bearer &lt;JWT_TOKEN&gt;</code></p>
+<hr />
+<h2>🚪 Auth Endpoints</h2>
+<h3>1. Register User</h3>
+<ul>
+<li><strong>Route</strong>: <code>/auth/register</code></li>
+<li><strong>Method</strong>: <code>POST</code></li>
+<li><strong>Request Body</strong>:
+    <code>json
+    {
+      "username": "analyst1",
+      "password": "securepassword123"
+    }</code></li>
+<li><strong>Response (201 Created)</strong>:
+    <code>json
+    {
+      "id": 1,
+      "username": "analyst1"
+    }</code></li>
+<li><strong>Error Responses</strong>:<ul>
+<li><code>409 Conflict</code>: Username already exists.</li>
+<li><code>422 Unprocessable Entity</code>: Validation failed.</li>
+</ul>
+</li>
+</ul>
+<h3>2. Login User</h3>
+<ul>
+<li><strong>Route</strong>: <code>/auth/login</code></li>
+<li><strong>Method</strong>: <code>POST</code></li>
+<li><strong>Request Format</strong>: <code>application/x-www-form-urlencoded</code></li>
+<li><strong>Request Parameters</strong>:<ul>
+<li><code>username</code>: "analyst1"</li>
+<li><code>password</code>: "securepassword123"</li>
+</ul>
+</li>
+<li><strong>Response (200 OK)</strong>:
+    <code>json
+    {
+      "access_token": "eyJhbGciOiJIUzI1NiIsIn...",
+      "token_type": "bearer"
+    }</code></li>
+<li><strong>Error Responses</strong>:<ul>
+<li><code>401 Unauthorized</code>: Invalid username or password.</li>
+</ul>
+</li>
+</ul>
+<h3>3. Get Profile Details</h3>
+<ul>
+<li><strong>Route</strong>: <code>/auth/me</code></li>
+<li><strong>Method</strong>: <code>GET</code></li>
+<li><strong>Response (200 OK)</strong>:
+    <code>json
+    {
+      "id": 1,
+      "username": "analyst1"
+    }</code></li>
+<li><strong>Error Responses</strong>:<ul>
+<li><code>401 Unauthorized</code>: Invalid or expired token.</li>
+</ul>
+</li>
+</ul>
+<h3>4. Change Password</h3>
+<ul>
+<li><strong>Route</strong>: <code>/auth/change-password</code></li>
+<li><strong>Method</strong>: <code>POST</code></li>
+<li><strong>Request Body</strong>:
+    <code>json
+    {
+      "current_password": "securepassword123",
+      "new_password": "newsecurepassword456"
+    }</code></li>
+<li><strong>Response (200 OK)</strong>:
+    <code>json
+    {
+      "id": 1,
+      "username": "analyst1"
+    }</code></li>
+<li><strong>Error Responses</strong>:<ul>
+<li><code>400 Bad Request</code>: Current password is incorrect.</li>
+<li><code>401 Unauthorized</code>: Invalid token.</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2>📊 Analytics Endpoints</h2>
+<h3>5. Analyze Transactions</h3>
+<ul>
+<li><strong>Route</strong>: <code>/analyze</code></li>
+<li><strong>Method</strong>: <code>POST</code></li>
+<li><strong>Request Format</strong>: <code>multipart/form-data</code></li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>file</code>: CSV file containing columns <code>transaction_id</code>, <code>sender_id</code>, <code>receiver_id</code>, <code>amount</code>, and <code>timestamp</code>.</li>
+</ul>
+</li>
+<li><strong>Response (200 OK)</strong>:
+    <code>json
+    {
+      "summary": {
+        "total_accounts_analyzed": 150,
+        "total_transactions": 500,
+        "suspicious_accounts_flagged": 12,
+        "fraud_rings_detected": 3,
+        "processing_time_seconds": 0.045
+      },
+      "suspicious_accounts": [
+        {
+          "account_id": "ACC002",
+          "suspicion_score": 85.0,
+          "detected_patterns": ["cycle", "fan"],
+          "ring_ids": ["RING_0001", "RING_0002"],
+          "burst": false
+        }
+      ],
+      "fraud_rings": [
+        {
+          "ring_id": "RING_0001",
+          "member_accounts": ["ACC002", "ACC005", "ACC009"],
+          "pattern_type": "cycle",
+          "risk_score": 85.0
+        }
+      ]
+    }</code></li>
+</ul>
+<h3>6. Synthetic Transaction Generator</h3>
+<ul>
+<li><strong>Route</strong>: <code>/sample-generator</code></li>
+<li><strong>Method</strong>: <code>POST</code></li>
+<li><strong>Request Body</strong>:
+    <code>json
+    {
+      "numAccounts": 50,
+      "numTransactions": 200,
+      "minAmount": 10.0,
+      "maxAmount": 5000.0,
+      "startDate": "2026-01-01",
+      "endDate": "2026-01-07",
+      "maxPerAccount": 15,
+      "datasetType": "mixed",
+      "txnPrefix": "TXN",
+      "includeCycles": true,
+      "includeFan": true,
+      "includeLayering": false
+    }</code></li>
+<li><strong>Response (200 OK)</strong>:
+    <code>json
+    {
+      "transactions": [
+        {
+          "transaction_id": "TXN000001",
+          "sender_id": "ACC005",
+          "receiver_id": "ACC012",
+          "amount": 250.50,
+          "timestamp": "2026-01-02 14:30:00"
+        }
+      ]
+    }</code></li>
+</ul>
+<hr />
+<h2>📜 Audit Log Endpoints</h2>
+<h3>7. Fetch Activity Log</h3>
+<ul>
+<li><strong>Route</strong>: <code>/audit/activity</code></li>
+<li><strong>Method</strong>: <code>GET</code></li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>limit</code> (Optional): Default <code>50</code>.</li>
+<li><code>skip</code> (Optional): Default <code>0</code>.</li>
+</ul>
+</li>
+<li><strong>Response (200 OK)</strong>:
+    <code>json
+    [
+      {
+        "id": 15,
+        "timestamp": "2026-07-22T08:15:30Z",
+        "event_type": "ANALYZE",
+        "event_action": "analyze_success",
+        "event_status": "success",
+        "user_id": 1,
+        "username": "analyst1",
+        "ip_address": "127.0.0.1",
+        "user_agent": "Mozilla/5.0...",
+        "endpoint": "/analyze",
+        "method": "POST",
+        "details": "{\"filename\": \"data.csv\", \"nodes_analyzed\": 50}",
+        "error_message": null,
+        "duration_ms": 45
+      }
+    ]</code></li>
+</ul>
+</body>
+</html>

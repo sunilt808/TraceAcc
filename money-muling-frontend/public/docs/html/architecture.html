@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture</title>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #f0f6fc;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 0.3em;
+        }
+        a { color: #58a6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code {
+            background-color: rgba(110,118,129,0.4);
+            padding: 0.2em 0.4em;
+            border-radius: 6px;
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+        }
+        pre {
+            background-color: #161b22;
+            padding: 16px;
+            border-radius: 6px;
+            overflow: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #30363d;
+            padding: 8px 13px;
+        }
+        th { background-color: #161b22; }
+        tr:nth-child(even) { background-color: #161b22; }
+    </style>
+</head>
+<body>
+    <h1>Software Architecture Document (SAD)</h1>
+<p>This document provides a detailed breakdown of the high-level architecture, module interactions, and request flows within the Money Muling Detection System.</p>
+<hr />
+<h2>🏛️ High-Level Architecture</h2>
+<p>The system utilizes a decoupled Client-Server architecture structure:</p>
+<pre><code>[React SPA Client] ──(HTTP/JSON)──&gt; [FastAPI Router]
+                                         │
+                 ┌───────────────────────┴───────────────────────┐
+                 ▼                                               ▼
+         [Database Services]                            [Graph Analysis Engine]
+       (SQLAlchemy -&gt; SQLite/PG)                       (Pandas / NetworkX / DFS)
+</code></pre>
+<ol>
+<li><strong>React Frontend (Presentation Layer)</strong>:<ul>
+<li>Initiates API calls via Axios.</li>
+<li>Injects JWT credentials using request interceptors.</li>
+<li>Renders response tables.</li>
+</ul>
+</li>
+<li><strong>FastAPI Backend (Application Layer)</strong>:<ul>
+<li>Exposes REST endpoints.</li>
+<li>Enforces authentication using custom route dependencies.</li>
+<li>Dispatches file uploads to the parsing service.</li>
+</ul>
+</li>
+<li><strong>Graph Engine (Domain Layer)</strong>:<ul>
+<li>Parses CSV tabular columns into a network topology using NetworkX.</li>
+<li>Executes localized search heuristics (DFS/sliding window check).</li>
+</ul>
+</li>
+<li><strong>Relational Database (Data Layer)</strong>:<ul>
+<li>Persists credentials and logs metadata.</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2>🔄 Dynamic Flows</h2>
+<h3>Request Sequence Diagram</h3>
+<p>The sequence below outlines the operations triggered by a file upload:</p>
+<pre><code>Analyst              Vite/React            FastAPI Router          Graph Engine            Database
+   │                      │                       │                      │                     │
+   │── Uploads CSV ──────&gt;│                       │                      │                     │
+   │                      │── POST /analyze ─────&gt;│                      │                     │
+   │                      │   (With JWT Header)   │── verify token ───────────────────────────&gt;│
+   │                      │                       │   (Checks User)      │                     │
+   │                      │                       │&lt;── Token Valid ────────────────────────────│
+   │                      │                       │                      │                     │
+   │                      │                       │── parse &amp; build ────&gt;│                     │
+   │                      │                       │                       │                     │
+   │                      │                       │── run detectors ────&gt;│                     │
+   │                      │                       │                      │── Run Cycle DFS     │
+   │                      │                       │                      │── Run Fan window    │
+   │                      │                       │                      │── Run Layering      │
+   │                      │                       │                      │── Run Burst check   │
+   │                      │                       │                      │                     │
+   │                      │                       │&lt;── returns results ──│                     │
+   │                      │                       │                      │                     │
+   │                      │                       │── Log success ────────────────────────────&gt;│
+   │                      │                       │                                            │
+   │                      │&lt;── Returns JSON ──────│                                            │
+   │&lt;── Renders Tables ───│                                                                    │
+</code></pre>
+<hr />
+<h2>📁 Module Organization</h2>
+<ul>
+<li><code>main.py</code>: Entrypoint. Holds CORS, middleware initialization, and primary analytical endpoints.</li>
+<li><code>api/routes/</code>: Route modules mapping auth operations (<code>auth.py</code>) and audit histories (<code>audit.py</code>).</li>
+<li><code>api/deps.py</code>: Contains JWT verification logic (<code>get_bearer_token</code> and <code>get_current_user</code>).</li>
+<li><code>db/database.py</code>: Instantiates the SQLAlchemy engine, configures session pools, and sets auto-creation metadata rules.</li>
+<li><code>detectors/</code>: Independent files for each fraud type heuristic, plus <code>score.py</code> to merge outputs.</li>
+<li><code>models/</code>: Tables definitions (<code>user.py</code>, <code>audit_log.py</code>).</li>
+<li><code>schemas/</code>: Data models used by FastAPI request parsing.</li>
+<li><code>services/</code>: Core logic layers for user management (<code>auth_service.py</code>) and log generation (<code>audit_service.py</code>).</li>
+<li><code>utils/</code>: Secondary helper libraries (graph abstractions, CSV parsers, sample generator).</li>
+</ul>
+<hr />
+<h2>🛠️ Design Decisions &amp; Trade-offs</h2>
+<ol>
+<li><strong>In-Memory Graph Construction</strong>:<ul>
+<li><em>Decision</em>: Load NetworkX graphs dynamically in memory during the request.</li>
+<li><em>Trade-off</em>: Highly efficient for hackathon-scale datasets but does not scale to enterprise workloads, running out of memory on large files and blocking the single-threaded event loop.</li>
+</ul>
+</li>
+<li><strong>Stateless Transaction Flow</strong>:<ul>
+<li><em>Decision</em>: Do not store transaction datasets in the DB.</li>
+<li><em>Trade-off</em>: Eliminates database storage overhead but forces analysts to re-upload files on every reload.</li>
+</ul>
+</li>
+<li><strong>Relational Database for Auditing</strong>:<ul>
+<li><em>Decision</em>: Use SQLite/PostgreSQL to track log entries.</li>
+<li><em>Trade-off</em>: Safe for structured logs but makes searching metadata challenging, as log data is kept in flat text strings rather than JSONB formats.</li>
+</ul>
+</li>
+</ol>
+</body>
+</html>

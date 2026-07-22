@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+python-multipart
+pandas
+networkx
+python-dateutil
+pydantic
+pydantic-settings
+sqlalchemy
+passlib[bcrypt]
+python-jose[cryptography]
+psycopg[binary]
+python-dotenv
+scikit-learn

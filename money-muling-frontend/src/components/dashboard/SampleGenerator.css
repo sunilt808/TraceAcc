@@ -1,0 +1,319 @@
+/* SampleGenerator.css – Dark Professional Theme */
+
+/* Main container */
+.sg-wrapper {
+  background-color: #0A0E1A;
+  min-height: 100vh;
+}
+
+/* Back button */
+.back-button {
+  color: #A0AEC0 !important;
+  text-decoration: none;
+  font-size: 0.95rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #2D3748;
+  border-radius: 6px;
+  background-color: #141B2B;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.back-button:hover {
+  background-color: #2D3748;
+  color: #F7FAFC !important;
+  border-color: #4A5568;
+}
+
+/* Main card */
+.sg-card {
+  background-color: #141B2B !important;
+  border: 1px solid #2D3748 !important;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.sg-card .card-header {
+  background-color: #0A0E1A !important;
+  border-bottom: 1px solid #2D3748 !important;
+  padding: 1rem 1.5rem;
+}
+
+.sg-card .card-header h4 {
+  color: #F7FAFC;
+  font-weight: 600;
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.sg-card .card-body {
+  padding: 1.5rem;
+}
+
+/* Form labels */
+.sg-card .form-label {
+  color: #A0AEC0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+}
+
+/* Form controls */
+.sg-card .form-control {
+  background-color: #0A0E1A;
+  border: 1px solid #2D3748;
+  border-radius: 8px;
+  color: #F7FAFC;
+  font-size: 0.95rem;
+  padding: 0.6rem 1rem;
+  transition: all 0.2s ease;
+}
+
+.sg-card .form-control:focus {
+  background-color: #1A2335;
+  border-color: #2F73FF;
+  box-shadow: 0 0 0 3px rgba(47, 115, 255, 0.15);
+  color: #F7FAFC;
+  outline: none;
+}
+
+.sg-card .form-control:disabled {
+  background-color: #1A1F2E;
+  border-color: #3A4258;
+  color: #718096;
+  opacity: 0.7;
+}
+
+/* Input placeholders */
+.sg-card .form-control::placeholder {
+  color: #4A5568;
+  opacity: 1;
+}
+
+/* Buttons */
+.sg-card .btn-primary {
+  background-color: #2F73FF;
+  border: none;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-weight: 500;
+  padding: 0.6rem 1.5rem;
+  transition: all 0.2s ease;
+}
+
+.sg-card .btn-primary:hover:not(:disabled) {
+  background-color: #1a5bcc;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(47, 115, 255, 0.3);
+}
+
+.sg-card .btn-primary:active {
+  transform: translateY(0);
+}
+
+.sg-card .btn-primary:disabled {
+  background-color: #2D3748;
+  border-color: #2D3748;
+  opacity: 0.6;
+}
+
+.sg-card .btn-success {
+  background-color: #27AE60;
+  border: none;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-weight: 500;
+  padding: 0.6rem 1.5rem;
+  transition: all 0.2s ease;
+}
+
+.sg-card .btn-success:hover:not(:disabled) {
+  background-color: #1e8e4f;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+}
+
+.sg-card .btn-warning {
+  background-color: #F39C12;
+  border: none;
+  border-radius: 8px;
+  color: #0A0E1A;
+  font-weight: 500;
+  padding: 0.6rem 1.5rem;
+  transition: all 0.2s ease;
+}
+
+.sg-card .btn-warning:hover:not(:disabled) {
+  background-color: #d9820b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3);
+}
+
+.sg-card .btn-outline-info {
+  background-color: transparent;
+  border: 1px solid #2F73FF;
+  border-radius: 8px;
+  color: #2F73FF;
+  font-weight: 500;
+  padding: 0.6rem 1.5rem;
+  transition: all 0.2s ease;
+}
+
+.sg-card .btn-outline-info:hover {
+  background-color: #2F73FF;
+  color: #FFFFFF;
+  border-color: #2F73FF;
+}
+
+/* Outline buttons for dataset type */
+.sg-card .btn-outline-primary {
+  background-color: transparent;
+  border: 1px solid #2F73FF;
+  border-radius: 8px;
+  color: #2F73FF;
+  font-weight: 500;
+  padding: 0.4rem 1rem;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.sg-card .btn-outline-primary:hover:not(:disabled) {
+  background-color: #2F73FF;
+  color: #FFFFFF;
+}
+
+.sg-card .btn-outline-primary.active {
+  background-color: #2F73FF;
+  color: #FFFFFF;
+}
+
+/* Alerts */
+.sg-card .alert-danger {
+  background-color: rgba(229, 62, 62, 0.1);
+  border: 1px solid #E53E3E;
+  border-radius: 8px;
+  color: #FCA5A5;
+  font-size: 0.95rem;
+}
+
+.sg-card .alert-danger .btn-close {
+  filter: invert(1) brightness(200%);
+}
+
+/* Dataset type button group */
+.sg-card .d-flex.gap-2 {
+  gap: 0.5rem !important;
+}
+
+/* Preview card */
+.preview-card {
+  background-color: #0A0E1A !important;
+  border: 1px solid #2D3748 !important;
+  border-radius: 8px;
+  margin-top: 1rem !important;
+}
+
+.preview-card .card-header {
+  background-color: #141B2B !important;
+  border-bottom: 1px solid #2D3748 !important;
+  padding: 0.75rem 1rem;
+  color: #A0AEC0;
+  font-weight: 500;
+}
+
+.preview-card .card-header span {
+  color: #F7FAFC;
+  font-size: 0.9rem;
+}
+
+.preview-card .btn-outline-light {
+  border-color: #2D3748;
+  color: #F7FAFC;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+}
+
+.preview-card .btn-outline-light:hover {
+  background-color: #2D3748;
+  border-color: #4A5568;
+  color: #FFFFFF;
+}
+
+/* Preview container */
+.preview-container {
+  background-color: #141B2B;
+  padding: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+  border-radius: 0 0 8px 8px;
+}
+
+.preview-container pre {
+  color: #F7FAFC;
+  font-size: 0.85rem;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  background-color: #0A0E1A;
+  padding: 1rem;
+  border-radius: 6px;
+  border: 1px solid #2D3748;
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Scrollbar styling (WebKit) */
+.preview-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.preview-container::-webkit-scrollbar-track {
+  background: #0A0E1A;
+  border-radius: 4px;
+}
+
+.preview-container::-webkit-scrollbar-thumb {
+  background: #2D3748;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.preview-container::-webkit-scrollbar-thumb:hover {
+  background: #4A5568;
+}
+
+/* Tooltip custom styling */
+.tooltip-inner {
+  background-color: #141B2B;
+  color: #F7FAFC;
+  border: 1px solid #2D3748;
+  font-size: 0.8rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+
+.tooltip-arrow::before {
+  border-top-color: #2D3748 !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .sg-card .card-body {
+    padding: 1rem;
+  }
+  
+  .sg-card .btn {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  
+  .sg-card .d-flex.gap-2 {
+    flex-wrap: wrap;
+  }
+}

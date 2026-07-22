@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roadmap</title>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #f0f6fc;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 0.3em;
+        }
+        a { color: #58a6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code {
+            background-color: rgba(110,118,129,0.4);
+            padding: 0.2em 0.4em;
+            border-radius: 6px;
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+        }
+        pre {
+            background-color: #161b22;
+            padding: 16px;
+            border-radius: 6px;
+            overflow: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #30363d;
+            padding: 8px 13px;
+        }
+        th { background-color: #161b22; }
+        tr:nth-child(even) { background-color: #161b22; }
+    </style>
+</head>
+<body>
+    <h1>Project Roadmap</h1>
+<p>This document outlines the evolutionary phases to transition the Money Muling Detection System from a hackathon prototype to an enterprise-grade platform.</p>
+<hr />
+<h2>🗺️ Phases Overview</h2>
+<pre><code>Phase 1: Feature Completion ──&gt; Phase 2: Performance ──&gt; Phase 3: DB Layer
+      │                                                        │
+      v                                                        v
+Phase 4: Security Hardening ──&gt; Phase 5: Visualization ──&gt; Phase 6: ML/GNN
+      │                                                        │
+      v                                                        v
+Phase 7: Cloud Production   ──&gt; Phase 8: Enterprise Scale
+</code></pre>
+<hr />
+<h2>🛠️ Detailed Tasks &amp; Tasks Parameters</h2>
+<h3>Phase 1: Feature Completion</h3>
+<ul>
+<li><strong>Task 1.1: Move routes out of main.py</strong><ul>
+<li><em>Description</em>: Extract analysis endpoints to <code>api/routes/analyze.py</code>.</li>
+<li><em>Priority</em>: High | <em>Difficulty</em>: Easy | <em>Dependencies</em>: None | <em>Est. Time</em>: 1 day.</li>
+</ul>
+</li>
+<li><strong>Task 1.2: Implement file size and type validation</strong><ul>
+<li><em>Description</em>: Restrict uploads to CSVs below 10MB.</li>
+<li><em>Priority</em>: High | <em>Difficulty</em>: Easy | <em>Dependencies</em>: None | <em>Est. Time</em>: 1 day.</li>
+</ul>
+</li>
+</ul>
+<h3>Phase 2: Performance Optimization</h3>
+<ul>
+<li><strong>Task 2.1: Implement background queues</strong><ul>
+<li><em>Description</em>: Set up Celery and Redis to handle CPU-heavy graph calculations asynchronously.</li>
+<li><em>Priority</em>: Critical | <em>Difficulty</em>: Medium | <em>Dependencies</em>: Task 1.1 | <em>Est. Time</em>: 4 days.</li>
+</ul>
+</li>
+</ul>
+<h3>Phase 3: Database Layer Improvements</h3>
+<ul>
+<li><strong>Task 3.1: Persist transaction history</strong><ul>
+<li><em>Description</em>: Create schemas for <code>accounts</code>, <code>transactions</code>, and <code>detected_rings</code>.</li>
+<li><em>Priority</em>: High | <em>Difficulty</em>: Medium | <em>Dependencies</em>: None | <em>Est. Time</em>: 3 days.</li>
+</ul>
+</li>
+<li><strong>Task 3.2: Convert log details to JSONB</strong><ul>
+<li><em>Description</em>: Update model types and write migrations to move <code>details</code> string data to queryable JSONB.</li>
+<li><em>Priority</em>: Medium | <em>Difficulty</em>: Easy | <em>Dependencies</em>: None | <em>Est. Time</em>: 2 days.</li>
+</ul>
+</li>
+</ul>
+<h3>Phase 4: Security Improvements</h3>
+<ul>
+<li><strong>Task 4.1: Rotate credentials and sanitize Git history</strong><ul>
+<li><em>Description</em>: Generate new keys, clean git commits using filter-repo, and ignore <code>.env</code>.</li>
+<li><em>Priority</em>: Critical | <em>Difficulty</em>: Easy | <em>Dependencies</em>: None | <em>Est. Time</em>: 1 day.</li>
+</ul>
+</li>
+<li><strong>Task 4.2: Implement HttpOnly Cookie Auth</strong><ul>
+<li><em>Description</em>: Update client API to read token from secure cookies instead of local storage.</li>
+<li><em>Priority</em>: High | <em>Difficulty</em>: Medium | <em>Dependencies</em>: None | <em>Est. Time</em>: 2 days.</li>
+</ul>
+</li>
+<li><strong>Task 4.3: Add Rate Limiting</strong><ul>
+<li><em>Description</em>: Apply <code>slowapi</code> decorators to auth and upload routes.</li>
+<li><em>Priority</em>: Medium | <em>Difficulty</em>: Easy | <em>Dependencies</em>: None | <em>Est. Time</em>: 1 day.</li>
+</ul>
+</li>
+</ul>
+<h3>Phase 5: Graph Visualization</h3>
+<ul>
+<li><strong>Task 5.1: Integrate Cytoscape.js / D3.js</strong><ul>
+<li><em>Description</em>: Renders node connections interactively, allowing analysts to trace transaction rings visually.</li>
+<li><em>Priority</em>: Medium | <em>Difficulty</em>: High | <em>Dependencies</em>: Task 3.1 | <em>Est. Time</em>: 5 days.</li>
+</ul>
+</li>
+</ul>
+<h3>Phase 6: Machine Learning Integration</h3>
+<ul>
+<li><strong>Task 6.1: Node2Vec structural embedding extraction</strong><ul>
+<li><em>Description</em>: Generate embeddings using transaction graphs.</li>
+<li><em>Priority</em>: Low | <em>Difficulty</em>: High | <em>Dependencies</em>: Task 3.1 | <em>Est. Time</em>: 5 days.</li>
+</ul>
+</li>
+<li><strong>Task 6.2: Train Isolation Forest / XGBoost mule classifier</strong><ul>
+<li><em>Description</em>: Predict risk scores using node structural and transactional features.</li>
+<li><em>Priority</em>: Low | <em>Difficulty</em>: High | <em>Dependencies</em>: Task 6.1 | <em>Est. Time</em>: 7 days.</li>
+</ul>
+</li>
+</ul>
+<h3>Phase 7: Production Deployment</h3>
+<ul>
+<li><strong>Task 7.1: Containerize App</strong><ul>
+<li><em>Description</em>: Author <code>Dockerfile</code> and <code>docker-compose.yml</code> for local and cloud orchestration.</li>
+<li><em>Priority</em>: High | <em>Difficulty</em>: Easy | <em>Dependencies</em>: None | <em>Est. Time</em>: 2 days.</li>
+</ul>
+</li>
+<li><strong>Task 7.2: Deploy to AWS ECS / GCP Cloud Run</strong><ul>
+<li><em>Description</em>: Set up infrastructure pipelines to scale persistent containers.</li>
+<li><em>Priority</em>: Medium | <em>Difficulty</em>: Medium | <em>Dependencies</em>: Task 7.1 | <em>Est. Time</em>: 4 days.</li>
+</ul>
+</li>
+</ul>
+<h3>Phase 8: Enterprise Scale</h3>
+<ul>
+<li><strong>Task 8.1: Integrate Neo4j Graph Database</strong><ul>
+<li><em>Description</em>: Replace in-memory NetworkX with a dedicated Neo4j instance using Cypher queries.</li>
+<li><em>Priority</em>: Low | <em>Difficulty</em>: Critical | <em>Dependencies</em>: Task 3.1 | <em>Est. Time</em>: 10 days.</li>
+</ul>
+</li>
+</ul>
+</body>
+</html>

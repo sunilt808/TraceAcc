@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database</title>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #f0f6fc;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 0.3em;
+        }
+        a { color: #58a6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code {
+            background-color: rgba(110,118,129,0.4);
+            padding: 0.2em 0.4em;
+            border-radius: 6px;
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+        }
+        pre {
+            background-color: #161b22;
+            padding: 16px;
+            border-radius: 6px;
+            overflow: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #30363d;
+            padding: 8px 13px;
+        }
+        th { background-color: #161b22; }
+        tr:nth-child(even) { background-color: #161b22; }
+    </style>
+</head>
+<body>
+    <h1>Database Schema Document</h1>
+<p>This document outlines the database design, active tables, ORM mappings, constraints, and suggested production schemas.</p>
+<hr />
+<h2>🗄️ Database Choice</h2>
+<ul>
+<li><strong>Engine</strong>: PostgreSQL (accessed using <code>psycopg</code> 3) is target production engine, with a local SQLite file database fallback for developer workstations.</li>
+<li><strong>ORM</strong>: SQLAlchemy with <code>declarative_base</code> model structures.</li>
+</ul>
+<hr />
+<h2>📋 Implemented Tables &amp; Models</h2>
+<h3>1. User Model (<code>models/user.py</code>)</h3>
+<ul>
+<li><strong>Table Name</strong>: <code>users</code></li>
+<li><strong>Purpose</strong>: Stores analyst login credentials.</li>
+<li><strong>Columns</strong>:<ul>
+<li><code>id</code>: <code>Integer</code>, Primary Key, auto-incrementing.</li>
+<li><code>username</code>: <code>String(150)</code>, Unique, Nullable=False, indexed.</li>
+<li><code>password</code>: <code>String(255)</code>, Nullable=False (stores bcrypt hash).</li>
+</ul>
+</li>
+</ul>
+<h3>2. Audit Log Model (<code>models/audit_log.py</code>)</h3>
+<ul>
+<li><strong>Table Name</strong>: <code>audit_logs</code></li>
+<li><strong>Purpose</strong>: Logs analyst actions and API request lifecycles.</li>
+<li><strong>Columns</strong>:<ul>
+<li><code>id</code>: <code>Integer</code>, Primary Key.</li>
+<li><code>timestamp</code>: <code>DateTime</code>, Default: UTC timezone.now.</li>
+<li><code>event_type</code>: <code>String(50)</code>, Nullable=False.</li>
+<li><code>event_action</code>: <code>String(100)</code>, Nullable=False.</li>
+<li><code>event_status</code>: <code>String(20)</code>, Nullable=False.</li>
+<li><code>user_id</code>: <code>Integer</code>, Nullable=True.</li>
+<li><code>username</code>: <code>String(150)</code>, Nullable=True.</li>
+<li><code>ip_address</code>: <code>String(45)</code>, Nullable=True.</li>
+<li><code>user_agent</code>: <code>String(500)</code>, Nullable=True.</li>
+<li><code>endpoint</code>: <code>String(255)</code>, Nullable=True.</li>
+<li><code>method</code>: <code>String(10)</code>, Nullable=True.</li>
+<li><code>details</code>: <code>Text</code>, Nullable=True (stores serialized JSON string).</li>
+<li><code>error_message</code>: <code>Text</code>, Nullable=True.</li>
+<li><code>duration_ms</code>: <code>Integer</code>, Nullable=True.</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2>🗂️ Indexes &amp; Constraints</h2>
+<ul>
+<li><code>users</code>: Unique index on <code>username</code>.</li>
+<li><code>audit_logs</code>:<ul>
+<li>Composite index <code>ix_audit_user_timestamp</code> on <code>(user_id, timestamp)</code>.</li>
+<li>Composite index <code>ix_audit_type_action</code> on <code>(event_type, event_action)</code>.</li>
+<li>Individual indexes on <code>id</code>, <code>timestamp</code>, <code>event_type</code>, <code>event_action</code>, <code>event_status</code>, <code>user_id</code>, and <code>username</code>.</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2>⚠️ Current Database Limitations</h2>
+<ol>
+<li><strong>No Transaction Storage</strong>: Transaction history, accounts, and fraud rings are not persisted to database.</li>
+<li><strong>Unstructured Context Logging</strong>: <code>details</code> is stored as a flat <code>Text</code> string. This prevents database queries from filtering by specific transaction attributes.</li>
+<li><strong>No Foreign Key Constraints</strong>: No hard relationship exists between <code>users.id</code> and <code>audit_logs.user_id</code>, relying on application-level integrity.</li>
+</ol>
+<hr />
+<h2>🚀 Suggested Production Schema (Future Expansion)</h2>
+<p>To persist transactions and fraud rings, the database should be updated with the following models:</p>
+<pre><code class="language-sql">CREATE TABLE accounts (
+    account_id VARCHAR(50) PRIMARY KEY,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    risk_score DECIMAL(5, 2) DEFAULT 0.00
+);
+
+CREATE TABLE transactions (
+    transaction_id VARCHAR(50) PRIMARY KEY,
+    sender_id VARCHAR(50) REFERENCES accounts(account_id),
+    receiver_id VARCHAR(50) REFERENCES accounts(account_id),
+    amount DECIMAL(15, 2) NOT NULL,
+    timestamp TIMESTAMP NOT NULL
+);
+
+CREATE TABLE analysis_jobs (
+    job_id UUID PRIMARY KEY,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) NOT NULL,
+    record_count INT,
+    duration_ms INT
+);
+
+CREATE TABLE detected_rings (
+    ring_id VARCHAR(50) PRIMARY KEY,
+    pattern_type VARCHAR(50) NOT NULL,
+    risk_score DECIMAL(5, 2) NOT NULL,
+    member_accounts JSONB NOT NULL
+);
+</code></pre>
+</body>
+</html>

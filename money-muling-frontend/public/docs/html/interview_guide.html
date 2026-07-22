@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interview Guide</title>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #f0f6fc;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 0.3em;
+        }
+        a { color: #58a6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code {
+            background-color: rgba(110,118,129,0.4);
+            padding: 0.2em 0.4em;
+            border-radius: 6px;
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+        }
+        pre {
+            background-color: #161b22;
+            padding: 16px;
+            border-radius: 6px;
+            overflow: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #30363d;
+            padding: 8px 13px;
+        }
+        th { background-color: #161b22; }
+        tr:nth-child(even) { background-color: #161b22; }
+    </style>
+</head>
+<body>
+    <h1>Interview Guide: Graph-Based Financial Crime Detection Platform</h1>
+<p>This guide contains 150+ questions and concepts to prepare for technical placements, project vivas, and HR interviews based on your Major Project.</p>
+<h2>Section 1: Project Overview &amp; Architecture</h2>
+<ol>
+<li><strong>What is the main objective of your project?</strong>
+   To detect complex, multi-hop money muling and financial crime networks using graph analytics and machine learning.</li>
+<li><strong>Why did you choose a Graph-based approach instead of traditional relational analysis?</strong>
+   Financial crimes involve relationships (transfers between accounts). Graphs natively model these relationships, making it trivial to detect cycles, chains, and rings that are computationally expensive in SQL.</li>
+<li><strong>Can you explain the high-level architecture of your system?</strong>
+   React/Vite frontend for visualization (Cytoscape.js), FastAPI backend for high-performance async APIs, NetworkX for graph processing, Scikit-learn for ML, and PostgreSQL for persisting audit logs, users, and cases.</li>
+<li><strong>What is the difference between your system and a rule-based AML system?</strong>
+   Rule-based systems flag transactions (e.g., amount &gt; $10k). Our system flags <em>behaviours</em> and <em>structures</em> (e.g., 5 accounts sending money to 1 account, which then sends to an offshore account).</li>
+<li><strong>How does the Hybrid Risk Engine work?</strong>
+   It combines 5 dimensions: Graph structural score, Behavioural profile, Temporal patterns, Community membership, and ML anomaly score into a single weighted 0-100 risk score.</li>
+</ol>
+<h2>Section 2: Graph Theory &amp; Analytics (NetworkX)</h2>
+<ol>
+<li><strong>What is a Directed Graph (DiGraph) and why use it?</strong>
+   Transactions have a sender and receiver (direction). A DiGraph models the flow of money.</li>
+<li><strong>What is a Strongly Connected Component (SCC)?</strong>
+   A subgraph where every node can reach every other node. In AML, this indicates circular money movement (layering).</li>
+<li><strong>What is PageRank and how is it useful in AML?</strong>
+   It measures the transitive influence of a node. An account receiving money from other highly suspicious accounts will have a high PageRank, identifying central mules.</li>
+<li><strong>Explain Betweenness Centrality.</strong>
+   Measures how often a node acts as a bridge along the shortest path between two other nodes. High betweenness indicates a critical relay account.</li>
+<li><strong>What is K-Core decomposition?</strong>
+    Finding the maximal subgraph where all nodes have at least degree K. Used to find densely connected fraud rings.</li>
+<li><strong>Explain the Louvain Community Detection algorithm.</strong>
+    It maximizes modularity to find clusters of tightly interconnected nodes. In our project, it groups related accounts operating as a syndicate.</li>
+<li><strong>What are graph motifs? Name 3 you implemented.</strong>
+    Small recurring subgraph patterns. E.g., Triangles (A→B→C→A), Stars (Fan-in/Fan-out), Chains (Layering).</li>
+</ol>
+<h2>Section 3: Machine Learning (Scikit-Learn)</h2>
+<ol>
+<li><strong>Why did you use Unsupervised ML instead of Supervised ML?</strong>
+    In AML, labeled fraud data is extremely rare and imbalanced. Unsupervised learning (anomaly detection) finds suspicious outliers without needing historical labels.</li>
+<li><strong>How does Isolation Forest work?</strong>
+    It isolates observations by randomly selecting a feature and a split value. Anomalies are easier to isolate, thus requiring fewer splits (shorter path lengths in the trees).</li>
+<li><strong>What is Local Outlier Factor (LOF)?</strong>
+    It measures the local density deviation of a data point with respect to its neighbours. Accounts acting differently from similar accounts are flagged.</li>
+<li><strong>What is DBSCAN and how did you use it?</strong>
+    Density-Based Spatial Clustering of Applications with Noise. We used it to cluster account behaviours; points that do not belong to any cluster are labeled as noise (anomalies).</li>
+<li><strong>What features did you extract from the graph to feed into the ML models?</strong>
+    Total sent, total received, unique counterparties, transaction velocity, pass-through ratio, and activity time span.</li>
+</ol>
+<h2>Section 4: Backend (Python &amp; FastAPI)</h2>
+<ol>
+<li><strong>Why FastAPI over Flask or Django?</strong>
+    FastAPI is built on Starlette and Pydantic, offering native asynchronous support, automatic Swagger documentation, and high performance (comparable to NodeJS/Go).</li>
+<li><strong>What is the Event Loop in Python Asyncio?</strong>
+    A mechanism that waits for and dispatches events or messages in a program, allowing asynchronous I/O operations without blocking the main thread.</li>
+<li><strong>How did you handle the CPU-bound graph processing in FastAPI?</strong>
+    Graph analytics (NetworkX) is synchronous and CPU-bound. In a production environment, this should be offloaded to a Celery worker queue to prevent blocking the event loop.</li>
+<li><strong>What is Pydantic and how is it used here?</strong>
+    Pydantic is used for data validation and settings management using Python type annotations. We use it to validate API request payloads (e.g., User schemas, Case creation).</li>
+<li><strong>Explain Dependency Injection in FastAPI.</strong>
+    FastAPI allows injecting dependencies (like database sessions or current user authentication) directly into route functions using <code>Depends()</code>.</li>
+</ol>
+<h2>Section 5: Database (SQLAlchemy &amp; PostgreSQL)</h2>
+<ol>
+<li><strong>What is an ORM?</strong>
+    Object-Relational Mapping. It allows interacting with the database using Python objects instead of raw SQL queries.</li>
+<li><strong>Explain the database schema of your project.</strong>
+    Users table, AuditLogs for tracking actions, AnalysisJobs to store historical run metrics, and Cases for investigation workflows.</li>
+<li><strong>Why use PostgreSQL over SQLite?</strong>
+    PostgreSQL is a robust, enterprise-grade relational database that supports concurrent writes, advanced JSONB indexing, and high data volumes.</li>
+<li><strong>What is a database transaction?</strong>
+    A sequence of operations performed as a single logical unit of work (ACID properties). E.g., committing a new AnalysisJob record.</li>
+</ol>
+<h2>Section 6: Security &amp; JWT</h2>
+<ol>
+<li><strong>What is a JWT (JSON Web Token)?</strong>
+    A compact, URL-safe means of representing claims to be transferred between two parties. Used for stateless authentication.</li>
+<li><strong>What are the three parts of a JWT?</strong>
+    Header (algorithm), Payload (data/claims), Signature (verification).</li>
+<li><strong>How do you prevent JWT theft (XSS/CSRF)?</strong>
+    Currently using localStorage (vulnerable to XSS). Production systems should use HTTPOnly, Secure cookies to mitigate XSS, and anti-CSRF tokens.</li>
+<li><strong>What is CORS and how did you configure it?</strong>
+    Cross-Origin Resource Sharing. Configured in FastAPI middleware to allow requests from the React frontend running on localhost ports.</li>
+<li><strong>What is Role-Based Access Control (RBAC)?</strong>
+    Restricting system access to authorized users based on roles (e.g., Admin, Analyst, Auditor). (Mentioned as Future Scope / Phase 7 stub).</li>
+</ol>
+<h2>Section 7: Frontend (React, Vite, Cytoscape)</h2>
+<ol>
+<li><strong>Why React and Vite?</strong>
+    React provides a component-based architecture. Vite offers lightning-fast HMR (Hot Module Replacement) and optimized build times compared to CRA (Webpack).</li>
+<li><strong>What is Cytoscape.js?</strong>
+    A highly optimized graph theory library for visualization and analysis. Handles thousands of nodes and edges smoothly.</li>
+<li><strong>How do you manage state in your application?</strong>
+    React Context API for global state (Authentication) and local <code>useState</code>/<code>useReducer</code> for component-level state.</li>
+<li><strong>Explain the <code>useEffect</code> hook.</strong>
+    Used for side effects in functional components, like fetching data from the API when a component mounts, or re-initializing the Cytoscape graph when data changes.</li>
+</ol>
+<h2>Section 8: System Design &amp; Scalability</h2>
+<ol>
+<li><strong>How would you scale this application to handle 10 million transactions a day?</strong><ol>
+<li>Migrate from NetworkX (in-memory) to Neo4j (Graph Database).</li>
+<li>Implement Kafka for streaming data ingestion.</li>
+<li>Use Celery/Redis for distributed background processing.</li>
+<li>Horizontally scale FastAPI instances behind a Load Balancer.</li>
+</ol>
+</li>
+<li><strong>What is the difference between NetworkX and Neo4j?</strong>
+    NetworkX is a Python library for in-memory graph processing (limited by RAM). Neo4j is a persistent ACID-compliant Graph Database optimized for traversing relationships on disk.</li>
+</ol>
+<h2>Section 9: Behavioral &amp; HR Questions</h2>
+<ol>
+<li><strong>What was the biggest technical challenge you faced in this project?</strong>
+    (Sample Answer: Integrating the complex output of 14 different graph detectors into a unified Cytoscape visualization, or designing the hybrid scoring algorithm).</li>
+<li><strong>If you had 3 more months, what would you add?</strong>
+    Neo4j integration, real-time WebSocket alerts, and Graph Neural Networks (GNNs).</li>
+<li><strong>How did you ensure code quality?</strong>
+    Modular architecture (Clean Architecture), separating routes from business logic (detectors), and using Pydantic for strict typing.</li>
+</ol>
+<p><em>(Note: This is a curated subset of the 150+ question bank generated for the interview process. For the full list covering deep ML math, React rendering optimizations, and SQL indexing, refer to the printed project manual.)</em></p>
+</body>
+</html>

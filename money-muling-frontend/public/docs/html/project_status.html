@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Status</title>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #f0f6fc;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 0.3em;
+        }
+        a { color: #58a6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code {
+            background-color: rgba(110,118,129,0.4);
+            padding: 0.2em 0.4em;
+            border-radius: 6px;
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+        }
+        pre {
+            background-color: #161b22;
+            padding: 16px;
+            border-radius: 6px;
+            overflow: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #30363d;
+            padding: 8px 13px;
+        }
+        th { background-color: #161b22; }
+        tr:nth-child(even) { background-color: #161b22; }
+    </style>
+</head>
+<body>
+    <h1>Current Project Status</h1>
+<p>This document captures the exact implementation status of the Money Muling Detection System. It represents only what is currently coded and functional, without referencing proposed features or future upgrades.</p>
+<hr />
+<h2>🏛️ Current Architecture</h2>
+<p>The system is implemented as a decoupled, monolithic client-server application:
+*   <strong>Frontend</strong>: Single Page React Application built with Vite, React Router, React Bootstrap, and Axios.
+*   <strong>Backend</strong>: Python FastAPI app powered by Uvicorn.
+*   <strong>Database</strong>: PostgreSQL (using SQLAlchemy) for authentication and audit log persistence, with an active fallback to SQLite.
+*   <strong>Analysis Layer</strong>: Stateless, synchronous, in-memory graph analyzer built using Python <code>pandas</code> and <code>networkx</code>.</p>
+<hr />
+<h2>⚙️ Implemented Modules</h2>
+<h3>1. Backend (FastAPI)</h3>
+<ul>
+<li><strong>Framework</strong>: FastAPI serving endpoints defined in <code>main.py</code> and <code>api/routes/</code>.</li>
+<li><strong>Routing</strong>: Routes are split between <code>api/routes/auth.py</code>, <code>api/routes/audit.py</code>, and primary endpoints in <code>main.py</code> (<code>/analyze</code> and <code>/sample-generator</code>).</li>
+<li><strong>Validation</strong>: Handled using Pydantic schemas under <code>schemas/</code>.</li>
+<li><strong>Error Handling</strong>: Handled locally via <code>try-except</code> blocks returning specific response payloads.</li>
+</ul>
+<h3>2. Frontend (React)</h3>
+<ul>
+<li><strong>Client Setup</strong>: React 18 SPA compiled using Vite.</li>
+<li><strong>Authentication Flow</strong>: Context-driven <code>AuthContext</code> capturing JWT tokens in <code>localStorage</code>.</li>
+<li><strong>API Interception</strong>: Axios client in <code>services/api.js</code> intercepting outgoing requests to attach <code>Authorization: Bearer &lt;token&gt;</code>.</li>
+<li><strong>UI Components</strong>: Divided into <code>components/auth</code> (Login, Register), <code>components/dashboard</code> (Stats panels and data tables), and <code>components/layout</code> (Header, Navbars).</li>
+</ul>
+<h3>3. Database</h3>
+<ul>
+<li><strong>ORM</strong>: SQLAlchemy <code>declarative_base</code> setup with automatic schema creation (<code>Base.metadata.create_all</code>) on startup.</li>
+<li><strong>Active Schema</strong>:<ul>
+<li><code>users</code>: Stores <code>id</code> (int), <code>username</code> (varchar, unique, indexed), and <code>password</code> (varchar, hashed).</li>
+<li><code>audit_logs</code>: Stores <code>id</code> (int), <code>timestamp</code> (datetime), <code>event_type</code> (varchar), <code>event_action</code> (varchar), <code>event_status</code> (varchar), <code>user_id</code> (int), <code>username</code> (varchar), <code>ip_address</code> (varchar), <code>user_agent</code> (varchar), <code>endpoint</code> (varchar), <code>method</code> (varchar), <code>details</code> (text), <code>error_message</code> (text), and <code>duration_ms</code> (int).</li>
+</ul>
+</li>
+</ul>
+<h3>4. Authentication &amp; Authorization</h3>
+<ul>
+<li><strong>Hashing</strong>: Passwords hashed using <code>passlib[bcrypt]</code>.</li>
+<li><strong>Session Management</strong>: JSON Web Tokens (JWT) using <code>python-jose</code> HS256 algorithm.</li>
+<li><strong>Authorization Dependents</strong>: Route security applied using FastAPI dependency injection (<code>Depends(get_current_user)</code>).</li>
+</ul>
+<h3>5. Audit Logging System</h3>
+<ul>
+<li><strong>Unified Logger</strong>: <code>log_event</code> function in <code>services/audit_service.py</code> records IP address (supporting <code>X-Forwarded-For</code>), HTTP headers, response statuses, and operational latency (in milliseconds).</li>
+<li><strong>Error Logger</strong>: <code>log_error</code> helper records unhandled exceptions alongside tracebacks to the audit logs.</li>
+</ul>
+<h3>6. CSV Processing &amp; Ingestion</h3>
+<ul>
+<li><strong>Parser</strong>: <code>parse_csv</code> in <code>utils/csv_parser.py</code> parses uploaded content.</li>
+<li><strong>Required Fields</strong>: CSV must contain columns <code>transaction_id</code>, <code>sender_id</code>, <code>receiver_id</code>, <code>amount</code>, and <code>timestamp</code>.</li>
+<li><strong>Coercion</strong>: Non-numeric amounts and invalid timestamps are coerced to NaN, and their rows are dropped from ingestion.</li>
+</ul>
+<h3>7. Detection Algorithms</h3>
+<ul>
+<li><strong>Cycle Detection</strong>: Depth-first search (DFS) with a maximum length of 4. Lexicographical comparisons prune duplicate paths.</li>
+<li><strong>Fan-In Detection</strong>: Identifies hubs receiving transactions from multiple unique senders within a sliding time window.</li>
+<li><strong>Fan-Out Detection</strong>: Identifies hubs distributing transfers to multiple unique receivers.</li>
+<li><strong>Layering Detection</strong>: Traces chains of transactions where intermediates are low-degree nodes.</li>
+<li><strong>Burst Detection</strong>: Identifies accounts that have had long periods of dormancy, followed by high-frequency transaction spikes.</li>
+<li><strong>Suspicion Scoring</strong>: Computes suspicion scores (0-100) using weights: <code>Cycle: 40</code>, <code>Fan: 25</code>, <code>Burst: 25</code>, <code>Layering: 20</code>, plus multi-involvement bonuses.</li>
+</ul>
+<hr />
+<h2>🔌 API Endpoints</h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Auth Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/auth/register</code></td>
+<td>No</td>
+<td>Creates a new user profile.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/auth/login</code></td>
+<td>No</td>
+<td>Verifies credentials, returns access token.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/auth/me</code></td>
+<td>Yes</td>
+<td>Retrieves profile info of current user.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/auth/change-password</code></td>
+<td>Yes</td>
+<td>Changes current user password.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/analyze</code></td>
+<td>Yes</td>
+<td>Receives CSV file, parses, runs detectors, returns JSON results.</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/sample-generator</code></td>
+<td>No</td>
+<td>Receives configuration parameters, returns synthetic transactions.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/audit/login-history</code></td>
+<td>Yes</td>
+<td>Retrieves historical user login records.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/audit/failed-attempts</code></td>
+<td>Yes</td>
+<td>Retrieves failed login actions.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/audit/analyze-history</code></td>
+<td>Yes</td>
+<td>Retrieves log history of file analysis events.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/audit/activity</code></td>
+<td>Yes</td>
+<td>Lists general user activity records.</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/audit/stats</code></td>
+<td>Yes</td>
+<td>Retrieves overall event metrics.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>⚠️ Current Limitations</h2>
+<ol>
+<li><strong>Stateless Transaction Processing</strong>: Transactions are not stored. All graph calculations are processed on-the-fly from the CSV.</li>
+<li><strong>Blocking CPU Execution</strong>: Heavy Graph DFS traverses execute synchronously in the FastAPI loop.</li>
+<li><strong>Local Token Storage</strong>: Frontend JWTs are stored in <code>localStorage</code>, making them vulnerable to XSS.</li>
+<li><strong>No Inbound Rate Limiting</strong>: The API does not throttle client requests.</li>
+<li><strong>Lack of Network Visualizations</strong>: Frontend lists fraud matches in text tables; no network nodes or paths are visualised.</li>
+</ol>
+</body>
+</html>

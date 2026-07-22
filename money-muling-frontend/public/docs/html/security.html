@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security</title>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #f0f6fc;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 0.3em;
+        }
+        a { color: #58a6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code {
+            background-color: rgba(110,118,129,0.4);
+            padding: 0.2em 0.4em;
+            border-radius: 6px;
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+        }
+        pre {
+            background-color: #161b22;
+            padding: 16px;
+            border-radius: 6px;
+            overflow: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #30363d;
+            padding: 8px 13px;
+        }
+        th { background-color: #161b22; }
+        tr:nth-child(even) { background-color: #161b22; }
+    </style>
+</head>
+<body>
+    <h1>Security Review</h1>
+<p>This document provides a security audit, risk assessment, and production improvement plan for the Money Muling Detection System.</p>
+<hr />
+<h2>🔒 Current Security Implementations</h2>
+<h3>1. Cryptography &amp; Hashing</h3>
+<ul>
+<li><strong>Password Hashing</strong>: Implemented using <code>passlib[bcrypt]</code>. Hashing is executed via the <code>Verify</code> and <code>Hash</code> interfaces of <code>CryptContext</code>. No raw text passwords are saved to the database.</li>
+<li><strong>JWT Handlers</strong>: Implemented using the <code>python-jose</code> library, employing the <code>HS256</code> symmetric algorithm for access tokens.</li>
+</ul>
+<h3>2. Audit Trails</h3>
+<ul>
+<li><strong>Log Coverage</strong>: The <code>audit_logs</code> table records authentication attempts, registry actions, profile views, and file uploads.</li>
+<li><strong>Log Context</strong>: Tracks caller IP (extracting <code>X-Forwarded-For</code> proxy headers), User-Agent header string, target endpoint, execution duration, and serialized error context payloads.</li>
+</ul>
+<hr />
+<h2>⚠️ Identified Risks &amp; Limitations</h2>
+<h3>1. Secrets Management</h3>
+<ul>
+<li><strong>Risk</strong>: Critical.</li>
+<li><strong>Findings</strong>: The environment file <code>.env</code> (containing Supabase production database credentials and active JWT signing keys) was committed directly to the git repository history.</li>
+<li><strong>Exposure</strong>: If the project repository is made public, database credentials will be exposed.</li>
+</ul>
+<h3>2. Client Token Leakage</h3>
+<ul>
+<li><strong>Risk</strong>: High.</li>
+<li><strong>Findings</strong>: The React frontend stores the authentication JWT in <code>localStorage</code> and loads it into requests.</li>
+<li><strong>Exposure</strong>: In the event of a Cross-Site Scripting (XSS) exploit, an attacker can extract and steal the access token.</li>
+</ul>
+<h3>3. File Upload Vector</h3>
+<ul>
+<li><strong>Risk</strong>: High.</li>
+<li><strong>Findings</strong>: The <code>/analyze</code> file upload handler reads files into memory without verifying limits or restricting mime-type headers.</li>
+<li><strong>Exposure</strong>: An attacker can upload large files (denial of service via memory exhaustion) or inject macro formulas into CSV outputs.</li>
+</ul>
+<h3>4. Brute-Force Vulnerability</h3>
+<ul>
+<li><strong>Risk</strong>: Medium.</li>
+<li><strong>Findings</strong>: Endpoints <code>/auth/login</code> and <code>/auth/register</code> are not protected by rate limiters.</li>
+<li><strong>Exposure</strong>: Attackers can execute automated dictionary search scripts to compromise user profiles.</li>
+</ul>
+<hr />
+<h2>🛡️ Production Security Checklist</h2>
+<h3>1. Immediate Actions</h3>
+<ul>
+<li><strong>Rotate Credentials</strong>: Immediately rotate Supabase passwords and generate a new random 256-bit JWT secret.</li>
+<li><strong>Clean Repository</strong>: Run <code>git-filter-repo</code> to erase history entries of the <code>.env</code> file. Add <code>.env</code> to <code>.gitignore</code>.</li>
+</ul>
+<h3>2. Code Enhancements</h3>
+<ul>
+<li><strong>Cookie Authentication</strong>: Transition from <code>localStorage</code> token storage to secure, HttpOnly, SameSite=Strict cookies. This mitigates XSS-based token theft.</li>
+<li><strong>File Upload Validation</strong>: Enforce maximum file upload sizes (e.g., 10MB limit) and restrict content types.</li>
+<li><strong>Rate Limiting</strong>: Integrate the <code>slowapi</code> library into FastAPI routes to limit requests to <code>/auth</code> routes.</li>
+</ul>
+</body>
+</html>
