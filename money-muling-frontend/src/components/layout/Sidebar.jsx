@@ -24,9 +24,10 @@ const NAV_ITEMS = [
   {
     section: 'Analytics',
     items: [
+      { path: '/alerts',     icon: '🚨', label: 'Alerts' },
+      { path: '/cases',      icon: '🗂️', label: 'Cases' },
       { path: '/statistics', icon: '📈', label: 'Statistics' },
       { path: '/reports',    icon: '📄', label: 'Reports' },
-      { path: '/cases',      icon: '🗂️', label: 'Cases' },
     ],
   },
   {

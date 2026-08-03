@@ -5,6 +5,9 @@ from sqlalchemy.orm import Session
 from api.deps import get_bearer_token
 from db.database import get_db
 from schemas.auth import PasswordChange, Token, UserCreate, UserOut
+from models.user import User
+from models.role import Role
+from api.deps import get_bearer_token, get_current_user, RoleChecker
 from services.auth_service import (
     authenticate_user,
     change_password,
@@ -26,7 +29,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def register(payload: UserCreate, request: Request, db: Session = Depends(get_db)):
+def register(
+    payload: UserCreate, 
+    request: Request, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker([Role.SUPER_ADMIN.value, Role.ADMIN.value]))
+):
     existing_user = get_user_by_username(db, payload.username)
     if existing_user:
         log_event(
@@ -36,11 +44,18 @@ def register(payload: UserCreate, request: Request, db: Session = Depends(get_db
             event_status=EventStatus.FAILURE,
             username=payload.username,
             request=request,
-            details={"reason": "username_exists"},
+            details={"reason": "username_exists", "actor_id": current_user.id},
         )
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists")
     
-    user = create_user(db, payload.username, payload.password)
+    user = create_user(
+        db=db, 
+        username=payload.username, 
+        password=payload.password,
+        email=payload.email,
+        role=payload.role,
+        organization_id=payload.organization_id
+    )
     log_event(
         db=db,
         event_type=EventType.AUTH,
@@ -72,7 +87,7 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token = create_access_token(subject=user.username)
+    access_token = create_access_token(user=user)
     log_event(
         db=db,
         event_type=EventType.AUTH,
@@ -87,7 +102,8 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
 
 @router.get("/me", response_model=UserOut)
 def me(request: Request, token: str = Depends(get_bearer_token), db: Session = Depends(get_db)):
-    username = decode_access_token(token)
+    payload = decode_access_token(token)
+    username = payload.get("sub") if payload else None
     if not username:
         log_event(
             db=db,
@@ -126,7 +142,8 @@ def change_user_password(
     token: str = Depends(get_bearer_token),
     db: Session = Depends(get_db),
 ):
-    username = decode_access_token(token)
+    payload_dict = decode_access_token(token)
+    username = payload_dict.get("sub") if payload_dict else None
     if not username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from config.settings import settings
 from models.user import User
-
+from models.role import Role
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
@@ -24,8 +24,21 @@ def get_user_by_username(db: Session, username: str) -> Optional[User]:
     return db.query(User).filter(User.username == username).first()
 
 
-def create_user(db: Session, username: str, password: str) -> User:
-    user = User(username=username, password=get_password_hash(password))
+def create_user(
+    db: Session, 
+    username: str, 
+    password: str, 
+    email: Optional[str] = None, 
+    role: Role = Role.CLIENT_USER, 
+    organization_id: Optional[int] = None
+) -> User:
+    user = User(
+        username=username, 
+        password=get_password_hash(password),
+        email=email,
+        role=role.value,
+        organization_id=organization_id
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -36,23 +49,46 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
     user = get_user_by_username(db, username)
     if not user:
         return None
-    if not verify_password(password, user.password):
+        
+    if not user.is_active:
         return None
+        
+    now = datetime.now(timezone.utc)
+    if user.locked_until and user.locked_until > now:
+        return None
+        
+    if not verify_password(password, user.password):
+        user.failed_login_count += 1
+        if user.failed_login_count >= 5:
+            user.locked_until = now + timedelta(minutes=15)
+        db.commit()
+        return None
+        
+    # Success, reset counters
+    user.failed_login_count = 0
+    user.locked_until = None
+    user.last_login = now
+    db.commit()
     return user
 
 
-def create_access_token(subject: str, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(user: User, expires_delta: Optional[timedelta] = None) -> str:
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
     )
-    to_encode = {"sub": subject, "exp": expire}
+    to_encode = {
+        "sub": user.username, 
+        "exp": expire,
+        "role": user.role,
+        "org_id": user.organization_id
+    }
     return jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
-def decode_access_token(token: str) -> Optional[str]:
+def decode_access_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
-        return payload.get("sub")
+        return payload
     except JWTError:
         return None
 

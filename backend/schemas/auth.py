@@ -1,14 +1,22 @@
-from pydantic import BaseModel, Field
-
+from pydantic import BaseModel, Field, EmailStr
+from typing import Optional
+from models.role import Role
 
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=150)
     password: str = Field(min_length=8, max_length=128)
+    email: Optional[EmailStr] = None
+    role: Role = Role.CLIENT_USER
+    organization_id: Optional[int] = None
 
 
 class UserOut(BaseModel):
     id: int
     username: str
+    email: Optional[str] = None
+    role: str
+    organization_id: Optional[int] = None
+    is_active: bool
 
     class Config:
         from_attributes = True

@@ -13,8 +13,10 @@ from db.database import Base
 class Case(Base):
     __tablename__ = "cases"
 
-    id            = Column(Integer, primary_key=True, index=True)
-    user_id       = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    id              = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    created_by_id   = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    assignee_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     title         = Column(String(255), nullable=False)
     description   = Column(Text, nullable=True)
     # OPEN | INVESTIGATING | CLOSED | ESCALATED
@@ -29,4 +31,5 @@ class Case(Base):
     notes           = Column(Text, nullable=True)
     created_at      = Column(DateTime(timezone=True), server_default=func.now())
     updated_at      = Column(DateTime(timezone=True), onupdate=func.now())
+    status_updated_at = Column(DateTime(timezone=True), server_default=func.now())
     closed_at       = Column(DateTime(timezone=True), nullable=True)

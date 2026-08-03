@@ -13,6 +13,7 @@ class AnalysisJob(Base):
     __tablename__ = "analysis_jobs"
 
     id                       = Column(Integer, primary_key=True, index=True)
+    organization_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     user_id                  = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     filename                 = Column(String(255), nullable=False)
     status                   = Column(String(50), default="completed")   # completed | failed

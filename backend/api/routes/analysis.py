@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, Request, HTTPException
 from sqlalchemy.orm import Session
 import time
 
-from api.deps import get_current_user
+from api.deps import get_current_user, get_current_workspace
 from db.database import get_db
 from models.user import User
 from models.analysis_job import AnalysisJob
@@ -48,6 +48,7 @@ async def analyze_advanced(
     request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
+    org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
     """
@@ -172,6 +173,7 @@ async def analyze_advanced(
 
         # ── Persist job record ─────────────────────────────────
         job = AnalysisJob(
+            organization_id=org_id,
             user_id=current_user.id,
             filename=file.filename,
             status="completed",
@@ -213,6 +215,7 @@ async def analyze_advanced(
 
         # Persist failed job
         job = AnalysisJob(
+            organization_id=org_id,
             user_id=current_user.id, filename=file.filename,
             status="failed", error_message=str(e)[:500],
         )
@@ -224,13 +227,13 @@ async def analyze_advanced(
 @router.get("/jobs")
 def list_analysis_jobs(
     limit: int = 20,
-    current_user: User = Depends(get_current_user),
+    org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
-    """List recent analysis jobs for the current user."""
+    """List recent analysis jobs for the current organization."""
     jobs = (
         db.query(AnalysisJob)
-        .filter(AnalysisJob.user_id == current_user.id)
+        .filter(AnalysisJob.organization_id == org_id)
         .order_by(AnalysisJob.created_at.desc())
         .limit(limit)
         .all()

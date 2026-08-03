@@ -1,0 +1,9 @@
+import enum
+
+class Role(str, enum.Enum):
+    SUPER_ADMIN = "SUPER_ADMIN"
+    ADMIN = "ADMIN"
+    INVESTIGATOR = "INVESTIGATOR"
+    TRACE_LAB_ANALYST = "TRACE_LAB_ANALYST"
+    CLIENT_USER = "CLIENT_USER"
+    AUDITOR = "AUDITOR"

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppLayout from '../layout/AppLayout';
 import api from '../../services/api';
 
@@ -34,6 +35,7 @@ export default function CasesPage() {
   const [cases, setCases]       = useState([]);
   const [loading, setLoading]   = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const navigate = useNavigate();
   const [form, setForm] = useState({ title: '', description: '', priority: 'MEDIUM', notes: '' });
   const [creating, setCreating] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
@@ -203,7 +205,12 @@ export default function CasesPage() {
                   <tr key={c.id}>
                     <td style={{ color: '#8b949e', fontSize: 11 }}>{c.id}</td>
                     <td>
-                      <div style={{ fontWeight: 600, color: '#f0f6fc', fontSize: 13 }}>{c.title}</div>
+                      <div 
+                        style={{ fontWeight: 600, color: '#388bfd', fontSize: 13, cursor: 'pointer' }}
+                        onClick={() => navigate(`/cases/${c.id}`)}
+                      >
+                        {c.title}
+                      </div>
                       {c.description && (
                         <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>{c.description}</div>
                       )}

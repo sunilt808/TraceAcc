@@ -22,6 +22,8 @@ import TimelinePage from './components/pages/TimelinePage';
 import StatisticsPage from './components/pages/StatisticsPage';
 import ReportsPage from './components/pages/ReportsPage';
 import CasesPage from './components/pages/CasesPage';
+import CaseDetail from './components/pages/CaseDetail';
+import AlertsPage from './components/pages/AlertsPage';
 
 import SettingsPage from './components/settings/SettingsPage';
 
@@ -59,6 +61,8 @@ function App() {
       <Route path="/statistics" element={<ProtectedRoute><StatisticsPage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
       <Route path="/cases" element={<ProtectedRoute><CasesPage /></ProtectedRoute>} />
+      <Route path="/cases/:id" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
+      <Route path="/alerts" element={<ProtectedRoute><AlertsPage /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -1,0 +1,325 @@
+﻿================================================================================
+  TRACEACC PRO — ENTERPRISE AML PLATFORM
+  FULL SOFTWARE ARCHITECTURE REVIEW & TRANSFORMATION ROADMAP
+  Authored by: Principal Software Engineer (JPMorgan Chase AML Division)
+  Date: 2026-08-03  |  Branch: newupgrade1
+  Codebase: github.com/sunilt808/Traceacc
+================================================================================
+
+EXECUTIVE SUMMARY
+-----------------
+TraceAcc Pro is an AML (Anti-Money Laundering) and Money Mule Detection platform
+currently at the "advanced academic prototype" stage. It has genuine technical
+depth — a multi-algorithm graph detection engine, hybrid risk scoring, audit
+logging, and a case management module — that place it significantly ahead of a
+typical college project. However, it has critical gaps in compliance, security,
+scalability, observability, and enterprise case-management that would prevent
+a Tier-1 bank from piloting it without a complete overhaul of those layers.
+
+This document reviews all 15 areas requested, provides a maturity scorecard,
+and concludes with a 12-month, 4-phase transformation roadmap.
+
+================================================================================
+SECTION 1: BUSINESS ANALYSIS
+================================================================================
+
+1.1 TARGET USERS
+----------------
+Primary personas at a Tier-1 bank:
+
+  PERSONA 1 — AML Analyst (Level 1)
+    Role: Triage incoming alerts, rule out false positives, escalate real hits.
+    Pain: Alert fatigue (industry average false-positive rate: 95-98%).
+           Manual spreadsheet-based investigation across 5+ siloed systems.
+    Needs: One-stop workspace, case timeline, contextual graph, quick dismiss.
+
+  PERSONA 2 — Senior AML Investigator (Level 2/3)
+    Role: Deep investigation, SAR (Suspicious Activity Report) drafting.
+    Pain: Evidence gathering is manual; cross-border transaction correlation
+           requires access to 3 different systems; no AI assistance.
+    Needs: Link analysis, network visualization, document upload, SAR generator.
+
+  PERSONA 3 — AML Compliance Officer / MLRO
+    Role: Oversight, regulatory reporting, policy governance.
+    Pain: No real-time view of investigation backlog, SLA breaches undetected,
+           board reporting is manual.
+    Needs: Executive KPI dashboard, SLA tracking, trend reports, SAR register.
+
+  PERSONA 4 — Financial Crime Technology Team
+    Role: Rule management, model tuning, system integration.
+    Pain: Rule changes require code deployments; no A/B testing for rules;
+           no model drift visibility.
+    Needs: Low-code rule builder, ML monitoring, feedback loops.
+
+  PERSONA 5 — Internal Auditor
+    Role: Ensure all investigation activities are documented and auditable.
+    Pain: Incomplete audit trails, no immutable log.
+    Needs: Tamper-evident logs, full action history, export to regulator.
+
+1.2 BUSINESS WORKFLOW
+---------------------
+  [Transaction Data] -> [Real-time Ingestion / CSV Upload]
+         |
+  [AML Rule Engine + ML Anomaly Detection]
+         |
+  [Alert Generation & Deduplication]
+         |
+  [Analyst Triage Queue] -> [Case Creation]
+         |
+  [L1 Investigation] -> [Escalate to L2?] -> [L2 Deep Dive]
+         |
+  [SAR Decision: File / No-File]
+         |
+  [Regulatory Reporting (FinCEN / FCA / MAS)]
+         |
+  [Case Closure + Feedback to ML Models]
+
+1.3 AML INVESTIGATION LIFECYCLE (Industry Standard)
+----------------------------------------------------
+  Phase 1 - Alert:        System detects anomaly -> alert generated.
+  Phase 2 - Triage:       Analyst reviews alert within SLA (T+1 day for HIGH).
+  Phase 3 - Case Open:    If not dismissed, a Case is opened with evidence.
+  Phase 4 - Investigation: Analyst gathers evidence, links accounts, notes findings.
+  Phase 5 - Review:       Senior analyst or compliance officer reviews.
+  Phase 6 - Decision:     SAR filed / case closed / escalated to law enforcement.
+  Phase 7 - Closure:      Case documented, metrics recorded, ML feedback submitted.
+
+1.4 COMPLIANCE WORKFLOW
+-----------------------
+  FinCEN (US): SAR must be filed within 30 days of detection.
+               (60 days for money laundering involving known violations.)
+  FCA (UK):    Suspicious Activity Reports under POCA 2002. Tipping-off prohibition.
+  FATF:        Forty Recommendations -- risk-based approach to AML.
+  Basel III:   Capital adequacy tied to operational risk including AML failures.
+  GDPR/DPDP:   PII handling in investigation notes and audit logs.
+
+1.5 BANKING PAIN POINTS ADDRESSED BY TRACEACC
+----------------------------------------------
+  CURRENT                        TRACEACC PRO POTENTIAL
+  ----------------------------   ----------------------------------
+  Manual CSV exports + Excel     Automated ingestion + graph viz
+  Siloed detection systems       Unified hybrid scoring engine
+  Rule-only detection            ML + graph + rule hybrid
+  No case management             Case CRUD (currently basic)
+  No relationship graph          NetworkX graph + community detect
+  Black-box alerts               Score breakdown explainability
+  No audit trail                 AuditLog model (good start)
+
+1.6 BUSINESS KPIs (What Banks Measure)
+---------------------------------------
+  Detection Rate (True Positive Rate):   Target >= 85%
+  False Positive Rate:                   Target <= 30% (industry: 95-98%)
+  Alert-to-Case Conversion Rate:         Target >= 40%
+  Alert Review SLA Compliance:           Target >= 99% (T+1 for HIGH)
+  SAR Filing Rate:                       Regulatory -- 100% of valid hits
+  Mean Time to Investigate (MTTI):       Target <= 3 days
+  Model Precision / Recall:              Tracked monthly
+  Regulatory Finding Rate:               Target = 0
+
+1.7 MISSING BUSINESS CAPABILITIES (Critical Gaps)
+--------------------------------------------------
+  1.  No SAR (Suspicious Activity Report) generation module.
+  2.  No regulatory reporting export (FinCEN CTR, SAR XML formats).
+  3.  No alert SLA tracking or breach notifications.
+  4.  No watchlist / sanctions screening (OFAC, EU, UN).
+  5.  No PEP (Politically Exposed Person) detection.
+  6.  No Customer Risk Profile management.
+  7.  No cross-case deduplication or alert merging.
+  8.  No workflow routing (assign case to specific analyst).
+  9.  No approval chain (L2 must approve L1 closure).
+  10. No notification system (email / Slack / webhook).
+  11. No multi-tenancy (bank isolation in SaaS model).
+  12. No real-time streaming (only batch CSV upload).
+
+
+================================================================================
+SECTION 2: FEATURE GAP ANALYSIS
+================================================================================
+
+MODULE: CSV Transaction Upload
+-------------------------------
+CURRENT DESIGN:
+  POST /analyze accepts a CSV file. Parsed via utils/csv_parser.py.
+  Max size: 500 MB. Runs synchronously in thread pool executor.
+
+PROBLEMS:
+  1. A 500 MB CSV blocks the server for minutes on a single process.
+  2. No schema validation beyond basic parsing -- malformed columns silently fail.
+  3. No virus/malware scanning on uploaded files.
+  4. No deduplication -- same file analyzed twice generates duplicate jobs.
+  5. No streaming -- entire file is read into memory.
+  6. No support for Excel, JSON, Parquet, or Kafka topic sources.
+  7. Raw file not stored -- only result metadata persisted in analysis_jobs.
+  8. File encoding assumed UTF-8 with no fallback or BOM detection.
+
+INDUSTRY STANDARD (Actimize / Oracle FC):
+  Files are streamed through a validation pipeline, stored to S3/blob, and
+  queued via Kafka for async processing. Results published back as events.
+  File deduplication via SHA-256 hash. Virus scanning mandatory.
+
+IMPROVED VERSION:
+  - SHA-256 hash check before processing (reject known duplicates).
+  - Store file to S3/MinIO with server-side encryption (AES-256).
+  - Offload analysis to Celery/ARQ background worker via task queue.
+  - Pydantic schema validation for CSV column types and required fields.
+  - Return job_id immediately (202 Accepted), poll for results.
+  - Streaming parser (pandas chunksize or DuckDB for large files).
+  - Support Excel and JSON input formats.
+  - ClamAV or cloud-native antivirus scan.
+
+PRIORITY: HIGH | COMPLEXITY: MEDIUM | BUSINESS VALUE: HIGH
+
+---
+
+MODULE: Authentication & Authorization
+---------------------------------------
+CURRENT DESIGN:
+  JWT with HS256 signing. Tokens expire in 60 minutes (configurable).
+  Single User model: id, username, password (pbkdf2_sha256 hashed).
+  No roles. Every authenticated user has full access to all endpoints.
+  JWT secret defaults to "change-this-in-production" if env var not set.
+
+PROBLEMS (CRITICAL):
+  1.  NO RBAC -- any user can delete cases, read audit logs, run any analysis.
+  2.  JWT secret has insecure default -- if env var is missing, tokens signed
+      with a publicly known key.
+  3.  No refresh token mechanism -- users must re-login every 60 minutes.
+  4.  No MFA -- required by all bank security frameworks (PCI DSS, SOC2).
+  5.  No account lockout -- brute-force attacks trivially succeed.
+  6.  No session revocation -- JWT is valid until expiry, logout is impossible.
+  7.  No OAuth2/SAML -- banks require SSO (Active Directory, Okta, PingFederate).
+  8.  Username as JWT subject -- token still valid if username is changed.
+  9.  No email field -- password reset is architecturally impossible.
+  10. CORS regex allows any localhost port -- dangerous in production.
+
+INDUSTRY STANDARD:
+  Enterprise AML systems integrate with bank IdP via SAML 2.0 or OIDC.
+  Internal RBAC: ANALYST, SENIOR_ANALYST, COMPLIANCE_OFFICER, ADMIN, READ_ONLY.
+  ABAC for data-level permissions (analyst sees only assigned cases).
+
+IMPROVED VERSION:
+  - User model fields: email, role (enum), is_active, failed_login_count,
+    locked_until, mfa_secret, last_login, created_by.
+  - RBAC middleware: @require_role([Role.ANALYST, Role.SENIOR_ANALYST])
+  - Refresh tokens (stored in Redis, invalidated on logout).
+  - TOTP-based MFA via python-otp / pyotp.
+  - Account lockout after 5 failed attempts (15-minute lockout).
+  - SAML2 integration via python3-saml for SSO.
+  - RS256 (asymmetric) for JWT signing instead of HS256.
+  - Fail-safe: raise startup exception if JWT_SECRET_KEY not set.
+
+PRIORITY: CRITICAL | COMPLEXITY: HIGH | BUSINESS VALUE: CRITICAL
+
+---
+
+MODULE: AML Detection Engine (Core Detectors)
+-----------------------------------------------
+CURRENT DESIGN:
+  15+ detectors: cycle, fan, layering, burst, centrality, community,
+  temporal, velocity, amount patterns, repeat pairs, motifs, ML anomaly,
+  risk propagation, account profiles, kcore, bridges, components.
+  Hybrid engine combines 5 dimensions: graph, behaviour, temporal, community, ML.
+  Weights: graph=0.35, behaviour=0.20, temporal=0.15, community=0.10, ml=0.20.
+
+PROBLEMS:
+  1.  Detectors run sequentially -- no parallelism despite immutable graph.
+  2.  All in-memory -- graphs >500K nodes risk OOM.
+  3.  Thresholds hardcoded (dormant_days=180, burst_threshold=10) -- no config.
+  4.  PATTERN_WEIGHTS in score.py hardcoded, not model-derived.
+  5.  No structuring/smurfing detection (CTR threshold: $10,000 in US).
+  6.  No sanctions screening (OFAC, EU, UN).
+  7.  No PEP screening.
+  8.  No country risk scoring.
+  9.  No synthetic identity detection.
+  10. No insider fraud detection.
+  11. Cycle detection capped at max_length=4 -- misses longer laundering chains.
+  12. DBSCAN eps=1.5 and min_samples=3 are fixed -- not tuned per dataset.
+  13. Burst uses absolute counts, not z-score vs. account's own history.
+  14. Risk propagation computed but NOT integrated into hybrid score.
+  15. Community score = community_size * 5 -- generates false positives for
+      large legitimate communities.
+
+INDUSTRY STANDARD (NICE Actimize RCM):
+  Rule engine with 200+ configurable typologies.
+  Real-time screening against 50+ watchlists.
+  Behavioral baselining per-customer per-channel.
+  ML models retrained weekly with analyst feedback.
+  Threshold calibration per bank segment (retail vs. corporate).
+
+PRIORITY: HIGH | COMPLEXITY: HIGH | BUSINESS VALUE: VERY HIGH
+
+---
+
+MODULE: Case Management
+------------------------
+CURRENT DESIGN:
+  Case model: id, user_id, title, description, status, priority,
+  linked_accounts, linked_rings, analysis_job_id, notes, timestamps.
+  Statuses: OPEN, INVESTIGATING, CLOSED, ESCALATED.
+  API: CRUD with delete. Frontend: basic table with status filter.
+
+PROBLEMS (CRITICAL):
+  1.  No assignment -- cases owned by creator, cannot be reassigned.
+  2.  No approval workflow -- anyone closes any case, no senior review.
+  3.  Notes is a single text blob -- no threaded comment history.
+  4.  No attachments/evidence vault.
+  5.  No SLA tracking -- no breach alerts.
+  6.  No per-case audit trail -- no history of who changed what and when.
+  7.  No case merging -- duplicate alerts create unlinked separate cases.
+  8.  No escalation routing -- ESCALATED status routes to nowhere.
+  9.  DELETE endpoint exists -- regulators require case immutability.
+  10. No SAR linkage -- cases do not track regulatory filing.
+  11. linked_accounts/linked_rings are raw JSON -- no entity drill-down.
+  12. No advanced search or date-range filtering.
+  13. Cases isolated per user -- teams cannot collaborate.
+
+INDUSTRY STANDARD (Oracle Financial Crime):
+  Full workflow engine: Intake -> Triage -> Investigation -> Review ->
+  Approval -> SAR Decision -> Regulatory Filing -> Archive.
+  Each state transition is role-gated and requires audit evidence.
+
+PRIORITY: CRITICAL | COMPLEXITY: HIGH | BUSINESS VALUE: CRITICAL
+
+---
+
+MODULE: Risk Dashboard
+-----------------------
+PROBLEMS:
+  1.  Results not persisted -- page refresh loses all analysis data.
+  2.  No saved analysis workspace -- analyst cannot resume next day.
+  3.  Dashboard layout not customizable per user.
+  4.  No heatmaps on risk map.
+  5.  No entity drill-down from risk scores.
+  6.  No comparison view (this run vs. last run).
+  7.  No export to PDF/Excel.
+  8.  Bootstrap + custom CSS creates inconsistent styling.
+  9.  No accessibility (WCAG 2.1 AA) -- bank requirement.
+  10. App.jsx is JSX not TSX -- TypeScript claimed but not implemented.
+  11. No error boundaries -- uncaught JS error crashes entire app.
+  12. No code splitting -- entire bundle loaded upfront.
+
+PRIORITY: HIGH | COMPLEXITY: MEDIUM | BUSINESS VALUE: HIGH
+
+---
+
+MODULE: Audit Logging
+----------------------
+CURRENT DESIGN:
+  AuditLog model with composite indexes. log_event() called at key points.
+  Details stored as TEXT (JSON string). Logs stored in same DB as app data.
+
+PROBLEMS:
+  1.  Audit log in same DB -- if DB compromised, logs can be altered.
+  2.  No tamper-evidence (hash chaining, WORM storage).
+  3.  Details field TEXT -- not queryable, no Elasticsearch indexing.
+  4.  No retention policy or partitioning -- table grows unbounded.
+  5.  No SIEM integration (Splunk, Elastic SIEM).
+  6.  No alert on anomalous admin activity patterns.
+  7.  No data access logging (which accounts were viewed, when, by whom).
+
+INDUSTRY STANDARD:
+  Immutable logs to S3 Object Lock. Hash chain (each entry hashes the previous).
+  Streamed to SIEM via Kafka. Queried via Elasticsearch.
+
+PRIORITY: HIGH | COMPLEXITY: MEDIUM | BUSINESS VALUE: HIGH
+

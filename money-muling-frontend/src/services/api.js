@@ -75,6 +75,72 @@ export const auditAPI = {
   },
 };
 
+// Cases API
+export const casesAPI = {
+  list: async (status = '') => {
+    const url = status ? `/cases?status=${status}` : '/cases';
+    const res = await api.get(url);
+    return res.data;
+  },
+  get: async (id) => {
+    const res = await api.get(`/cases/${id}`);
+    return res.data;
+  },
+  create: async (data) => {
+    const res = await api.post('/cases', data);
+    return res.data;
+  },
+  updateStatus: async (id, status) => {
+    const res = await api.patch(`/cases/${id}`, { status });
+    return res.data;
+  },
+  getTimeline: async (id) => {
+    const res = await api.get(`/cases/${id}/timeline`);
+    return res.data;
+  },
+  delete: async (id) => {
+    const res = await api.delete(`/cases/${id}`);
+    return res.data;
+  },
+};
+
+// Alerts API
+export const alertsAPI = {
+  list: async (status = '', limit = 50, offset = 0) => {
+    const params = new URLSearchParams({ limit, offset });
+    if (status) params.append('status', status);
+    const res = await api.get(`/alerts?${params.toString()}`);
+    return res.data;
+  },
+  updateStatus: async (id, status) => {
+    const res = await api.patch(`/alerts/${id}/status?status=${status}`);
+    return res.data;
+  },
+  escalate: async (id) => {
+    const res = await api.post(`/alerts/${id}/escalate`);
+    return res.data;
+  },
+};
+
+// Evidence API
+export const evidenceAPI = {
+  list: async (caseId) => {
+    const res = await api.get(`/cases/${caseId}/evidence`);
+    return res.data;
+  },
+  upload: async (caseId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post(`/cases/${caseId}/evidence`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
+  downloadUrl: (caseId, evidenceId) => {
+    return `${API_BASE}/cases/${caseId}/evidence/${evidenceId}/download`;
+  },
+};
+
 // Token helpers
 export const saveToken = (token) => localStorage.setItem('access_token', token);
 export const getToken = () => localStorage.getItem('access_token');

@@ -18,12 +18,17 @@ class AuditLog(Base):
     # User context (nullable for anonymous/system events)
     user_id = Column(Integer, nullable=True, index=True)
     username = Column(String(150), nullable=True, index=True)
+    organization_id = Column(Integer, nullable=True, index=True)
     
     # Request context
     ip_address = Column(String(45), nullable=True)  # IPv6 compatible
     user_agent = Column(String(500), nullable=True)
     endpoint = Column(String(255), nullable=True)
     method = Column(String(10), nullable=True)
+    
+    # Resource context
+    resource_type = Column(String(50), nullable=True, index=True) # CASE, ALERT, JOB, USER
+    resource_id = Column(String(100), nullable=True, index=True)
     
     # Event details
     details = Column(Text, nullable=True)  # JSON string for additional context
