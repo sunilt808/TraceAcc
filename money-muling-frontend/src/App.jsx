@@ -5,6 +5,12 @@ import './assets/theme.css';
 import LoginCard from './components/auth/LoginCard';
 import Dashboard from './components/dashboard/Dashboard';
 import ProfilePage from './components/profile/ProfilePage';
+import RoleRoute from './components/auth/RoleRoute';
+import ClientPortal from './components/pages/ClientPortal';
+import ClientRequestForm from './components/pages/ClientRequestForm';
+import ClientReportsPage from './components/pages/ClientReportsPage';
+import AdminDashboard from './components/pages/AdminDashboard';
+import AdminUsersPage from './components/pages/AdminUsersPage';
 import AuditHistory from './components/audit/AuditHistory';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { useAuth } from './context/AuthContext';
@@ -44,25 +50,46 @@ function App() {
       <Route path="/login" element={<LoginCard />} />
       <Route path="/sample-generator" element={<ProtectedRoute><AppLayout title="Sample Generator"><SampleGenerator /></AppLayout></ProtectedRoute>} />
       
-      {/* Existing routes wrapped in layout */}
-      <Route path="/dashboard" element={<ProtectedRoute><AppLayout title="Analyze"><Dashboard /></AppLayout></ProtectedRoute>} />
-      <Route path="/profile" element={<ProtectedRoute><AppLayout title="Profile"><ProfilePage /></AppLayout></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-      <Route path="/audit-history" element={<ProtectedRoute><AppLayout title="Audit Logs"><AuditHistory /></AppLayout></ProtectedRoute>} />
-      
-      <Route path="/upload" element={<Navigate to="/dashboard" replace />} />
+      <Route element={<ProtectedRoute />}>
+            
+            {/* Client Portal Routes */}
+            <Route element={<RoleRoute allowedRoles={['CLIENT_USER', 'ADMIN', 'SUPER_ADMIN']} redirectPath="/overview" />}>
+              <Route path="/client-dashboard" element={<ClientPortal />} />
+              <Route path="/client-requests/new" element={<ClientRequestForm />} />
+              <Route path="/client-reports" element={<ClientReportsPage />} />
+            </Route>
 
-      {/* New Pages with Layout */}
-      <Route path="/overview" element={<ProtectedRoute><OverviewPage /></ProtectedRoute>} />
-      <Route path="/graph-viewer" element={<ProtectedRoute><GraphViewer /></ProtectedRoute>} />
-      <Route path="/communities" element={<ProtectedRoute><CommunitiesPage /></ProtectedRoute>} />
-      <Route path="/risk-map" element={<ProtectedRoute><RiskMapPage /></ProtectedRoute>} />
-      <Route path="/timeline" element={<ProtectedRoute><TimelinePage /></ProtectedRoute>} />
-      <Route path="/statistics" element={<ProtectedRoute><StatisticsPage /></ProtectedRoute>} />
-      <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
-      <Route path="/cases" element={<ProtectedRoute><CasesPage /></ProtectedRoute>} />
-      <Route path="/cases/:id" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
-      <Route path="/alerts" element={<ProtectedRoute><AlertsPage /></ProtectedRoute>} />
+            {/* Analyst & Investigation Routes */}
+            <Route element={<RoleRoute allowedRoles={['TRACE_LAB_ANALYST', 'ADMIN', 'SUPER_ADMIN']} redirectPath="/client-dashboard" />}>
+              <Route path="/dashboard" element={<AppLayout title="Analyze"><Dashboard /></AppLayout>} />
+              <Route path="/overview" element={<OverviewPage />} />
+              <Route path="/risk-map" element={<RiskMapPage />} />
+              <Route path="/graph-viewer" element={<GraphViewer />} />
+            </Route>
+
+            {/* Investigation and Management Routes */}
+            <Route element={<RoleRoute allowedRoles={['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN', 'SUPER_ADMIN', 'AUDITOR']} redirectPath="/client-dashboard" />}>
+              <Route path="/cases" element={<CasesPage />} />
+              <Route path="/cases/:id" element={<CaseDetail />} />
+              <Route path="/alerts" element={<AlertsPage />} />
+            </Route>
+
+            {/* Admin Routes */}
+            <Route element={<RoleRoute allowedRoles={['ADMIN', 'SUPER_ADMIN']} redirectPath="/overview" />}>
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/users" element={<AdminUsersPage />} />
+            </Route>
+
+            {/* Common Authenticated Routes */}
+            <Route path="/profile" element={<AppLayout title="Profile"><ProfilePage /></AppLayout>} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/audit-history" element={<AppLayout title="Audit Logs"><AuditHistory /></AppLayout>} />
+            <Route path="/timeline" element={<TimelinePage />} />
+            <Route path="/statistics" element={<StatisticsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/communities" element={<CommunitiesPage />} />
+            
+          </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

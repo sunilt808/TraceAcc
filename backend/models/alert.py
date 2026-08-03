@@ -19,6 +19,7 @@ class Alert(Base):
     status = Column(String(50), default="NEW") # NEW, TRIAGED, FALSE_POSITIVE, ESCALATED
     
     detection_reason = Column(JSON, nullable=True) # Context from AML engines
+    related_accounts = Column(JSON, nullable=True) # Account IDs flagged in this alert
     assignee_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())

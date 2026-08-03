@@ -9,9 +9,11 @@ from fastapi import APIRouter, Depends, UploadFile, File, Request, HTTPException
 from sqlalchemy.orm import Session
 import time
 
-from api.deps import get_current_user, get_current_workspace
+from api.deps import get_current_user, get_current_workspace, RoleChecker
 from db.database import get_db
 from models.user import User
+from models.role import Role
+from models.alert import Alert
 from models.analysis_job import AnalysisJob
 from utils.csv_parser import parse_csv
 from services.audit_service import log_event, EventType, EventAction, EventStatus
@@ -47,7 +49,7 @@ router = APIRouter(prefix="/analyze", tags=["analysis"])
 async def analyze_advanced(
     request: Request,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(RoleChecker([Role.TRACE_LAB_ANALYST.value, Role.ADMIN.value])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -171,7 +173,6 @@ async def analyze_advanced(
             },
         }
 
-        # ── Persist job record ─────────────────────────────────
         job = AnalysisJob(
             organization_id=org_id,
             user_id=current_user.id,
@@ -186,6 +187,26 @@ async def analyze_advanced(
         )
         db.add(job)
         db.commit()
+        db.refresh(job)
+
+        # ── Auto-generate Alerts ───────────────────────────────
+        alerts_created = 0
+        for entry in hybrid_scores:
+            if entry["score"] >= 70.0:
+                alert = Alert(
+                    organization_id=org_id,
+                    analysis_job_id=job.id,
+                    alert_type="HIGH_RISK_ACCOUNT",
+                    risk_score=entry["score"],
+                    severity="CRITICAL" if entry["score"] >= 90 else "HIGH",
+                    status="NEW",
+                    detection_reason={"reason": "Hybrid score exceeded threshold", "details": entry},
+                    related_accounts=[entry["account_id"]],
+                )
+                db.add(alert)
+                alerts_created += 1
+        if alerts_created > 0:
+            db.commit()
 
         log_event(
             db=db, event_type=EventType.ANALYZE,
@@ -227,6 +248,9 @@ async def analyze_advanced(
 @router.get("/jobs")
 def list_analysis_jobs(
     limit: int = 20,
+    current_user: User = Depends(RoleChecker([
+        Role.TRACE_LAB_ANALYST.value, Role.INVESTIGATOR.value, Role.ADMIN.value
+    ])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):

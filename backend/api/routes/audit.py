@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from api.deps import get_current_user
+from api.deps import get_current_user, RoleChecker
+from models.role import Role
 from db.database import get_db
 from models.user import User
 from schemas.audit import AuditLogListResponse, AuditLogOut, AuditStatsOut
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/audit", tags=["audit"])
 def get_my_login_history(
     limit: int = Query(default=50, le=100),
     offset: int = Query(default=0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
     db: Session = Depends(get_db),
 ):
     """Get login history for the current user."""
@@ -38,7 +39,7 @@ def get_my_login_history(
 def get_my_failed_attempts(
     limit: int = Query(default=50, le=100),
     offset: int = Query(default=0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
     db: Session = Depends(get_db),
 ):
     """Get failed login attempts for the current user's username."""
@@ -55,7 +56,7 @@ def get_my_failed_attempts(
 def get_my_analyze_history(
     limit: int = Query(default=50, le=100),
     offset: int = Query(default=0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
     db: Session = Depends(get_db),
 ):
     """Get analysis history for the current user."""
@@ -72,7 +73,7 @@ def get_my_analyze_history(
 def get_my_activity(
     limit: int = Query(default=100, le=200),
     offset: int = Query(default=0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
     db: Session = Depends(get_db),
 ):
     """Get all activity for the current user."""
@@ -87,7 +88,7 @@ def get_my_activity(
 
 @router.get("/stats", response_model=AuditStatsOut)
 def get_my_stats(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
     db: Session = Depends(get_db),
 ):
     """Get audit statistics for the current user."""

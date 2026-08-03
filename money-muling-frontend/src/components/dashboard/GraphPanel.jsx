@@ -179,7 +179,11 @@ const GraphPanel = ({ elements = [], loading, highlightedRing, transactions = []
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      if (cyRef.current) cyRef.current.destroy();
+      if (cyRef.current && !cyRef.current.destroyed()) {
+        cyRef.current.removeAllListeners();
+        cyRef.current.destroy();
+        cyRef.current = null;
+      }
     };
   }, [elements, loading, applyFilter]);
 

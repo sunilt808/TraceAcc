@@ -10,9 +10,10 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime, timezone
 
-from api.deps import get_current_user, get_current_workspace
+from api.deps import get_current_user, get_current_workspace, RoleChecker
 from db.database import get_db
 from models.user import User
+from models.role import Role
 from models.case import Case
 from models.case_event import CaseEvent
 
@@ -36,6 +37,15 @@ class CaseUpdate(BaseModel):
     status:          Optional[str] = None
     priority:        Optional[str] = None
     notes:           Optional[str] = None
+    decision:        Optional[str] = None
+
+
+class CaseAssign(BaseModel):
+    assignee_id: int
+
+
+class CaseNote(BaseModel):
+    content: str
 
 
 def _case_to_dict(case: Case) -> dict:
@@ -58,7 +68,7 @@ def _case_to_dict(case: Case) -> dict:
 @router.post("", status_code=201)
 def create_case(
     body: CaseCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value, Role.SUPER_ADMIN.value])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -101,6 +111,7 @@ def list_cases(
     priority: Optional[str] = Query(None),
     limit:    int = Query(50, le=200),
     offset:   int = Query(0, ge=0),
+    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -117,6 +128,7 @@ def list_cases(
 @router.get("/{case_id}")
 def get_case(
     case_id: int,
+    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -131,7 +143,7 @@ def get_case(
 def update_case(
     case_id: int,
     body: CaseUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value, Role.SUPER_ADMIN.value])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -140,12 +152,17 @@ def update_case(
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
 
-    VALID_STATUSES   = {"OPEN", "INVESTIGATING", "CLOSED", "ESCALATED"}
+    VALID_STATUSES   = {"OPEN", "INVESTIGATING", "REVIEW", "CLOSED", "ESCALATED"}
     VALID_PRIORITIES = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+    VALID_DECISIONS  = {"NO_ACTION", "SAR_FILED", "REFERRED_TO_LAW_ENFORCEMENT", "MONITORING"}
 
     if body.title:    case.title       = body.title
     if body.description is not None:  case.description = body.description
     if body.notes is not None:        case.notes       = body.notes
+    if body.decision is not None:
+        if body.decision.upper() not in VALID_DECISIONS:
+            raise HTTPException(status_code=400, detail=f"decision must be one of {VALID_DECISIONS}")
+        case.decision = body.decision.upper()
 
     if body.status:
         if body.status.upper() not in VALID_STATUSES:
@@ -186,23 +203,69 @@ def update_case(
     return _case_to_dict(case)
 
 
-@router.delete("/{case_id}", status_code=204)
-def delete_case(
+@router.patch("/{case_id}/assign")
+def assign_case(
     case_id: int,
+    body: CaseAssign,
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
-    """Delete a case."""
+    """Assign a case to a specific investigator."""
     case = db.query(Case).filter(Case.id == case_id, Case.organization_id == org_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
-    db.delete(case)
+        
+    assignee = db.query(User).filter(User.id == body.assignee_id, User.organization_id == org_id).first()
+    if not assignee:
+        raise HTTPException(status_code=404, detail="Assignee not found in this organization.")
+        
+    case.assignee_id = assignee.id
+    
+    event = CaseEvent(
+        organization_id=org_id,
+        case_id=case.id,
+        user_id=current_user.id,
+        event_type="ASSIGNMENT",
+        content=f"Case assigned to {assignee.username}"
+    )
+    db.add(event)
+    
     db.commit()
-    return None
+    db.refresh(case)
+    return _case_to_dict(case)
+
+
+@router.post("/{case_id}/notes")
+def add_case_note(
+    case_id: int,
+    body: CaseNote,
+    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    org_id: int = Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    """Add a timeline note to a case."""
+    case = db.query(Case).filter(Case.id == case_id, Case.organization_id == org_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found.")
+        
+    event = CaseEvent(
+        organization_id=org_id,
+        case_id=case.id,
+        user_id=current_user.id,
+        event_type="COMMENT",
+        content=body.content
+    )
+    db.add(event)
+    db.commit()
+    
+    return {"message": "Note added successfully"}
+
 
 @router.get("/{case_id}/timeline")
 def get_case_timeline(
     case_id: int,
+    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):

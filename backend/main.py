@@ -19,6 +19,9 @@ from api.routes.graph import router as graph_router
 from api.routes.cases import router as cases_router
 from api.routes.alerts import router as alerts_router
 from api.routes.evidence import router as evidence_router
+from api.routes.service_requests import router as service_requests_router
+from api.routes.admin import router as admin_router
+from api.routes.reports import router as reports_router
 from db.database import get_db, init_db
 from models.user import User
 from utils.csv_parser import parse_csv
@@ -58,6 +61,9 @@ app.include_router(graph_router)
 app.include_router(cases_router)
 app.include_router(alerts_router)
 app.include_router(evidence_router)
+app.include_router(service_requests_router)
+app.include_router(admin_router)
+app.include_router(reports_router)
 
 @app.get("/")
 async def root() -> Dict:

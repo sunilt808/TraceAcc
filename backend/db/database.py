@@ -43,9 +43,15 @@ def get_db():
 
 
 def init_db() -> None:
-    import models.user          # noqa: F401
-    import models.audit_log     # noqa: F401
-    import models.analysis_job  # noqa: F401
-    import models.case          # noqa: F401
+    import models.user               # noqa: F401
+    import models.organization       # noqa: F401
+    import models.audit_log          # noqa: F401
+    import models.analysis_job       # noqa: F401
+    import models.case               # noqa: F401
+    import models.case_event         # noqa: F401
+    import models.alert              # noqa: F401
+    import models.evidence           # noqa: F401
+    import models.service_request    # noqa: F401
+    import models.client_report      # noqa: F401
 
     Base.metadata.create_all(bind=engine)

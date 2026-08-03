@@ -146,4 +146,81 @@ export const saveToken = (token) => localStorage.setItem('access_token', token);
 export const getToken = () => localStorage.getItem('access_token');
 export const clearToken = () => localStorage.removeItem('access_token');
 
+export const serviceRequestsAPI = {
+  list: async (status = '') => {
+    const params = status ? { status } : {};
+    const res = await api.get('/service-requests', { params });
+    return res.data;
+  },
+  get: async (id) => {
+    const res = await api.get(`/service-requests/${id}`);
+    return res.data;
+  },
+  create: async (data) => {
+    const res = await api.post('/service-requests', data);
+    return res.data;
+  },
+  update: async (id, data) => {
+    const res = await api.patch(`/service-requests/${id}`, data);
+    return res.data;
+  },
+  uploadDataset: async (id, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post(`/service-requests/${id}/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return res.data;
+  }
+};
+
+export const adminAPI = {
+  getDashboard: async () => {
+    const res = await api.get('/admin/dashboard');
+    return res.data;
+  },
+  listUsers: async (limit = 100) => {
+    const res = await api.get('/admin/users', { params: { limit } });
+    return res.data;
+  },
+  updateUser: async (id, data) => {
+    const res = await api.patch(`/admin/users/${id}`, data);
+    return res.data;
+  },
+  listOrganizations: async () => {
+    const res = await api.get('/admin/organizations');
+    return res.data;
+  },
+  createOrganization: async (data) => {
+    const res = await api.post('/admin/organizations', data);
+    return res.data;
+  }
+};
+
+export const reportsAPI = {
+  list: async () => {
+    const res = await api.get('/reports');
+    return res.data;
+  },
+  create: async (data) => {
+    const res = await api.post('/reports', data);
+    return res.data;
+  },
+  uploadFile: async (id, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post(`/reports/${id}/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return res.data;
+  },
+  release: async (id) => {
+    const res = await api.patch(`/reports/${id}/release`);
+    return res.data;
+  },
+  downloadUrl: (id) => {
+    return `${API_BASE}/reports/${id}/download?token=${getToken()}`;
+  }
+};
+
 export default api;

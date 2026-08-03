@@ -34,6 +34,8 @@ import models.organization
 import models.alert
 import models.case_event
 import models.evidence
+import models.service_request
+import models.client_report
 
 target_metadata = Base.metadata
 

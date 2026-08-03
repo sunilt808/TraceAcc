@@ -25,13 +25,11 @@ const LoginCard = () => {
     setLoading(true);
 
     try {
-      if (mode === 'register') {
-        await register(username, password);
-        setSuccess('Account created! You can now log in.');
-        setMode('login');
+      const user = await login(username, password);
+      if (user.role === 'CLIENT_USER') {
+        navigate('/client-dashboard', { replace: true });
       } else {
-        await login(username, password);
-        navigate('/dashboard', { replace: true });
+        navigate('/overview', { replace: true });
       }
     } catch (err) {
       const msg =
@@ -88,24 +86,7 @@ const LoginCard = () => {
             <p className="text-secondary small mb-0">Graph-Based Financial Fraud Intelligence</p>
           </div>
 
-          {/* Mode Selector Tabs */}
-          <div className="login-mode-tabs mb-4">
-            <button 
-              className={`mode-tab-btn ${mode === 'login' ? 'active' : ''}`}
-              onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
-            >
-              Sign In
-            </button>
-            <button 
-              className={`mode-tab-btn ${mode === 'register' ? 'active' : ''}`}
-              onClick={() => { setMode('register'); setError(''); setSuccess(''); }}
-            >
-              Create Account
-            </button>
-          </div>
-
           {error && <Alert variant="danger" className="py-2 small bg-danger bg-opacity-20 text-danger border-danger border-opacity-30">{error}</Alert>}
-          {success && <Alert variant="success" className="py-2 small bg-success bg-opacity-20 text-success border-success border-opacity-30">{success}</Alert>}
 
           <Form onSubmit={handleSubmit}>
             <Form.Group className="mb-3" controlId="username">
@@ -133,14 +114,59 @@ const LoginCard = () => {
               />
             </Form.Group>
 
-            <button type="submit" className="btn-glow w-100 py-3 justify-content-center mb-3" disabled={loading}>
+            <button type="submit" className="btn-glow w-100 py-3 justify-content-center mb-4" disabled={loading}>
               {loading ? (
                 <Spinner animation="border" size="sm" />
               ) : (
-                <span>{mode === 'login' ? 'Sign In to Dashboard' : 'Create Analyst Account'}</span>
+                <span>Sign In to TraceAcc</span>
               )}
             </button>
           </Form>
+
+          {/* Quick Demo Login */}
+          <div className="text-center mt-2 border-top border-white border-opacity-10 pt-3">
+            <span className="text-secondary small fw-semibold d-block mb-3">QUICK TEST LOGIN</span>
+            <div className="d-flex flex-wrap justify-content-center gap-2">
+              <button 
+                type="button"
+                className="btn btn-sm btn-outline-primary"
+                onClick={() => { setUsername('client'); setPassword('Password123!'); }}
+              >
+                Client
+              </button>
+              <button 
+                type="button"
+                className="btn btn-sm btn-outline-info"
+                onClick={() => { setUsername('analyst'); setPassword('Password123!'); }}
+              >
+                Analyst
+              </button>
+              <button 
+                type="button"
+                className="btn btn-sm btn-outline-warning"
+                onClick={() => { setUsername('investigator'); setPassword('Password123!'); }}
+              >
+                Investigator
+              </button>
+              <button 
+                type="button"
+                className="btn btn-sm btn-outline-success"
+                onClick={() => { setUsername('auditor'); setPassword('Password123!'); }}
+              >
+                Auditor
+              </button>
+              <button 
+                type="button"
+                className="btn btn-sm btn-outline-danger"
+                onClick={() => { setUsername('admin'); setPassword('Password123!'); }}
+              >
+                Admin
+              </button>
+            </div>
+            <div className="small text-muted mt-2" style={{ fontSize: '11px' }}>
+              Click a role above, then click Sign In
+            </div>
+          </div>
 
           <div className="text-center mt-3 pt-3 border-top border-white border-opacity-10">
             <Link to="/" className="text-secondary small text-decoration-none hover-blue">

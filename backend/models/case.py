@@ -19,10 +19,12 @@ class Case(Base):
     assignee_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     title         = Column(String(255), nullable=False)
     description   = Column(Text, nullable=True)
-    # OPEN | INVESTIGATING | CLOSED | ESCALATED
+    # OPEN | INVESTIGATING | REVIEW | CLOSED | ESCALATED
     status        = Column(String(50), default="OPEN", index=True)
     # LOW | MEDIUM | HIGH | CRITICAL
     priority      = Column(String(20), default="MEDIUM")
+    # Final decision: NO_ACTION | SAR_FILED | REFERRED_TO_LAW_ENFORCEMENT | MONITORING
+    decision      = Column(String(50), nullable=True)
     # Linked account IDs or ring IDs (stored as JSON list)
     linked_accounts = Column(JSON, nullable=True)
     linked_rings    = Column(JSON, nullable=True)

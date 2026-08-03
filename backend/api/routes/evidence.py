@@ -7,9 +7,10 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from api.deps import get_current_user, get_current_workspace
+from api.deps import get_current_user, get_current_workspace, RoleChecker
 from db.database import get_db
 from models.user import User
+from models.role import Role
 from models.case import Case
 from models.evidence import Evidence
 from services.storage_service import StorageService
@@ -20,7 +21,9 @@ router = APIRouter(prefix="/cases/{case_id}/evidence", tags=["evidence"])
 def upload_evidence(
     case_id: int,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(RoleChecker([
+        Role.INVESTIGATOR.value, Role.ADMIN.value
+    ])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -54,6 +57,9 @@ def upload_evidence(
 @router.get("")
 def list_evidence(
     case_id: int,
+    current_user: User = Depends(RoleChecker([
+        Role.INVESTIGATOR.value, Role.ADMIN.value
+    ])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -75,6 +81,9 @@ def list_evidence(
 def download_evidence(
     case_id: int,
     evidence_id: int,
+    current_user: User = Depends(RoleChecker([
+        Role.INVESTIGATOR.value, Role.ADMIN.value
+    ])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):

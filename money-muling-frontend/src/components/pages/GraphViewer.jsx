@@ -171,7 +171,13 @@ export default function GraphViewer() {
       }
     });
 
-    return () => { if (cyInstance.current) cyInstance.current.destroy(); };
+    return () => { 
+      if (cyInstance.current && !cyInstance.current.destroyed()) {
+        cyInstance.current.removeAllListeners();
+        cyInstance.current.destroy();
+        cyInstance.current = null;
+      }
+    };
   }, [analysisResult, layout]);
 
   // Search highlight
