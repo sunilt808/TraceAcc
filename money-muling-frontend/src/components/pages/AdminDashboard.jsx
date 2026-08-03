@@ -92,7 +92,7 @@ function AdminDashboard() {
   const activeItems = activeView === 'requests' ? requests : reports;
 
   return (
-    <AppLayout title="Admin Operations Hub" subtitle="TraceAcc Pro central intake, assignment, review, and release control">
+    <AppLayout title="Admin Operations Hub" subtitle="TraceAcc central intake, assignment, review, and release control">
       {error && <Alert variant="danger" className="mb-4">{error}</Alert>}
 
       <div className="row g-3 mb-4">

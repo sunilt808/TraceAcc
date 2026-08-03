@@ -402,7 +402,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
         <div className="landing-logo">
           <div className="logo-icon">⬡</div>
           <span className="logo-text">TraceAcc</span>
-          <span className="logo-version-tag">TraceAcc Pro</span>
+          <span className="logo-version-tag">Enterprise AML</span>
         </div>
         <div className="nav-links-center">
           <a href="#features">Operations Hub</a>
@@ -424,30 +424,30 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
         <div className="hero-content">
           <div className="hero-badge">
             <span className="badge-pulse"></span>
-            Enterprise AML Operations Platform
+            Enterprise AML Operations
           </div>
           <h1 className="hero-title">
-            Admin-led AML workflow.<br />
-            <span className="text-gradient">TraceLab to InvoSpace.</span>
+            TraceAcc connects intake,<br />
+            <span className="text-gradient">analysis, investigation, and release.</span>
           </h1>
           <p className="hero-subtitle">
-            TraceAcc Pro routes client requests through a controlled admin hub, sends technical analysis to TraceLab, moves escalations to InvoSpace, and releases only approved reports back to clients.
+            TraceAcc keeps AML operations in one place: Admin handles requests, TraceLab performs analysis, InvoSpace handles investigations, and clients receive only approved reports.
           </p>
           <div className="hero-cta-group">
             <Link to="/overview" className="btn-glow large">
-              <span>Open Operations Hub</span>
+              <span>Open TraceAcc</span>
               <i className="bi bi-arrow-right-short"></i>
             </Link>
             <Link to="/sample-generator" className="btn-glass large">
               <i className="bi bi-cpu"></i>
-              <span>Dataset Sandbox</span>
+              <span>Demo Dataset</span>
             </Link>
           </div>
 
           <div className="hero-metrics-pill">
             <div className="metric-item">
               <span className="metric-val">&lt; 50ms</span>
-              <span className="metric-lbl">Intake Routing</span>
+              <span className="metric-lbl">Request Routing</span>
             </div>
             <div className="metric-divider"></div>
             <div className="metric-item">
@@ -457,7 +457,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
             <div className="metric-divider"></div>
             <div className="metric-item">
               <span className="metric-val">0-100</span>
-              <span className="metric-lbl">Workflow Risk Index</span>
+              <span className="metric-lbl">Workflow Score</span>
             </div>
           </div>
         </div>
@@ -526,9 +526,9 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
       {/* Features Section */}
       <div className="landing-section" id="features">
         <div className="section-header">
-          <span className="section-subtitle">Operations Hub</span>
-          <h2>Admin, TraceLab, InvoSpace, Client</h2>
-          <p>TraceAcc Pro keeps communication centralized in Admin while TraceLab and InvoSpace execute the operational work behind the scenes.</p>
+          <span className="section-subtitle">Operating Model</span>
+          <h2>One platform, four roles</h2>
+          <p>TraceAcc keeps communication centralized in Admin while TraceLab, InvoSpace, and the Client Portal each stay focused on their own responsibilities.</p>
         </div>
 
         <div className="landing-features">
@@ -537,8 +537,8 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
               <div className="feature-icon-wrapper">
                 <i className="bi bi-inbox"></i>
               </div>
-              <h3>Client Request Queue</h3>
-              <p>Tracks pending, accepted, rejected, assigned, and completed requests as the control point for the entire platform.</p>
+              <h3>Request Intake</h3>
+              <p>Tracks new client requests, priority, assignment, and completion from a single queue.</p>
               <div className="card-pill">Admin</div>
             </div>
           </div>
@@ -549,7 +549,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
                 <i className="bi bi-graph-up"></i>
               </div>
               <h3>TraceLab Analysis</h3>
-              <p>Runs transaction validation, graph analysis, AML pattern detection, risk scoring, and technical reporting without creating cases.</p>
+              <p>Performs technical AML analysis, generates findings, and escalates only when suspicious activity needs investigation.</p>
               <div className="card-pill">Detection</div>
             </div>
           </div>
@@ -560,7 +560,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
                 <i className="bi bi-shield-lock-fill"></i>
               </div>
               <h3>InvoSpace Investigation</h3>
-              <p>Converts alerts into cases, manages evidence, timelines, notes, and final investigation reports inside a dedicated investigation workspace.</p>
+              <p>Handles alerts, cases, evidence, timelines, notes, and final investigation reports in a dedicated workspace.</p>
               <div className="card-pill">Investigation</div>
             </div>
           </div>
@@ -571,7 +571,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
                 <i className="bi bi-file-earmark-check"></i>
               </div>
               <h3>Report Review & Release</h3>
-              <p>Routes technical and investigation reports back through Admin for approval, change requests, rejection, and final client release.</p>
+              <p>Routes every report back through Admin for approval, change requests, rejection, and release.</p>
               <div className="card-pill">Release</div>
             </div>
           </div>
@@ -581,9 +581,9 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
       {/* NEW: Live Instant In-Browser CSV Fraud Analyzer Sandbox */}
       <div className="landing-section alt-bg" id="analyzer">
         <div className="section-header">
-          <span className="section-subtitle">TraceLab Sandbox</span>
-          <h2>Interactive Technical Analysis View</h2>
-          <p>Paste sample CSV data below to execute the same style of transaction analysis that feeds the TraceLab workspace.</p>
+          <span className="section-subtitle">TraceAcc Demo</span>
+          <h2>Interactive analysis preview</h2>
+          <p>Paste sample CSV data below to see how TraceAcc evaluates transactions and highlights suspicious patterns.</p>
         </div>
 
         <div className="live-analyzer-container">
@@ -639,8 +639,8 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
       <div className="landing-section" id="algorithms">
         <div className="section-header">
           <span className="section-subtitle">Workflow Mechanics</span>
-          <h2>How Work Moves Across TraceAcc Pro</h2>
-          <p>Select a phase below to inspect the admin-controlled request lifecycle, analysis handoff, investigation handoff, and release path.</p>
+          <h2>How work moves through TraceAcc</h2>
+          <p>Select a phase below to inspect the request lifecycle, analysis handoff, investigation handoff, and release path.</p>
         </div>
 
         <div className="algo-matrix-container">
@@ -951,7 +951,7 @@ tx_9012,ACC_5099,ACC_3310,9850.00,2026-07-22T08:18:11Z`}</code></pre>
           </div>
         </div>
         <div className="footer-bottom">
-          <p>© 2026 TraceAcc Systems • Enterprise Grade Fraud Intelligence</p>
+          <p>© 2026 TraceAcc • Enterprise AML Operations</p>
         </div>
       </div>
     </div>

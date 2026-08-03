@@ -6,9 +6,9 @@ import '../../assets/landing.css';
 
 const workspaceCopy = [
   'Admin is the only communication hub',
-  'TraceLab detects suspicious activity',
-  'InvoSpace investigates and closes cases',
-  'Clients only see approved final reports',
+  'TraceLab handles technical analysis',
+  'InvoSpace owns investigations',
+  'Clients receive only approved reports',
 ];
 
 function LoginCard() {
@@ -65,9 +65,9 @@ function LoginCard() {
           <Col lg={7} className="d-flex">
             <Card className="w-100 bg-transparent border-0 shadow-none text-light h-100">
               <Card.Body className="p-0 d-flex flex-column justify-content-center pe-lg-4">
-                <Badge bg="info" className="align-self-start mb-3 text-dark">TraceAcc Pro Operations Platform</Badge>
+                <Badge bg="info" className="align-self-start mb-3 text-dark">TraceAcc</Badge>
                 <h1 className="display-4 fw-bold mb-3 text-light" style={{ maxWidth: '12ch' }}>
-                  One hub for AML intake, analysis, investigation, and release.
+                  Secure access to TraceAcc.
                 </h1>
                 <p className="lead text-secondary mb-4" style={{ maxWidth: '54ch' }}>
                   Admin owns communication. TraceLab finds suspicious activity. InvoSpace investigates it. Clients only receive approved reports.
@@ -99,7 +99,7 @@ function LoginCard() {
                   <Link to="/" className="text-decoration-none d-inline-flex align-items-center gap-2 mb-2">
                     <span className="logo-icon fs-2">⬡</span>
                     <span className="logo-text text-light fs-3">TraceAcc</span>
-                    <span className="logo-version-tag">Pro</span>
+                    <span className="logo-version-tag">Enterprise AML</span>
                   </Link>
                   <div className="text-muted small">Enterprise AML Operations Sign In</div>
                 </div>
@@ -143,13 +143,14 @@ function LoginCard() {
                 </Form>
 
                 <div className="d-flex flex-wrap gap-2 justify-content-center mb-4">
-                  <Button size="sm" variant="outline-info" onClick={() => { setUsername('client1'); setPassword('client123'); }}>Client</Button>
-                  <Button size="sm" variant="outline-info" onClick={() => { setUsername('analyst'); setPassword('analyst123'); }}>TraceLab</Button>
-                  <Button size="sm" variant="outline-info" onClick={() => { setUsername('admin'); setPassword('admin123'); }}>Admin</Button>
+                  <Button size="sm" variant="outline-info" onClick={() => { setUsername('client'); setPassword('Password123!'); }}>Client</Button>
+                  <Button size="sm" variant="outline-info" onClick={() => { setUsername('analyst'); setPassword('Password123!'); }}>TraceLab</Button>
+                  <Button size="sm" variant="outline-info" onClick={() => { setUsername('investigator'); setPassword('Password123!'); }}>InvoSpace</Button>
+                  <Button size="sm" variant="outline-info" onClick={() => { setUsername('admin'); setPassword('Password123!'); }}>Admin</Button>
                 </div>
 
                 <div className="text-center text-muted small">
-                  Need a new workspace? Contact your platform administrator.
+                  Demo users are seeded with the shared password: Password123!.
                 </div>
               </Card.Body>
             </Card>
