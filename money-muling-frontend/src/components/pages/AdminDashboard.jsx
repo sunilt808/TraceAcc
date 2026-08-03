@@ -97,34 +97,34 @@ function AdminDashboard() {
 
       <div className="row g-3 mb-4">
         <div className="col-md-3">
-          <Card className="bg-dark border-secondary h-100 shadow-sm">
+          <Card className="bg-dark border-info h-100 shadow-sm">
             <Card.Body>
-              <div className="text-muted small text-uppercase fw-bold">Pending Requests</div>
-              <div className="display-6 text-light">{dashboard?.pending_requests || 0}</div>
+              <div className="text-info small text-uppercase fw-bold">Pending Requests</div>
+              <div className="display-6 text-white">{dashboard?.pending_requests || 0}</div>
             </Card.Body>
           </Card>
         </div>
         <div className="col-md-3">
-          <Card className="bg-dark border-secondary h-100 shadow-sm">
+          <Card className="bg-dark border-info h-100 shadow-sm">
             <Card.Body>
-              <div className="text-muted small text-uppercase fw-bold">Active Cases</div>
-              <div className="display-6 text-light">{dashboard?.open_cases || 0}</div>
+              <div className="text-info small text-uppercase fw-bold">Active Cases</div>
+              <div className="display-6 text-white">{dashboard?.open_cases || 0}</div>
             </Card.Body>
           </Card>
         </div>
         <div className="col-md-3">
-          <Card className="bg-dark border-secondary h-100 shadow-sm">
+          <Card className="bg-dark border-info h-100 shadow-sm">
             <Card.Body>
-              <div className="text-muted small text-uppercase fw-bold">New Alerts</div>
-              <div className="display-6 text-light">{dashboard?.new_alerts || 0}</div>
+              <div className="text-info small text-uppercase fw-bold">New Alerts</div>
+              <div className="display-6 text-white">{dashboard?.new_alerts || 0}</div>
             </Card.Body>
           </Card>
         </div>
         <div className="col-md-3">
-          <Card className="bg-dark border-secondary h-100 shadow-sm">
+          <Card className="bg-dark border-info h-100 shadow-sm">
             <Card.Body>
-              <div className="text-muted small text-uppercase fw-bold">Waiting Review</div>
-              <div className="display-6 text-light">{reports.filter((report) => report.status === 'READY_FOR_REVIEW').length}</div>
+              <div className="text-info small text-uppercase fw-bold">Waiting Review</div>
+              <div className="display-6 text-white">{reports.filter((report) => report.status === 'READY_FOR_REVIEW').length}</div>
             </Card.Body>
           </Card>
         </div>
@@ -133,14 +133,14 @@ function AdminDashboard() {
       <Card className="bg-dark border-secondary shadow-sm mb-4">
         <Card.Body className="d-flex flex-wrap gap-2 align-items-center justify-content-between">
           <div>
-            <div className="text-muted small text-uppercase fw-bold">Workspace Filters</div>
+            <div className="text-info small text-uppercase fw-bold">Workspace Filters</div>
             <div className="text-light">Monitor request intake and report review from one control panel.</div>
           </div>
           <div className="d-flex gap-2">
-            <Button variant={activeView === 'requests' ? 'primary' : 'outline-light'} onClick={() => setActiveView('requests')}>
+            <Button variant={activeView === 'requests' ? 'primary' : 'outline-info'} onClick={() => setActiveView('requests')}>
               <Diagram3Fill className="me-2" />Client Requests
             </Button>
-            <Button variant={activeView === 'reports' ? 'primary' : 'outline-light'} onClick={() => setActiveView('reports')}>
+            <Button variant={activeView === 'reports' ? 'primary' : 'outline-info'} onClick={() => setActiveView('reports')}>
               <FileEarmarkTextFill className="me-2" />Reports
             </Button>
           </div>
@@ -151,7 +151,7 @@ function AdminDashboard() {
         <Card.Header className="bg-transparent border-secondary d-flex flex-wrap justify-content-between align-items-center gap-3">
           <div>
             <h5 className="mb-0 text-light">{activeView === 'requests' ? 'Client Request Queue' : 'Report Review Queue'}</h5>
-            <div className="text-muted small">Admin accepts, assigns, reviews, and releases items from here.</div>
+            <div className="text-info small">Admin accepts, assigns, reviews, and releases items from here.</div>
           </div>
           {activeView === 'requests' ? (
             <Form.Select
@@ -195,8 +195,8 @@ function AdminDashboard() {
               ) : activeView === 'requests' ? activeItems.map((item) => (
                 <tr key={item.id}>
                   <td>
-                    <div className="fw-semibold text-light">{item.title}</div>
-                    <div className="small text-muted">{item.request_type} • {item.current_stage || 'ADMIN_REVIEW'}</div>
+                    <div className="fw-semibold text-white">{item.title}</div>
+                    <div className="small text-info">{item.request_type} • {item.current_stage || 'ADMIN_REVIEW'}</div>
                   </td>
                   <td><Badge bg={item.status === 'PENDING' ? 'warning' : item.status === 'REJECTED' ? 'danger' : 'success'}>{item.status}</Badge></td>
                   <td>{item.assigned_team || 'Unassigned'}</td>
@@ -222,8 +222,8 @@ function AdminDashboard() {
               )) : activeItems.map((item) => (
                 <tr key={item.id}>
                   <td>
-                    <div className="fw-semibold text-light">{item.title}</div>
-                    <div className="small text-muted">{item.report_type} • {item.case_id ? `Case #${item.case_id}` : 'No case'}</div>
+                    <div className="fw-semibold text-white">{item.title}</div>
+                    <div className="small text-info">{item.report_type} • {item.case_id ? `Case #${item.case_id}` : 'No case'}</div>
                   </td>
                   <td><Badge bg={item.status === 'READY_FOR_REVIEW' ? 'warning' : item.status === 'RELEASED' ? 'success' : item.status === 'REJECTED' ? 'danger' : 'secondary'}>{item.status}</Badge></td>
                   <td>-</td>
@@ -256,27 +256,27 @@ function AdminDashboard() {
         <div className="col-md-6">
           <Card className="bg-dark border-secondary h-100 shadow-sm">
             <Card.Body>
-              <div className="text-muted small text-uppercase fw-bold mb-2">Progress Monitoring</div>
+              <div className="text-info small text-uppercase fw-bold mb-2">Progress Monitoring</div>
               <div className="d-flex flex-wrap gap-2">
                 {['Waiting', 'Assigned', 'In Progress', 'Under Review', 'Completed'].map((step) => (
-                  <Badge bg="secondary" key={step}>{step}</Badge>
+                  <Badge bg="info" text="dark" key={step}>{step}</Badge>
                 ))}
               </div>
-              <div className="text-muted small mt-3">Workflow state is derived from the service-request, case, alert, and report lifecycle already in the backend.</div>
+              <div className="text-secondary small mt-3">Workflow state is derived from the service-request, case, alert, and report lifecycle already in the backend.</div>
             </Card.Body>
           </Card>
         </div>
         <div className="col-md-6">
           <Card className="bg-dark border-secondary h-100 shadow-sm">
             <Card.Body>
-              <div className="text-muted small text-uppercase fw-bold mb-2">Operations Summary</div>
+              <div className="text-info small text-uppercase fw-bold mb-2">Operations Summary</div>
               <div className="d-flex flex-wrap gap-2">
                 <Badge bg="primary">{dashboard?.total_requests || 0} Requests</Badge>
                 <Badge bg="warning">{dashboard?.open_cases || 0} Active Cases</Badge>
                 <Badge bg="danger">{dashboard?.new_alerts || 0} Alerts</Badge>
                 <Badge bg="success">{reports.filter((report) => report.status === 'RELEASED').length} Released Reports</Badge>
               </div>
-              <div className="text-muted small mt-3">All actions stay within the admin hub; TraceLab and InvoSpace remain execution units only.</div>
+              <div className="text-secondary small mt-3">All actions stay within the admin hub; TraceLab and InvoSpace remain execution units only.</div>
             </Card.Body>
           </Card>
         </div>

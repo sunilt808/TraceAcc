@@ -26,6 +26,11 @@ function ClientRequestForm() {
         request_type: type
       });
 
+      localStorage.setItem('traceacc:last_service_request', JSON.stringify({
+        ...res,
+        saved_at: new Date().toISOString(),
+      }));
+
       if (file) {
         await serviceRequestsAPI.uploadDataset(res.id, file);
       }

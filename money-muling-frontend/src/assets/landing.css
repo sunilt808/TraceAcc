@@ -309,6 +309,67 @@ h1, h2, h3, h4, .logo-text, .hero-badge, .stat-num {
   backdrop-filter: blur(10px);
 }
 
+.hero-signal-strip {
+  margin-top: 22px;
+  padding: 18px 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.7));
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.signal-node {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.signal-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  box-shadow: 0 0 18px currentColor;
+  flex: 0 0 auto;
+}
+
+.node-open .signal-dot {
+  color: #22c55e;
+  background: #22c55e;
+}
+
+.node-progress .signal-dot {
+  color: #60a5fa;
+  background: #60a5fa;
+}
+
+.node-close .signal-dot {
+  color: #f59e0b;
+  background: #f59e0b;
+}
+
+.signal-label {
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.signal-copy {
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.signal-line {
+  height: 2px;
+  min-width: 28px;
+  background: linear-gradient(90deg, rgba(96, 165, 250, 0), rgba(96, 165, 250, 0.9), rgba(96, 165, 250, 0));
+}
+
 .metric-item {
   display: flex;
   flex-direction: column;

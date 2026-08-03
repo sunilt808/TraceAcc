@@ -460,6 +460,32 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
               <span className="metric-lbl">Workflow Score</span>
             </div>
           </div>
+
+          <div className="hero-signal-strip">
+            <div className="signal-node node-open">
+              <span className="signal-dot" />
+              <div>
+                <div className="signal-label">Client Intake</div>
+                <div className="signal-copy">Requests enter the workflow</div>
+              </div>
+            </div>
+            <div className="signal-line" />
+            <div className="signal-node node-progress">
+              <span className="signal-dot" />
+              <div>
+                <div className="signal-label">Admin Review</div>
+                <div className="signal-copy">Queued for accept, reject, or assign</div>
+              </div>
+            </div>
+            <div className="signal-line" />
+            <div className="signal-node node-close">
+              <span className="signal-dot" />
+              <div>
+                <div className="signal-label">Final Release</div>
+                <div className="signal-copy">Clients only see approved output</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Real Cytoscape 3D-Interactive Network Visual */}

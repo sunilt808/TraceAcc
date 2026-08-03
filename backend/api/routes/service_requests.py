@@ -40,7 +40,15 @@ VALID_TYPES = {"ANALYSIS", "INVESTIGATION", "AUDIT"}
 VALID_STATUSES = {"PENDING", "APPROVED", "IN_PROGRESS", "COMPLETED", "REJECTED"}
 
 
-def _sr_to_dict(sr: ServiceRequest) -> dict:
+def _sr_workflow(db: Session, request_id: int, org_id: int):
+    return db.query(WorkflowInstance).filter(
+        WorkflowInstance.service_request_id == request_id,
+        WorkflowInstance.organization_id == org_id,
+    ).order_by(WorkflowInstance.created_at.desc()).first()
+
+
+def _sr_to_dict(db: Session, sr: ServiceRequest) -> dict:
+    workflow = _sr_workflow(db, sr.id, sr.organization_id)
     return {
         "id": sr.id,
         "organization_id": sr.organization_id,
@@ -52,6 +60,9 @@ def _sr_to_dict(sr: ServiceRequest) -> dict:
         "status": sr.status,
         "dataset_filename": sr.dataset_filename,
         "admin_notes": sr.admin_notes,
+        "workflow_instance_id": workflow.id if workflow else None,
+        "workflow_current_status": workflow.current_status if workflow else None,
+        "workflow_current_stage": workflow.current_stage if workflow else None,
         "created_at": sr.created_at.isoformat() if sr.created_at else None,
         "updated_at": sr.updated_at.isoformat() if sr.updated_at else None,
     }
@@ -104,7 +115,7 @@ def create_service_request(
 
     db.commit()
     db.refresh(sr)
-    return {**_sr_to_dict(sr), "workflow_instance_id": workflow_instance.id}
+    return _sr_to_dict(db, sr)
 
 
 @router.get("")
@@ -132,7 +143,7 @@ def list_service_requests(
 
     total = q.count()
     items = q.order_by(ServiceRequest.created_at.desc()).offset(offset).limit(limit).all()
-    return {"items": [_sr_to_dict(sr) for sr in items], "total": total}
+    return {"items": [_sr_to_dict(db, sr) for sr in items], "total": total}
 
 
 @router.get("/{request_id}")
@@ -154,7 +165,7 @@ def get_service_request(
     if current_user.role == Role.CLIENT_USER.value and sr.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied.")
 
-    return _sr_to_dict(sr)
+    return _sr_to_dict(db, sr)
 
 
 @router.patch("/{request_id}")
@@ -188,7 +199,7 @@ def update_service_request(
 
     db.commit()
     db.refresh(sr)
-    return _sr_to_dict(sr)
+    return _sr_to_dict(db, sr)
 
 
 @router.post("/{request_id}/upload")
@@ -217,4 +228,4 @@ def upload_dataset(
     sr.dataset_filename = file.filename
     db.commit()
     db.refresh(sr)
-    return {"message": "Dataset uploaded successfully", "filename": file.filename}
+    return {"message": "Dataset uploaded successfully", "filename": file.filename, "service_request": _sr_to_dict(db, sr)}
