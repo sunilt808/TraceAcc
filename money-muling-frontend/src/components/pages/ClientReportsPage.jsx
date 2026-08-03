@@ -4,7 +4,7 @@ import { reportsAPI } from '../../services/api';
 import { Table, Spinner, Card, Button } from 'react-bootstrap';
 import { CloudDownload, FileEarmarkText } from 'react-bootstrap-icons';
 
-export default function ClientReportsPage() {
+function ClientReportsPage() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -76,3 +76,5 @@ export default function ClientReportsPage() {
     </AppLayout>
   );
 }
+
+export default ClientReportsPage;

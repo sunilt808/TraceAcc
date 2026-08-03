@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import cytoscape from 'cytoscape';
 import '../../assets/landing.css';
 
-export default function LandingPage() {
+function LandingPage() {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState('cycle');
   const [activeArchStep, setActiveArchStep] = useState(0);
@@ -14,7 +14,7 @@ export default function LandingPage() {
 
   // Initializing dynamic Cytoscape Graph with live visual feedback
   useEffect(() => {
-    setMounted(true);
+    const id = window.requestAnimationFrame(() => setMounted(true));
 
     if (cyRef.current && !cyInstance.current) {
       const cy = cytoscape({
@@ -162,7 +162,7 @@ export default function LandingPage() {
                }
             });
             animId = requestAnimationFrame(animateNodes);
-          } catch(e) {
+          } catch {
             // Safe guard against destroyed instance
           }
         }
@@ -174,11 +174,15 @@ export default function LandingPage() {
         if (cyInstance.current) {
           try {
             cyInstance.current.destroy();
-          } catch(e) {}
+          } catch {
+            // ignore cleanup errors when Cytoscape is already destroyed
+          }
           cyInstance.current = null;
         }
       };
     }
+
+    return () => window.cancelAnimationFrame(id);
   }, []);
 
   // Filter Fraud Ring Toggle
@@ -953,4 +957,6 @@ tx_9012,ACC_5099,ACC_3310,9850.00,2026-07-22T08:18:11Z`}</code></pre>
     </div>
   );
 }
+
+export default LandingPage;
 

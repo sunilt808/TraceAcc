@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import AppLayout from '../layout/AppLayout';
 import { useAnalysis } from '../../context/AnalysisContext';
 
@@ -22,7 +22,6 @@ export default function CommunitiesPage() {
 
   const louvainMap    = community.louvain    || {};
   const labelPropMap  = community.label_propagation || {};
-  const girvanList    = community.girvan_newman || [];
 
   // Group by community ID for the chosen algorithm
   const groupByComm = (map) => {
@@ -123,7 +122,7 @@ export default function CommunitiesPage() {
 
       {view === 'scc' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 12 }}>
-          {scc.map((comp, idx) => (
+          {scc.map((comp) => (
             <div key={comp.component_id} className="panel" style={{ border: '1px solid #f85149aa' }}>
               <div className="panel-header" style={{ padding: '10px 14px' }}>
                 <span className="panel-title">{comp.component_id}</span>
@@ -146,7 +145,7 @@ export default function CommunitiesPage() {
 
       {view === 'wcc' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 12 }}>
-          {wcc.map((comp, idx) => (
+          {wcc.map((comp) => (
             <div key={comp.component_id} className="panel" style={{ border: '1px solid #e3b341aa' }}>
               <div className="panel-header" style={{ padding: '10px 14px' }}>
                 <span className="panel-title">{comp.component_id}</span>

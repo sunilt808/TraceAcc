@@ -5,7 +5,7 @@ import { serviceRequestsAPI, reportsAPI } from '../../services/api';
 import { Badge, Button, Table, Spinner, Card } from 'react-bootstrap';
 import { Plus, CloudDownload } from 'react-bootstrap-icons';
 
-export default function ClientPortal() {
+function ClientPortal() {
   const [requests, setRequests] = useState([]);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -124,3 +124,5 @@ export default function ClientPortal() {
     </AppLayout>
   );
 }
+
+export default ClientPortal;

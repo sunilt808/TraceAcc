@@ -31,7 +31,7 @@ function PriorityDot({ priority }) {
   );
 }
 
-export default function CasesPage() {
+function CasesPage() {
   const [cases, setCases]       = useState([]);
   const [loading, setLoading]   = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -40,7 +40,7 @@ export default function CasesPage() {
   const [creating, setCreating] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
 
-  const load = async () => {
+  const load = React.useCallback(async () => {
     setLoading(true);
     try {
       const url = filterStatus ? `/cases?status=${filterStatus}` : '/cases';
@@ -49,9 +49,9 @@ export default function CasesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterStatus]);
 
-  useEffect(() => { load(); }, [filterStatus]);
+  useEffect(() => { load(); }, [load]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -265,3 +265,5 @@ export default function CasesPage() {
     </AppLayout>
   );
 }
+
+export default CasesPage;

@@ -33,7 +33,7 @@ def register(
     payload: UserCreate, 
     request: Request, 
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value]))
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value]))
 ):
     existing_user = get_user_by_username(db, payload.username)
     if existing_user:

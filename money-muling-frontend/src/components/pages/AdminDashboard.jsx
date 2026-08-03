@@ -4,7 +4,7 @@ import { adminAPI } from '../../services/api';
 import { Spinner, Card } from 'react-bootstrap';
 import { PeopleFill, ShieldLockFill, CheckCircleFill, ExclamationTriangleFill } from 'react-bootstrap-icons';
 
-export default function AdminDashboard() {
+function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -94,3 +94,5 @@ export default function AdminDashboard() {
     </AppLayout>
   );
 }
+
+export default AdminDashboard;

@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import AppLayout from '../layout/AppLayout';
 import { useAnalysis } from '../../context/AnalysisContext';
 
-export default function ReportsPage() {
+function ReportsPage() {
   const { analysisResult: data } = useAnalysis();
 
   const handleDownload = (type) => {
@@ -101,3 +101,5 @@ export default function ReportsPage() {
     </AppLayout>
   );
 }
+
+export default ReportsPage;

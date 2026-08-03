@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import AppLayout from '../layout/AppLayout';
 import { useAnalysis } from '../../context/AnalysisContext';
 
-export default function RiskMapPage() {
+function RiskMapPage() {
   const [search, setSearch] = useState('');
   const { analysisResult: data } = useAnalysis();
 
@@ -140,3 +140,5 @@ export default function RiskMapPage() {
     </AppLayout>
   );
 }
+
+export default RiskMapPage;

@@ -4,13 +4,13 @@ import { alertsAPI } from '../../services/api';
 import { Badge, Button, Table, Dropdown, ButtonGroup, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 
-export default function AlertsPage() {
+function AlertsPage() {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const navigate = useNavigate();
 
-  const loadAlerts = async () => {
+  const loadAlerts = React.useCallback(async () => {
     setLoading(true);
     try {
       const data = await alertsAPI.list(filter);
@@ -20,11 +20,11 @@ export default function AlertsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
 
   useEffect(() => {
     loadAlerts();
-  }, [filter]);
+  }, [loadAlerts]);
 
   const handleStatusChange = async (id, status) => {
     try {
@@ -143,3 +143,5 @@ export default function AlertsPage() {
     </AppLayout>
   );
 }
+
+export default AlertsPage;

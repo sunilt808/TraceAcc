@@ -77,14 +77,13 @@ function buildCyElements(analysisResult) {
   return elements;
 }
 
-export default function GraphViewer() {
+function GraphViewer() {
   const cyRef = useRef(null);
   const cyInstance = useRef(null);
   const { analysisResult, runAnalysis, isAnalyzing: loading } = useAnalysis();
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState('');
   const [layout, setLayout] = useState('cose');
-  const [file, setFile] = useState(null);
 
   // Load last analysis from session storage if available
   // Context handles session storage automatically now
@@ -199,7 +198,6 @@ export default function GraphViewer() {
   const handleFileUpload = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    setFile(f);
     try {
       await runAnalysis(f);
     } catch (err) {
@@ -366,3 +364,5 @@ export default function GraphViewer() {
     </AppLayout>
   );
 }
+
+export default GraphViewer;

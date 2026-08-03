@@ -49,7 +49,7 @@ router = APIRouter(prefix="/analyze", tags=["analysis"])
 async def analyze_advanced(
     request: Request,
     file: UploadFile = File(...),
-    current_user: User = Depends(RoleChecker([Role.TRACE_LAB_ANALYST.value, Role.ADMIN.value])),
+    current_user: User = Depends(RoleChecker([Role.TRACE_LAB_ANALYST.value, Role.INVESTIGATOR.value, Role.ADMIN.value])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):

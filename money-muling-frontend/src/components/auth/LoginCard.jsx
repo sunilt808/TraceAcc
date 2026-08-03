@@ -5,31 +5,38 @@ import { useAuth } from '../../context/AuthContext';
 import '../../assets/landing.css';
 
 const LoginCard = () => {
-  const { login, register, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, role } = useAuth();
   const navigate = useNavigate();
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    if (role === 'CLIENT') return <Navigate to="/client-dashboard" replace />;
+    if (role === 'ADMIN') return <Navigate to="/workspace-selector" replace />;
+    if (role === 'TRACE_LAB_ANALYST') return <Navigate to="/tracelab/overview" replace />;
+    if (role === 'INVESTIGATOR') return <Navigate to="/invospace/overview" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
     setLoading(true);
 
     try {
       const user = await login(username, password);
-      if (user.role === 'CLIENT_USER') {
+      if (user.role === 'CLIENT') {
         navigate('/client-dashboard', { replace: true });
+      } else if (user.role === 'ADMIN') {
+        navigate('/workspace-selector', { replace: true });
+      } else if (user.role === 'TRACE_LAB_ANALYST') {
+        navigate('/tracelab/overview', { replace: true });
+      } else if (user.role === 'INVESTIGATOR') {
+        navigate('/invospace/overview', { replace: true });
       } else {
-        navigate('/overview', { replace: true });
+        navigate('/login', { replace: true });
       }
     } catch (err) {
       const msg =
@@ -86,31 +93,37 @@ const LoginCard = () => {
             <p className="text-secondary small mb-0">Graph-Based Financial Fraud Intelligence</p>
           </div>
 
-          {error && <Alert variant="danger" className="py-2 small bg-danger bg-opacity-20 text-danger border-danger border-opacity-30">{error}</Alert>}
+          {error && (
+            <Alert variant="danger" className="py-2 small mb-3 bg-danger bg-opacity-20 text-danger border-danger border-opacity-30">
+              {error}
+            </Alert>
+          )}
 
           <Form onSubmit={handleSubmit}>
             <Form.Group className="mb-3" controlId="username">
               <Form.Label className="small text-secondary fw-semibold">USERNAME</Form.Label>
               <Form.Control
                 type="text"
-                placeholder="Enter analyst username"
+                placeholder="Enter your username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="custom-glass-input"
                 minLength={3}
                 required
+                autoComplete="username"
               />
             </Form.Group>
             <Form.Group className="mb-4" controlId="password">
               <Form.Label className="small text-secondary fw-semibold">PASSWORD</Form.Label>
               <Form.Control
                 type="password"
-                placeholder="Enter password (min 8 chars)"
+                placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="custom-glass-input"
                 minLength={8}
                 required
+                autoComplete="current-password"
               />
             </Form.Group>
 
@@ -123,48 +136,52 @@ const LoginCard = () => {
             </button>
           </Form>
 
-          {/* Quick Demo Login */}
           <div className="text-center mt-2 border-top border-white border-opacity-10 pt-3">
-            <span className="text-secondary small fw-semibold d-block mb-3">QUICK TEST LOGIN</span>
+            <span className="text-secondary small fw-semibold d-block mb-3">DEMO ACCOUNTS</span>
             <div className="d-flex flex-wrap justify-content-center gap-2">
-              <button 
+              <button
                 type="button"
                 className="btn btn-sm btn-outline-primary"
-                onClick={() => { setUsername('client'); setPassword('Password123!'); }}
+                onClick={() => {
+                  setUsername('client');
+                  setPassword('Password123!');
+                }}
               >
                 Client
               </button>
-              <button 
+              <button
                 type="button"
                 className="btn btn-sm btn-outline-info"
-                onClick={() => { setUsername('analyst'); setPassword('Password123!'); }}
+                onClick={() => {
+                  setUsername('analyst');
+                  setPassword('Password123!');
+                }}
               >
-                Analyst
+                TraceLab Analyst
               </button>
-              <button 
+              <button
                 type="button"
-                className="btn btn-sm btn-outline-warning"
-                onClick={() => { setUsername('investigator'); setPassword('Password123!'); }}
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => {
+                  setUsername('investigator');
+                  setPassword('Password123!');
+                }}
               >
                 Investigator
               </button>
-              <button 
-                type="button"
-                className="btn btn-sm btn-outline-success"
-                onClick={() => { setUsername('auditor'); setPassword('Password123!'); }}
-              >
-                Auditor
-              </button>
-              <button 
+              <button
                 type="button"
                 className="btn btn-sm btn-outline-danger"
-                onClick={() => { setUsername('admin'); setPassword('Password123!'); }}
+                onClick={() => {
+                  setUsername('admin');
+                  setPassword('Password123!');
+                }}
               >
                 Admin
               </button>
             </div>
             <div className="small text-muted mt-2" style={{ fontSize: '11px' }}>
-              Click a role above, then click Sign In
+              Choose a demo account, then sign in.
             </div>
           </div>
 
@@ -179,4 +196,4 @@ const LoginCard = () => {
   );
 };
 
-export default LoginCard;
+export default LoginCard;

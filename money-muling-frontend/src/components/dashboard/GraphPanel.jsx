@@ -185,7 +185,7 @@ const GraphPanel = ({ elements = [], loading, highlightedRing, transactions = []
         cyRef.current = null;
       }
     };
-  }, [elements, loading, applyFilter]);
+  }, [elements, loading, applyFilter, filterCategory]);
 
   // Apply filter when category changes
   useEffect(() => {

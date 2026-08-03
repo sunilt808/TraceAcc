@@ -54,8 +54,12 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
         return None
         
     now = datetime.now(timezone.utc)
-    if user.locked_until and user.locked_until > now:
-        return None
+    if user.locked_until:
+        locked_until = user.locked_until
+        if locked_until.tzinfo is None:
+            locked_until = locked_until.replace(tzinfo=timezone.utc)
+        if locked_until > now:
+            return None
         
     if not verify_password(password, user.password):
         user.failed_login_count += 1

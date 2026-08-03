@@ -4,7 +4,7 @@ import AppLayout from '../layout/AppLayout';
 import { serviceRequestsAPI } from '../../services/api';
 import { Form, Button, Card, Spinner, Alert } from 'react-bootstrap';
 
-export default function ClientRequestForm() {
+function ClientRequestForm() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState('ANALYSIS');
@@ -113,3 +113,5 @@ export default function ClientRequestForm() {
     </AppLayout>
   );
 }
+
+export default ClientRequestForm;

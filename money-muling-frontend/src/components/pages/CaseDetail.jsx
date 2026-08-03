@@ -5,7 +5,7 @@ import { casesAPI, evidenceAPI } from '../../services/api';
 import { Badge, Button, Tabs, Tab, Table, Spinner, Form, Card } from 'react-bootstrap';
 import { FileEarmarkText, CloudArrowUp, CloudDownload, Trash, CheckCircle, Clock } from 'react-bootstrap-icons';
 
-export default function CaseDetail() {
+function CaseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   
@@ -17,7 +17,7 @@ export default function CaseDetail() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
 
-  const loadCase = async () => {
+  const loadCase = React.useCallback(async () => {
     try {
       setLoading(true);
       const [c, t, e] = await Promise.all([
@@ -34,11 +34,11 @@ export default function CaseDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, navigate]);
 
   useEffect(() => {
     loadCase();
-  }, [id]);
+  }, [loadCase]);
 
   const handleStatusChange = async (newStatus) => {
     try {
@@ -209,7 +209,7 @@ export default function CaseDetail() {
             <Card.Body>
               <h6 className="text-muted mb-4">Case History</h6>
               <div className="position-relative ps-4 border-start border-secondary" style={{ marginLeft: '12px' }}>
-                {timeline.map((event, index) => (
+                {timeline.map((event) => (
                   <div key={event.id} className="mb-4 position-relative">
                     <div 
                       className="position-absolute bg-dark border border-primary rounded-circle d-flex align-items-center justify-content-center"
@@ -244,3 +244,5 @@ export default function CaseDetail() {
     </AppLayout>
   );
 }
+
+export default CaseDetail;

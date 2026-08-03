@@ -10,7 +10,7 @@ const StatCard = ({ label, value, sub, accent }) => (
   </div>
 );
 
-export default function OverviewPage() {
+function OverviewPage() {
   const [jobs, setJobs] = useState([]);
   const [auditStats, setAuditStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -176,3 +176,5 @@ export default function OverviewPage() {
     </AppLayout>
   );
 }
+
+export default OverviewPage;

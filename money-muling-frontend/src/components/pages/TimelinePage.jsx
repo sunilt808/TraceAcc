@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import AppLayout from '../layout/AppLayout';
 import { useAnalysis } from '../../context/AnalysisContext';
 
-export default function TimelinePage() {
+function TimelinePage() {
   const { analysisResult: data } = useAnalysis();
 
   if (!data) {
@@ -116,3 +116,5 @@ export default function TimelinePage() {
     </AppLayout>
   );
 }
+
+export default TimelinePage;

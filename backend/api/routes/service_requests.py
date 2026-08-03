@@ -14,6 +14,8 @@ from db.database import get_db
 from models.user import User
 from models.role import Role
 from models.service_request import ServiceRequest
+from models.workflow_instance import WorkflowInstance
+from models.activity_timeline import ActivityTimeline
 from services.storage_service import StorageService
 
 router = APIRouter(prefix="/service-requests", tags=["service-requests"])
@@ -78,9 +80,31 @@ def create_service_request(
         request_type=body.request_type.upper(),
     )
     db.add(sr)
+    db.flush()
+
+    workflow_instance = WorkflowInstance(
+        organization_id=org_id,
+        service_request_id=sr.id,
+        current_status="SUBMITTED",
+        current_stage="REQUEST_CREATED",
+        owner_id=current_user.id,
+        assignee_id=current_user.id,
+    )
+    db.add(workflow_instance)
+    db.flush()
+    db.add(ActivityTimeline(
+        organization_id=org_id,
+        workflow_instance_id=workflow_instance.id,
+        actor_id=current_user.id,
+        action="CREATED",
+        from_status="NEW",
+        to_status="SUBMITTED",
+        details="Service request created",
+    ))
+
     db.commit()
     db.refresh(sr)
-    return _sr_to_dict(sr)
+    return {**_sr_to_dict(sr), "workflow_instance_id": workflow_instance.id}
 
 
 @router.get("")

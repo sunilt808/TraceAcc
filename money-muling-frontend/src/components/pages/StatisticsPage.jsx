@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import AppLayout from '../layout/AppLayout';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -21,7 +21,7 @@ function StatCard({ label, value, sub, accent }) {
 
 import { useAnalysis } from '../../context/AnalysisContext';
 
-export default function StatisticsPage() {
+function StatisticsPage() {
   const { analysisResult: data } = useAnalysis();
 
   if (!data) {
@@ -40,9 +40,7 @@ export default function StatisticsPage() {
   const summary   = data.summary || {};
   const hybrid    = data.hybrid_scores || [];
   const temporal  = data.temporal || {};
-  const velocity  = data.velocity || {};
   const motifs    = data.motifs || {};
-  const community = data.communities || {};
   const amount    = data.amount_patterns || {};
 
   // ── Risk Tier Distribution ─────────────────────────────────
@@ -229,3 +227,5 @@ export default function StatisticsPage() {
     </AppLayout>
   );
 }
+
+export default StatisticsPage;

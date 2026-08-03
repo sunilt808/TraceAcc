@@ -3,7 +3,7 @@ import AppLayout from '../layout/AppLayout';
 import { adminAPI } from '../../services/api';
 import { Table, Spinner, Card, Badge, Form } from 'react-bootstrap';
 
-export default function AdminUsersPage() {
+function AdminUsersPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -102,3 +102,5 @@ export default function AdminUsersPage() {
     </AppLayout>
   );
 }
+
+export default AdminUsersPage;

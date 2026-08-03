@@ -53,5 +53,8 @@ def init_db() -> None:
     import models.evidence           # noqa: F401
     import models.service_request    # noqa: F401
     import models.client_report      # noqa: F401
+    import models.workflow_instance   # noqa: F401
+    import models.activity_timeline  # noqa: F401
+    import models.assignment         # noqa: F401
 
     Base.metadata.create_all(bind=engine)

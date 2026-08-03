@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './assets/theme.css';
 import LoginCard from './components/auth/LoginCard';
@@ -18,6 +18,7 @@ import SampleGenerator from './components/dashboard/SampleGenerator';
 
 import AppLayout from './components/layout/AppLayout';
 import LandingPage from './components/pages/LandingPage';
+import WorkspaceSelector from './components/pages/WorkspaceSelector';
 
 // New Pages
 import OverviewPage from './components/pages/OverviewPage';
@@ -32,6 +33,120 @@ import CaseDetail from './components/pages/CaseDetail';
 import AlertsPage from './components/pages/AlertsPage';
 
 import SettingsPage from './components/settings/SettingsPage';
+
+const routeMap = {
+  overview: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/overview',
+    INVESTIGATOR: '/invospace/overview',
+  },
+  dashboard: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/dashboard',
+    INVESTIGATOR: '/invospace/dashboard',
+  },
+  upload: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/upload',
+    INVESTIGATOR: '/invospace/upload',
+  },
+  graph: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/graph-viewer',
+    INVESTIGATOR: '/invospace/graph-viewer',
+  },
+  riskMap: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/risk-map',
+    INVESTIGATOR: '/invospace/risk-map',
+  },
+  communities: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/communities',
+    INVESTIGATOR: '/invospace/communities',
+  },
+  timeline: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/timeline',
+    INVESTIGATOR: '/invospace/timeline',
+  },
+  statistics: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/statistics',
+    INVESTIGATOR: '/invospace/statistics',
+  },
+  reports: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/reports',
+    INVESTIGATOR: '/invospace/reports',
+  },
+  cases: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/cases',
+    INVESTIGATOR: '/invospace/cases',
+  },
+  alerts: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/alerts',
+    INVESTIGATOR: '/invospace/alerts',
+  },
+  caseDetail: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/cases',
+    INVESTIGATOR: '/invospace/cases',
+  },
+};
+
+const adminWorkspacePaths = {
+  tracelab: {
+    overview: '/tracelab/overview',
+    dashboard: '/tracelab/dashboard',
+    upload: '/tracelab/upload',
+    graph: '/tracelab/graph-viewer',
+    riskMap: '/tracelab/risk-map',
+    communities: '/tracelab/communities',
+    timeline: '/tracelab/timeline',
+    statistics: '/tracelab/statistics',
+    reports: '/tracelab/reports',
+    cases: '/tracelab/cases',
+    alerts: '/tracelab/alerts',
+    caseDetail: '/tracelab/cases',
+  },
+  invospace: {
+    overview: '/invospace/overview',
+    dashboard: '/invospace/dashboard',
+    upload: '/invospace/upload',
+    graph: '/invospace/graph-viewer',
+    riskMap: '/invospace/risk-map',
+    communities: '/invospace/communities',
+    timeline: '/invospace/timeline',
+    statistics: '/invospace/statistics',
+    reports: '/invospace/reports',
+    cases: '/invospace/cases',
+    alerts: '/invospace/alerts',
+    caseDetail: '/invospace/cases',
+  },
+};
+
+const WorkspaceRedirect = ({ page }) => {
+  const { role, workspace } = useAuth();
+  const params = useParams();
+
+  if (role === 'ADMIN') {
+    if (!workspace || workspace === 'admin') {
+      return <Navigate to="/workspace-selector" replace />;
+    }
+    const adminPath = adminWorkspacePaths[workspace]?.[page];
+    if (!adminPath) {
+      return <Navigate to="/workspace-selector" replace />;
+    }
+    return <Navigate to={page === 'caseDetail' && params.id ? `${adminPath}/${params.id}` : adminPath} replace />;
+  }
+
+  const roleMap = routeMap[page] ?? routeMap.overview;
+  const path = roleMap?.[role] || '/login';
+  return <Navigate to={page === 'caseDetail' && params.id ? `${path}/${params.id}` : path} replace />;
+};
 
 function App() {
   const { loading } = useAuth();
@@ -53,29 +168,49 @@ function App() {
       <Route element={<ProtectedRoute />}>
             
             {/* Client Portal Routes */}
-            <Route element={<RoleRoute allowedRoles={['CLIENT_USER', 'ADMIN', 'SUPER_ADMIN']} redirectPath="/overview" />}>
+            <Route element={<RoleRoute allowedRoles={['CLIENT']} redirectPath="/overview" />}>
               <Route path="/client-dashboard" element={<ClientPortal />} />
               <Route path="/client-requests/new" element={<ClientRequestForm />} />
               <Route path="/client-reports" element={<ClientReportsPage />} />
             </Route>
 
-            {/* Analyst & Investigation Routes */}
-            <Route element={<RoleRoute allowedRoles={['TRACE_LAB_ANALYST', 'ADMIN', 'SUPER_ADMIN']} redirectPath="/client-dashboard" />}>
-              <Route path="/dashboard" element={<AppLayout title="Analyze"><Dashboard /></AppLayout>} />
-              <Route path="/overview" element={<OverviewPage />} />
-              <Route path="/risk-map" element={<RiskMapPage />} />
-              <Route path="/graph-viewer" element={<GraphViewer />} />
+            {/* TraceLab Workspace Routes */}
+            <Route element={<RoleRoute allowedRoles={['TRACE_LAB_ANALYST', 'ADMIN']} redirectPath="/client-dashboard" />}>
+              <Route path="/tracelab" element={<Navigate to="/tracelab/overview" replace />} />
+              <Route path="/tracelab/overview" element={<OverviewPage />} />
+              <Route path="/tracelab/dashboard" element={<AppLayout title="Analyze"><Dashboard /></AppLayout>} />
+              <Route path="/tracelab/upload" element={<AppLayout title="Upload CSV"><Dashboard /></AppLayout>} />
+              <Route path="/tracelab/risk-map" element={<RiskMapPage />} />
+              <Route path="/tracelab/graph-viewer" element={<GraphViewer />} />
+              <Route path="/tracelab/communities" element={<CommunitiesPage />} />
+              <Route path="/tracelab/timeline" element={<TimelinePage />} />
+              <Route path="/tracelab/statistics" element={<StatisticsPage />} />
+              <Route path="/tracelab/reports" element={<ReportsPage />} />
+              <Route path="/tracelab/cases" element={<CasesPage />} />
+              <Route path="/tracelab/cases/:id" element={<CaseDetail />} />
+              <Route path="/tracelab/alerts" element={<AlertsPage />} />
             </Route>
 
-            {/* Investigation and Management Routes */}
-            <Route element={<RoleRoute allowedRoles={['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN', 'SUPER_ADMIN', 'AUDITOR']} redirectPath="/client-dashboard" />}>
-              <Route path="/cases" element={<CasesPage />} />
-              <Route path="/cases/:id" element={<CaseDetail />} />
-              <Route path="/alerts" element={<AlertsPage />} />
+            {/* InvoSpace Workspace Routes */}
+            <Route element={<RoleRoute allowedRoles={['INVESTIGATOR', 'ADMIN']} redirectPath="/client-dashboard" />}>
+              <Route path="/invospace" element={<Navigate to="/invospace/overview" replace />} />
+              <Route path="/invospace/overview" element={<OverviewPage />} />
+              <Route path="/invospace/dashboard" element={<AppLayout title="Analyze"><Dashboard /></AppLayout>} />
+              <Route path="/invospace/upload" element={<AppLayout title="Upload CSV"><Dashboard /></AppLayout>} />
+              <Route path="/invospace/risk-map" element={<RiskMapPage />} />
+              <Route path="/invospace/graph-viewer" element={<GraphViewer />} />
+              <Route path="/invospace/communities" element={<CommunitiesPage />} />
+              <Route path="/invospace/timeline" element={<TimelinePage />} />
+              <Route path="/invospace/statistics" element={<StatisticsPage />} />
+              <Route path="/invospace/reports" element={<ReportsPage />} />
+              <Route path="/invospace/cases" element={<CasesPage />} />
+              <Route path="/invospace/cases/:id" element={<CaseDetail />} />
+              <Route path="/invospace/alerts" element={<AlertsPage />} />
             </Route>
 
             {/* Admin Routes */}
-            <Route element={<RoleRoute allowedRoles={['ADMIN', 'SUPER_ADMIN']} redirectPath="/overview" />}>
+            <Route element={<RoleRoute allowedRoles={['ADMIN']} redirectPath="/overview" />}>
+              <Route path="/workspace-selector" element={<WorkspaceSelector />} />
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/users" element={<AdminUsersPage />} />
             </Route>
@@ -84,10 +219,18 @@ function App() {
             <Route path="/profile" element={<AppLayout title="Profile"><ProfilePage /></AppLayout>} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/audit-history" element={<AppLayout title="Audit Logs"><AuditHistory /></AppLayout>} />
-            <Route path="/timeline" element={<TimelinePage />} />
-            <Route path="/statistics" element={<StatisticsPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/communities" element={<CommunitiesPage />} />
+            <Route path="/overview" element={<WorkspaceRedirect page="overview" />} />
+            <Route path="/dashboard" element={<WorkspaceRedirect page="dashboard" />} />
+            <Route path="/upload" element={<WorkspaceRedirect page="upload" />} />
+            <Route path="/graph-viewer" element={<WorkspaceRedirect page="graph" />} />
+            <Route path="/risk-map" element={<WorkspaceRedirect page="riskMap" />} />
+            <Route path="/communities" element={<WorkspaceRedirect page="communities" />} />
+            <Route path="/timeline" element={<WorkspaceRedirect page="timeline" />} />
+            <Route path="/statistics" element={<WorkspaceRedirect page="statistics" />} />
+            <Route path="/reports" element={<WorkspaceRedirect page="reports" />} />
+            <Route path="/cases" element={<WorkspaceRedirect page="cases" />} />
+            <Route path="/cases/:id" element={<WorkspaceRedirect page="caseDetail" />} />
+            <Route path="/alerts" element={<WorkspaceRedirect page="alerts" />} />
             
           </Route>
 

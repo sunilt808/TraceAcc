@@ -6,64 +6,75 @@ import '../../assets/sidebar.css';
 const NAV_ITEMS = [
   {
     section: 'Client Portal',
-    roles: ['CLIENT_USER', 'ADMIN', 'SUPER_ADMIN'],
+    roles: ['CLIENT', 'ADMIN', 'TRACE_LAB_ANALYST'],
     items: [
-      { path: '/client-dashboard', icon: '🏠', label: 'My Requests', roles: ['CLIENT_USER'] },
-      { path: '/client-requests/new', icon: '📝', label: 'New Request', roles: ['CLIENT_USER'] },
-      { path: '/client-reports', icon: '📄', label: 'My Reports', roles: ['CLIENT_USER'] },
+      { path: '/client-dashboard', icon: '🏠', label: 'My Requests', roles: ['CLIENT'] },
+      { path: '/client-requests/new', icon: '📝', label: 'New Request', roles: ['CLIENT'] },
+      { path: '/client-reports', icon: '📄', label: 'My Reports', roles: ['CLIENT'] },
     ],
   },
   {
     section: 'Main',
-    roles: ['TRACE_LAB_ANALYST', 'ADMIN', 'SUPER_ADMIN'],
+    roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'],
     items: [
-      { path: '/overview',   icon: '📊', label: 'Overview', roles: ['TRACE_LAB_ANALYST', 'ADMIN', 'SUPER_ADMIN'] },
-      { path: '/dashboard',  icon: '🔍', label: 'Analyze', roles: ['TRACE_LAB_ANALYST', 'ADMIN', 'SUPER_ADMIN'] },
-      { path: '/upload',     icon: '📤', label: 'Upload CSV', roles: ['TRACE_LAB_ANALYST', 'ADMIN', 'SUPER_ADMIN'] },
+      { path: '/overview',   icon: '📊', label: 'Overview', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
+      { path: '/dashboard',  icon: '🔍', label: 'Analyze', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
+      { path: '/upload',     icon: '📤', label: 'Upload CSV', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
     ],
   },
   {
     section: 'Detection',
-    roles: ['TRACE_LAB_ANALYST', 'ADMIN', 'SUPER_ADMIN'],
+    roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'],
     items: [
-      { path: '/graph-viewer',  icon: '🕸️',  label: 'Graph Viewer', roles: ['TRACE_LAB_ANALYST', 'ADMIN', 'SUPER_ADMIN'] },
-      { path: '/communities',   icon: '👥',  label: 'Communities', roles: ['TRACE_LAB_ANALYST', 'ADMIN', 'SUPER_ADMIN'] },
-      { path: '/risk-map',      icon: '🗺️',  label: 'Risk Map', roles: ['TRACE_LAB_ANALYST', 'ADMIN', 'SUPER_ADMIN'] },
-      { path: '/timeline',      icon: '⏱️',  label: 'Timeline', roles: ['TRACE_LAB_ANALYST', 'ADMIN', 'SUPER_ADMIN'] },
+      { path: '/graph-viewer',  icon: '🕸️',  label: 'Graph Viewer', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
+      { path: '/communities',   icon: '👥',  label: 'Communities', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
+      { path: '/risk-map',      icon: '🗺️',  label: 'Risk Map', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
+      { path: '/timeline',      icon: '⏱️',  label: 'Timeline', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
     ],
   },
   {
     section: 'Analytics & Cases',
-    roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN', 'SUPER_ADMIN', 'AUDITOR'],
+    roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'],
     items: [
-      { path: '/alerts',     icon: '🚨', label: 'Alerts', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN', 'SUPER_ADMIN', 'AUDITOR'] },
-      { path: '/cases',      icon: '🗂️', label: 'Cases', roles: ['INVESTIGATOR', 'ADMIN', 'SUPER_ADMIN', 'AUDITOR'] },
-      { path: '/statistics', icon: '📈', label: 'Statistics', roles: ['TRACE_LAB_ANALYST', 'ADMIN', 'SUPER_ADMIN'] },
-      { path: '/reports',    icon: '📄', label: 'Reports', roles: ['INVESTIGATOR', 'ADMIN', 'SUPER_ADMIN', 'AUDITOR'] },
+      { path: '/alerts',     icon: '🚨', label: 'Alerts', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
+      { path: '/cases',      icon: '🗂️', label: 'Cases', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
+      { path: '/statistics', icon: '📈', label: 'Statistics', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
+      { path: '/reports',    icon: '📄', label: 'Reports', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
     ],
   },
   {
     section: 'Admin',
-    roles: ['ADMIN', 'SUPER_ADMIN'],
+    roles: ['ADMIN'],
     items: [
-      { path: '/admin',       icon: '⚙️', label: 'Dashboard', roles: ['ADMIN', 'SUPER_ADMIN'] },
-      { path: '/admin/users', icon: '👥', label: 'Users', roles: ['ADMIN', 'SUPER_ADMIN'] },
+      { path: '/admin',       icon: '⚙️', label: 'Dashboard', roles: ['ADMIN'] },
+      { path: '/admin/users', icon: '👥', label: 'Users', roles: ['ADMIN'] },
     ],
   },
   {
     section: 'Account',
-    roles: ['CLIENT_USER', 'TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN', 'SUPER_ADMIN', 'AUDITOR'],
+    roles: ['CLIENT', 'TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'],
     items: [
-      { path: '/audit-history', icon: '📋', label: 'Audit Logs', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN', 'SUPER_ADMIN', 'AUDITOR', 'CLIENT_USER'] },
-      { path: '/profile',       icon: '👤', label: 'Profile', roles: ['CLIENT_USER', 'TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN', 'SUPER_ADMIN', 'AUDITOR'] },
+      { path: '/audit-history', icon: '📋', label: 'Audit Logs', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
+      { path: '/profile',       icon: '👤', label: 'Profile', roles: ['CLIENT', 'TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
     ],
   },
 ];
 
 export default function Sidebar() {
-  const { user, role, logout } = useAuth();
+  const { user, role, workspace, logout } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const getWorkspaceName = () => {
+    if (role === 'CLIENT') return 'client';
+    if (role === 'TRACE_LAB_ANALYST') return 'tracelab';
+    if (role === 'INVESTIGATOR') return 'invospace';
+    if (role === 'ADMIN') return workspace || 'admin';
+    return null;
+  };
+
+  const workspaceName = getWorkspaceName();
+  const prefix = role === 'CLIENT' || workspaceName === 'admin' ? '' : workspaceName ? `/${workspaceName}` : '';
 
   const handleLogout = () => {
     logout();
@@ -73,6 +84,33 @@ export default function Sidebar() {
   const initials = user?.username
     ? user.username.slice(0, 2).toUpperCase()
     : 'U';
+
+  const commonAbsolutePaths = ['/admin', '/profile', '/settings', '/audit-history', '/client-dashboard', '/client-requests/new', '/client-reports'];
+  const resolvePath = (path) => {
+    if (role === 'CLIENT') return path;
+    if (commonAbsolutePaths.some((absolutePath) => path.startsWith(absolutePath))) return path;
+    return `${prefix}${path}`;
+  };
+
+  const shouldShowItem = (item) => {
+    if (role !== 'ADMIN') {
+      return !item.roles || item.roles.includes(role);
+    }
+
+    if (workspaceName === 'admin') {
+      return item.path.startsWith('/admin') || ['profile', 'settings', 'audit-history'].some((suffix) => item.path.endsWith(suffix));
+    }
+
+    if (workspaceName === 'tracelab') {
+      return !item.path.startsWith('/client') && !item.path.startsWith('/admin');
+    }
+
+    if (workspaceName === 'invospace') {
+      return !item.path.startsWith('/client') && !item.path.startsWith('/admin');
+    }
+
+    return false;
+  };
 
   return (
     <>
@@ -115,7 +153,7 @@ export default function Sidebar() {
         {/* Navigation */}
         <nav className="sidebar-nav">
           {NAV_ITEMS.filter(group => !group.roles || group.roles.includes(role)).map((group) => {
-            const visibleItems = group.items.filter(item => !item.roles || item.roles.includes(role));
+            const visibleItems = group.items.filter(item => shouldShowItem(item));
             if (visibleItems.length === 0) return null;
             return (
               <div key={group.section}>
@@ -123,7 +161,7 @@ export default function Sidebar() {
                 {visibleItems.map((item) => (
                   <NavLink
                     key={item.path}
-                    to={item.path}
+                    to={resolvePath(item.path)}
                     className={({ isActive }) =>
                       `sidebar-link${isActive ? ' active' : ''}`
                     }

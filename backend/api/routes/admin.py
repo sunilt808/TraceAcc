@@ -165,12 +165,12 @@ def admin_dashboard(
     org_id = current_user.organization_id
     total_users = db.query(sa_func.count(User.id)).filter(User.organization_id == org_id).scalar()
     total_orgs = 1
-        total_cases = db.query(sa_func.count(Case.id)).filter(Case.organization_id == org_id).scalar()
-        open_cases = db.query(sa_func.count(Case.id)).filter(Case.organization_id == org_id, Case.status.in_(["OPEN", "INVESTIGATING", "REVIEW"])).scalar()
-        total_alerts = db.query(sa_func.count(Alert.id)).filter(Alert.organization_id == org_id).scalar()
-        new_alerts = db.query(sa_func.count(Alert.id)).filter(Alert.organization_id == org_id, Alert.status == "NEW").scalar()
-        total_requests = db.query(sa_func.count(ServiceRequest.id)).filter(ServiceRequest.organization_id == org_id).scalar()
-        pending_requests = db.query(sa_func.count(ServiceRequest.id)).filter(ServiceRequest.organization_id == org_id, ServiceRequest.status == "PENDING").scalar()
+    total_cases = db.query(sa_func.count(Case.id)).filter(Case.organization_id == org_id).scalar()
+    open_cases = db.query(sa_func.count(Case.id)).filter(Case.organization_id == org_id, Case.status.in_(["OPEN", "INVESTIGATING", "REVIEW"])).scalar()
+    total_alerts = db.query(sa_func.count(Alert.id)).filter(Alert.organization_id == org_id).scalar()
+    new_alerts = db.query(sa_func.count(Alert.id)).filter(Alert.organization_id == org_id, Alert.status == "NEW").scalar()
+    total_requests = db.query(sa_func.count(ServiceRequest.id)).filter(ServiceRequest.organization_id == org_id).scalar()
+    pending_requests = db.query(sa_func.count(ServiceRequest.id)).filter(ServiceRequest.organization_id == org_id, ServiceRequest.status == "PENDING").scalar()
 
     return {
         "total_users": total_users,
