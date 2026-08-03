@@ -17,10 +17,13 @@ class ClientReport(Base):
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=True, index=True)
     service_request_id = Column(Integer, ForeignKey("service_requests.id"), nullable=True, index=True)
 
+    workflow_instance_id = Column(Integer, ForeignKey("workflow_instances.id"), nullable=True, index=True)
+
     title = Column(String(255), nullable=False)
     summary = Column(Text, nullable=True)
     # ANALYSIS | INVESTIGATION | COMPLIANCE
     report_type = Column(String(50), default="ANALYSIS", nullable=False)
+    status = Column(String(50), default="DRAFT", nullable=False, index=True)
 
     file_path = Column(String(500), nullable=True)
     generated_by_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)

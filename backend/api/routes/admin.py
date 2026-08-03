@@ -19,6 +19,10 @@ from models.organization import Organization
 from models.case import Case
 from models.alert import Alert
 from models.service_request import ServiceRequest
+from models.workflow_instance import WorkflowInstance
+from models.assignment import Assignment
+from models.activity_timeline import ActivityTimeline
+from models.client_report import ClientReport
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -32,6 +36,18 @@ class UserUpdate(BaseModel):
 
 class OrganizationCreate(BaseModel):
     name: str
+
+
+class RequestReviewAction(BaseModel):
+    action: str
+    assignee_id: Optional[int] = None
+    note: Optional[str] = None
+    due_at: Optional[datetime] = None
+
+
+class ReportReviewAction(BaseModel):
+    action: str
+    note: Optional[str] = None
 
 
 # ---------- User Management ----------
@@ -117,6 +133,284 @@ def update_user(
 
 # ---------- Organization Management ----------
 
+
+def _request_queue_item(db: Session, request: ServiceRequest) -> dict:
+    workflow = db.query(WorkflowInstance).filter(WorkflowInstance.service_request_id == request.id).order_by(WorkflowInstance.created_at.desc()).first()
+    assignee = db.query(User).filter(User.id == request.assigned_to_id).first() if request.assigned_to_id else None
+    latest_assignment = None
+    if workflow:
+        latest_assignment = db.query(Assignment).filter(Assignment.workflow_instance_id == workflow.id).order_by(Assignment.created_at.desc()).first()
+
+    assigned_team = None
+    if assignee:
+        if assignee.role == Role.TRACE_LAB_ANALYST.value:
+            assigned_team = "TraceLab"
+        elif assignee.role == Role.INVESTIGATOR.value:
+            assigned_team = "InvoSpace"
+        else:
+            assigned_team = assignee.role
+
+    return {
+        "id": request.id,
+        "organization_id": request.organization_id,
+        "title": request.title,
+        "description": request.description,
+        "request_type": request.request_type,
+        "status": request.status,
+        "assigned_to_id": request.assigned_to_id,
+        "assigned_user": assignee.username if assignee else None,
+        "assigned_team": assigned_team,
+        "priority": "HIGH" if request.request_type == "INVESTIGATION" else "MEDIUM",
+        "due_at": latest_assignment.due_at.isoformat() if latest_assignment and latest_assignment.due_at else None,
+        "workflow_instance_id": workflow.id if workflow else None,
+        "current_stage": workflow.current_stage if workflow else None,
+        "current_status": workflow.current_status if workflow else request.status,
+        "created_at": request.created_at.isoformat() if request.created_at else None,
+        "updated_at": request.updated_at.isoformat() if request.updated_at else None,
+    }
+
+
+def _service_request_workflow(db: Session, request_id: int, org_id: int):
+    return db.query(WorkflowInstance).filter(
+        WorkflowInstance.service_request_id == request_id,
+        WorkflowInstance.organization_id == org_id,
+    ).order_by(WorkflowInstance.created_at.desc()).first()
+
+
+def _record_workflow_event(db: Session, workflow: WorkflowInstance, actor_id: int, action: str, from_status: str, to_status: str, note: Optional[str]):
+    db.add(ActivityTimeline(
+        organization_id=workflow.organization_id,
+        workflow_instance_id=workflow.id,
+        actor_id=actor_id,
+        action=action,
+        from_status=from_status,
+        to_status=to_status,
+        details=note,
+    ))
+
+
+def _service_request_scope_query(db: Session, current_user: User):
+    query = db.query(ServiceRequest)
+    if current_user.role != Role.SUPER_ADMIN.value:
+        query = query.filter(ServiceRequest.organization_id == current_user.organization_id)
+    return query
+
+
+def _service_request_for_review(db: Session, current_user: User, request_id: int):
+    request = db.query(ServiceRequest).filter(ServiceRequest.id == request_id)
+    if current_user.role != Role.SUPER_ADMIN.value:
+        request = request.filter(ServiceRequest.organization_id == current_user.organization_id)
+    return request.first()
+
+
+@router.get("/request-queue")
+def request_queue(
+    status: Optional[str] = Query(None),
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    db: Session = Depends(get_db),
+):
+    q = _service_request_scope_query(db, current_user)
+    if status:
+        q = q.filter(ServiceRequest.status == status.upper())
+    items = q.order_by(ServiceRequest.created_at.desc()).all()
+    grouped = {key: 0 for key in ["PENDING", "APPROVED", "REJECTED", "IN_PROGRESS", "COMPLETED"]}
+    for request in _service_request_scope_query(db, current_user).all():
+        grouped[request.status] = grouped.get(request.status, 0) + 1
+
+    return {
+        "items": [_request_queue_item(db, request) for request in items],
+        "counts": grouped,
+        "total": len(items),
+    }
+
+
+@router.patch("/service-requests/{request_id}/review")
+def review_service_request(
+    request_id: int,
+    body: RequestReviewAction,
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    db: Session = Depends(get_db),
+):
+    request = _service_request_for_review(db, current_user, request_id)
+    if not request:
+        raise HTTPException(status_code=404, detail="Service request not found.")
+
+    org_id = request.organization_id
+    workflow = _service_request_workflow(db, request.id, org_id)
+    action = body.action.upper()
+    valid_actions = {"ACCEPT", "REJECT", "ASSIGN_TRACELAB", "ASSIGN_INVOSPACE", "REASSIGN"}
+    if action not in valid_actions:
+        raise HTTPException(status_code=400, detail=f"action must be one of {valid_actions}")
+
+    old_status = request.status
+    old_stage = workflow.current_stage if workflow else None
+
+    if action == "ACCEPT":
+        request.status = "APPROVED"
+        if workflow:
+            workflow.current_status = "APPROVED"
+            workflow.current_stage = "ADMIN_REVIEW"
+            workflow.last_note = body.note or "Request accepted"
+            _record_workflow_event(db, workflow, current_user.id, "TRANSITION", old_status, request.status, body.note or "Request accepted")
+    elif action == "REJECT":
+        request.status = "REJECTED"
+        if workflow:
+            workflow.current_status = "REJECTED"
+            workflow.current_stage = "ADMIN_REVIEW"
+            workflow.last_note = body.note or "Request rejected"
+            _record_workflow_event(db, workflow, current_user.id, "TRANSITION", old_status, request.status, body.note or "Request rejected")
+    else:
+        if not body.assignee_id:
+            raise HTTPException(status_code=400, detail="assignee_id is required for assignment actions.")
+        assignee_query = db.query(User).filter(User.id == body.assignee_id)
+        if current_user.role != Role.SUPER_ADMIN.value:
+            assignee_query = assignee_query.filter(User.organization_id == org_id)
+        assignee = assignee_query.first()
+        if not assignee:
+            raise HTTPException(status_code=404, detail="Assignee not found in this organization.")
+        request.assigned_to_id = assignee.id
+        request.status = "IN_PROGRESS"
+        if workflow:
+            workflow.assignee_id = assignee.id
+            workflow.owner_id = current_user.id
+            workflow.current_status = "IN_PROGRESS"
+            workflow.current_stage = "TRACE_LAB" if action == "ASSIGN_TRACELAB" else "INVOSPACE"
+            workflow.last_note = body.note or f"Assigned to {assignee.username}"
+            db.add(Assignment(
+                organization_id=org_id,
+                workflow_instance_id=workflow.id,
+                entity_type="SERVICE_REQUEST",
+                entity_id=request.id,
+                assignee_id=assignee.id,
+                assigned_by_id=current_user.id,
+                status="ACTIVE",
+                due_at=body.due_at,
+            ))
+            _record_workflow_event(db, workflow, current_user.id, "ASSIGN", old_stage or old_status, workflow.current_stage, body.note or f"Assigned to {assignee.username}")
+
+    if body.note:
+        request.admin_notes = body.note
+
+    db.add(ActivityTimeline(
+        organization_id=org_id,
+        workflow_instance_id=workflow.id if workflow else 0,
+        actor_id=current_user.id,
+        action="REQUEST_REVIEW",
+        from_status=old_status,
+        to_status=request.status,
+        details=body.note,
+    )) if workflow else None
+
+    db.commit()
+    return _request_queue_item(db, request)
+
+
+@router.get("/report-queue")
+def report_queue(
+    status: Optional[str] = Query(None),
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    db: Session = Depends(get_db),
+):
+    q = db.query(ClientReport)
+    if current_user.role != Role.SUPER_ADMIN.value:
+        q = q.filter(ClientReport.organization_id == current_user.organization_id)
+    if status:
+        q = q.filter(ClientReport.status == status.upper())
+    items = q.order_by(ClientReport.created_at.desc()).all()
+    return {
+        "items": [
+            {
+                "id": report.id,
+                "title": report.title,
+                "status": report.status,
+                "report_type": report.report_type,
+                "is_released": report.is_released,
+                "case_id": report.case_id,
+                "service_request_id": report.service_request_id,
+                "created_at": report.created_at.isoformat() if report.created_at else None,
+                "updated_at": report.updated_at.isoformat() if report.updated_at else None,
+            }
+            for report in items
+        ],
+        "total": len(items),
+    }
+
+
+@router.patch("/reports/{report_id}/review")
+def review_report(
+    report_id: int,
+    body: ReportReviewAction,
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    db: Session = Depends(get_db),
+):
+    report = db.query(ClientReport).filter(ClientReport.id == report_id)
+    if current_user.role != Role.SUPER_ADMIN.value:
+        report = report.filter(ClientReport.organization_id == current_user.organization_id)
+    report = report.first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found.")
+
+    action = body.action.upper()
+    valid_actions = {"APPROVE", "REQUEST_CHANGES", "REJECT", "RELEASE"}
+    if action not in valid_actions:
+        raise HTTPException(status_code=400, detail=f"action must be one of {valid_actions}")
+
+    workflow = None
+    if report.workflow_instance_id:
+        workflow = db.query(WorkflowInstance).filter(
+            WorkflowInstance.id == report.workflow_instance_id,
+            WorkflowInstance.organization_id == report.organization_id,
+        ).first()
+
+    previous_status = report.status
+    if action == "APPROVE":
+        report.status = "APPROVED"
+        if workflow:
+            workflow.current_status = "APPROVED"
+            workflow.current_stage = "REPORT_REVIEW"
+            workflow.last_note = body.note or "Report approved"
+    elif action == "REQUEST_CHANGES":
+        report.status = "CHANGES_REQUESTED"
+        if workflow:
+            workflow.current_status = "CHANGES_REQUESTED"
+            workflow.current_stage = "REPORT_REVIEW"
+            workflow.last_note = body.note or "Changes requested"
+    elif action == "REJECT":
+        report.status = "REJECTED"
+        if workflow:
+            workflow.current_status = "REJECTED"
+            workflow.current_stage = "REPORT_REVIEW"
+            workflow.last_note = body.note or "Report rejected"
+    elif action == "RELEASE":
+        if report.file_path is None:
+            raise HTTPException(status_code=400, detail="Cannot release a report without an uploaded file.")
+        report.status = "RELEASED"
+        report.is_released = True
+        report.released_at = datetime.now(timezone.utc)
+        report.released_by_id = current_user.id
+        if workflow:
+            workflow.current_status = "CLOSED"
+            workflow.current_stage = "REPORT_RELEASED"
+            workflow.last_note = body.note or "Report released to client"
+
+    db.add(ActivityTimeline(
+        organization_id=report.organization_id,
+        workflow_instance_id=workflow.id if workflow else 0,
+        actor_id=current_user.id,
+        action="REPORT_REVIEW",
+        from_status=previous_status,
+        to_status=report.status,
+        details=body.note,
+    )) if workflow else None
+    db.commit()
+    db.refresh(report)
+    return {
+        "id": report.id,
+        "status": report.status,
+        "is_released": report.is_released,
+        "released_at": report.released_at.isoformat() if report.released_at else None,
+    }
+
 @router.get("/organizations")
 def list_organizations(
     current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
@@ -154,23 +448,72 @@ def create_organization(
 
 # ---------- Dashboard Stats ----------
 
+@router.get("/operations-queue")
+def operations_queue(
+    limit: int = Query(20, le=100),
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    db: Session = Depends(get_db),
+):
+    """Return a lightweight operations queue for admins to review workflow items."""
+    org_id = current_user.organization_id
+    items = []
+    workflows = db.query(WorkflowInstance).filter(
+        WorkflowInstance.organization_id == org_id,
+    ).order_by(WorkflowInstance.created_at.desc()).limit(limit).all()
+
+    for workflow in workflows:
+        entry = {
+            "id": workflow.id,
+            "type": "WORKFLOW",
+            "title": "Workflow item",
+            "current_status": workflow.current_status,
+            "current_stage": workflow.current_stage,
+            "last_note": workflow.last_note,
+            "created_at": workflow.created_at.isoformat() if workflow.created_at else None,
+        }
+        if workflow.service_request_id:
+            sr = db.query(ServiceRequest).filter(ServiceRequest.id == workflow.service_request_id).first()
+            if sr:
+                entry["title"] = sr.title
+                entry["service_request_id"] = sr.id
+                entry["request_status"] = sr.status
+        if workflow.case_id:
+            case = db.query(Case).filter(Case.id == workflow.case_id).first()
+            if case:
+                entry["case_id"] = case.id
+                entry["case_title"] = case.title
+        items.append(entry)
+
+    return {"items": items, "total": len(items)}
+
+
 @router.get("/dashboard")
 def admin_dashboard(
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
     db: Session = Depends(get_db),
 ):
     """System-wide dashboard stats for admin."""
     # System-wide stats are no longer supported for standard ADMIN.
     # We now fetch only org-specific stats.
-    org_id = current_user.organization_id
-    total_users = db.query(sa_func.count(User.id)).filter(User.organization_id == org_id).scalar()
-    total_orgs = 1
-    total_cases = db.query(sa_func.count(Case.id)).filter(Case.organization_id == org_id).scalar()
-    open_cases = db.query(sa_func.count(Case.id)).filter(Case.organization_id == org_id, Case.status.in_(["OPEN", "INVESTIGATING", "REVIEW"])).scalar()
-    total_alerts = db.query(sa_func.count(Alert.id)).filter(Alert.organization_id == org_id).scalar()
-    new_alerts = db.query(sa_func.count(Alert.id)).filter(Alert.organization_id == org_id, Alert.status == "NEW").scalar()
-    total_requests = db.query(sa_func.count(ServiceRequest.id)).filter(ServiceRequest.organization_id == org_id).scalar()
-    pending_requests = db.query(sa_func.count(ServiceRequest.id)).filter(ServiceRequest.organization_id == org_id, ServiceRequest.status == "PENDING").scalar()
+    org_id = None if current_user.role == Role.SUPER_ADMIN.value else current_user.organization_id
+    user_query = db.query(User)
+    case_query = db.query(Case)
+    alert_query = db.query(Alert)
+    request_query = db.query(ServiceRequest)
+    if org_id is not None:
+        user_query = user_query.filter(User.organization_id == org_id)
+        case_query = case_query.filter(Case.organization_id == org_id)
+        alert_query = alert_query.filter(Alert.organization_id == org_id)
+        request_query = request_query.filter(ServiceRequest.organization_id == org_id)
+
+    total_users = user_query.count()
+    total_orgs = db.query(sa_func.count(Organization.id)).scalar() if org_id is None else 1
+    total_cases = case_query.count()
+    open_cases = case_query.filter(Case.status.in_(["OPEN", "INVESTIGATING", "REVIEW"])).count()
+    total_alerts = alert_query.count()
+    new_alerts = alert_query.filter(Alert.status == "NEW").count()
+    total_requests = request_query.count()
+    pending_requests = request_query.filter(ServiceRequest.status == "PENDING").count()
 
     return {
         "total_users": total_users,

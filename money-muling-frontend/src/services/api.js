@@ -179,6 +179,24 @@ export const adminAPI = {
     const res = await api.get('/admin/dashboard');
     return res.data;
   },
+  getRequestQueue: async (status = '') => {
+    const params = status ? { status } : {};
+    const res = await api.get('/admin/request-queue', { params });
+    return res.data;
+  },
+  reviewRequest: async (id, data) => {
+    const res = await api.patch(`/admin/service-requests/${id}/review`, data);
+    return res.data;
+  },
+  getReportQueue: async (status = '') => {
+    const params = status ? { status } : {};
+    const res = await api.get('/admin/report-queue', { params });
+    return res.data;
+  },
+  reviewReport: async (id, data) => {
+    const res = await api.patch(`/admin/reports/${id}/review`, data);
+    return res.data;
+  },
   listUsers: async (limit = 100) => {
     const res = await api.get('/admin/users', { params: { limit } });
     return res.data;
@@ -189,6 +207,10 @@ export const adminAPI = {
   },
   listOrganizations: async () => {
     const res = await api.get('/admin/organizations');
+    return res.data;
+  },
+  getOperationsQueue: async (limit = 20) => {
+    const res = await api.get('/admin/operations-queue', { params: { limit } });
     return res.data;
   },
   createOrganization: async (data) => {

@@ -16,15 +16,25 @@ from models.user import User
 from models.role import Role
 from models.case import Case
 from models.case_event import CaseEvent
+from models.activity_timeline import ActivityTimeline
+from models.workflow_instance import WorkflowInstance
 
 
 router = APIRouter(prefix="/cases", tags=["cases"])
+
+
+def _query_cases_for_user(db: Session, current_user: User, org_id: int):
+    query = db.query(Case)
+    if current_user.role != Role.SUPER_ADMIN.value:
+        query = query.filter(Case.organization_id == org_id)
+    return query
 
 
 class CaseCreate(BaseModel):
     title:            str
     description:      Optional[str] = None
     priority:         str = "MEDIUM"
+    workflow_instance_id: Optional[int] = None
     linked_accounts:  Optional[List[str]] = None
     linked_rings:     Optional[List[str]] = None
     analysis_job_id:  Optional[int] = None
@@ -58,6 +68,7 @@ def _case_to_dict(case: Case) -> dict:
         "linked_accounts":  case.linked_accounts or [],
         "linked_rings":     case.linked_rings or [],
         "analysis_job_id":  case.analysis_job_id,
+        "workflow_instance_id": case.workflow_instance_id,
         "notes":            case.notes,
         "created_at":       case.created_at.isoformat() if case.created_at else None,
         "updated_at":       case.updated_at.isoformat() if case.updated_at else None,
@@ -86,6 +97,7 @@ def create_case(
         linked_accounts=body.linked_accounts,
         linked_rings=body.linked_rings,
         analysis_job_id=body.analysis_job_id,
+        workflow_instance_id=body.workflow_instance_id,
         notes=body.notes,
     )
     db.add(case)
@@ -116,7 +128,7 @@ def list_cases(
     db: Session = Depends(get_db),
 ):
     """List all cases for the current user's organization, with optional filters."""
-    q = db.query(Case).filter(Case.organization_id == org_id)
+    q = _query_cases_for_user(db, current_user, org_id)
     if status:
         q = q.filter(Case.status == status.upper())
     if priority:
@@ -128,12 +140,12 @@ def list_cases(
 @router.get("/{case_id}")
 def get_case(
     case_id: int,
-    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value])),
+    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value, Role.SUPER_ADMIN.value])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
     """Get a single case by ID."""
-    case = db.query(Case).filter(Case.id == case_id, Case.organization_id == org_id).first()
+    case = _query_cases_for_user(db, current_user, org_id).filter(Case.id == case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
     return _case_to_dict(case)
@@ -148,7 +160,7 @@ def update_case(
     db: Session = Depends(get_db),
 ):
     """Update a case's fields."""
-    case = db.query(Case).filter(Case.id == case_id, Case.organization_id == org_id).first()
+    case = _query_cases_for_user(db, current_user, org_id).filter(Case.id == case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
 
@@ -173,6 +185,25 @@ def update_case(
             case.status_updated_at = datetime.now(timezone.utc)
             if case.status == "CLOSED":
                 case.closed_at = datetime.now(timezone.utc)
+
+            if case.workflow_instance_id:
+                workflow = db.query(WorkflowInstance).filter(
+                    WorkflowInstance.id == case.workflow_instance_id,
+                    WorkflowInstance.organization_id == org_id,
+                ).first()
+                if workflow:
+                    workflow.current_status = "CLOSED" if case.status == "CLOSED" else "INVESTIGATION_IN_PROGRESS"
+                    workflow.current_stage = "CASE_CLOSED" if case.status == "CLOSED" else "INVESTIGATION"
+                    workflow.last_note = f"Case status changed to {case.status}"
+                    db.add(ActivityTimeline(
+                        organization_id=org_id,
+                        workflow_instance_id=workflow.id,
+                        actor_id=current_user.id,
+                        action="TRANSITION",
+                        from_status=old_status,
+                        to_status=case.status,
+                        details=f"Case status changed to {case.status}",
+                    ))
                 
             event = CaseEvent(
                 organization_id=org_id,
@@ -212,7 +243,7 @@ def assign_case(
     db: Session = Depends(get_db),
 ):
     """Assign a case to a specific investigator."""
-    case = db.query(Case).filter(Case.id == case_id, Case.organization_id == org_id).first()
+    case = _query_cases_for_user(db, current_user, org_id).filter(Case.id == case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
         
@@ -245,7 +276,7 @@ def add_case_note(
     db: Session = Depends(get_db),
 ):
     """Add a timeline note to a case."""
-    case = db.query(Case).filter(Case.id == case_id, Case.organization_id == org_id).first()
+    case = _query_cases_for_user(db, current_user, org_id).filter(Case.id == case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
         

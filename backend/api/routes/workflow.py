@@ -42,6 +42,13 @@ def _workflow_to_dict(instance: WorkflowInstance) -> dict:
     }
 
 
+def _get_workflow_instance(db: Session, current_user: User, org_id: int, workflow_id: int):
+    query = db.query(WorkflowInstance).filter(WorkflowInstance.id == workflow_id)
+    if current_user.role != Role.SUPER_ADMIN.value:
+        query = query.filter(WorkflowInstance.organization_id == org_id)
+    return query.first()
+
+
 @router.patch("/{workflow_id}/transition")
 def transition_workflow(
     workflow_id: int,
@@ -50,10 +57,7 @@ def transition_workflow(
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
-    query = db.query(WorkflowInstance).filter(WorkflowInstance.id == workflow_id)
-    if current_user.role != Role.SUPER_ADMIN.value:
-        query = query.filter(WorkflowInstance.organization_id == org_id)
-    instance = query.first()
+    instance = _get_workflow_instance(db, current_user, org_id, workflow_id)
     if not instance:
         raise HTTPException(status_code=404, detail="Workflow instance not found")
 
@@ -66,7 +70,7 @@ def transition_workflow(
         instance.last_note = body.note
 
     db.add(ActivityTimeline(
-        organization_id=org_id,
+        organization_id=instance.organization_id,
         workflow_instance_id=instance.id,
         actor_id=current_user.id,
         action="TRANSITION",
@@ -87,10 +91,7 @@ def assign_workflow(
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
-    query = db.query(WorkflowInstance).filter(WorkflowInstance.id == workflow_id)
-    if current_user.role != Role.SUPER_ADMIN.value:
-        query = query.filter(WorkflowInstance.organization_id == org_id)
-    instance = query.first()
+    instance = _get_workflow_instance(db, current_user, org_id, workflow_id)
     if not instance:
         raise HTTPException(status_code=404, detail="Workflow instance not found")
 
@@ -102,7 +103,7 @@ def assign_workflow(
     instance.owner_id = current_user.id
 
     db.add(Assignment(
-        organization_id=org_id,
+        organization_id=instance.organization_id,
         workflow_instance_id=instance.id,
         entity_type="SERVICE_REQUEST",
         entity_id=instance.service_request_id or 0,
@@ -111,7 +112,7 @@ def assign_workflow(
         status="ACTIVE",
     ))
     db.add(ActivityTimeline(
-        organization_id=org_id,
+        organization_id=instance.organization_id,
         workflow_instance_id=instance.id,
         actor_id=current_user.id,
         action="ASSIGN",
@@ -131,16 +132,13 @@ def get_workflow_timeline(
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
-    query = db.query(WorkflowInstance).filter(WorkflowInstance.id == workflow_id)
-    if current_user.role != Role.SUPER_ADMIN.value:
-        query = query.filter(WorkflowInstance.organization_id == org_id)
-    instance = query.first()
+    instance = _get_workflow_instance(db, current_user, org_id, workflow_id)
     if not instance:
         raise HTTPException(status_code=404, detail="Workflow instance not found")
 
     items = db.query(ActivityTimeline).filter(
         ActivityTimeline.workflow_instance_id == workflow_id,
-        ActivityTimeline.organization_id == org_id,
+        ActivityTimeline.organization_id == instance.organization_id,
     ).order_by(ActivityTimeline.created_at.asc()).all()
     return {"items": [
         {

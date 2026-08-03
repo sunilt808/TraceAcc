@@ -1,5 +1,5 @@
-# TraceAcc — Money Muling Detection Engine
-> **Enterprise-grade Anti-Money Laundering (AML) platform powered by Graph Analytics, Heuristic Detection, and Unsupervised Machine Learning**
+# TraceAcc Pro — Enterprise AML Operations Platform
+> **Admin-centered workflow platform for client intake, TraceLab analysis, InvoSpace investigation, and governed client release**
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-2.0-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react)](https://reactjs.org)
@@ -11,15 +11,14 @@
 
 ## 🧠 What Is This?
 
-**TraceAcc** is a full-stack fraud detection system that converts raw financial transaction data (CSV) into a **directed transaction graph** and automatically identifies money laundering patterns including:
+**TraceAcc Pro** is an AML operations platform that keeps the client, technical analysis, investigation, and release stages separated but connected through one governed workflow.
 
-- 🔄 **Cyclic Routing (Fraud Rings)** — Money passed in circles through accounts to obscure its source
-- 📡 **Fan-In / Fan-Out Hubs** — Central aggregation/disbursement nodes used to collect or distribute illicit funds
-- 🪆 **Layering Chains** — Chains of low-degree shell accounts used to obscure the money trail
-- ⚡ **Burst Activity** — Sudden surges in transactions after long periods of dormancy (classic mule activation)
-- 🤖 **ML Anomaly Detection** — Isolation Forest, Local Outlier Factor, and DBSCAN applied to structural behavioral profiles
+- **Admin Workspace** receives client requests, routes work, tracks progress, and reviews reports before release.
+- **TraceLab** performs technical AML analysis, generates findings, and creates alerts only.
+- **InvoSpace** receives escalations, owns cases, collects evidence, and produces final investigation reports.
+- **Client Portal** submits requests and downloads only approved final reports.
 
-Each flagged account receives a **suspicion score (0–100)** based on weighted heuristic patterns. Every analysis is audit-logged, and results are visualized through an interactive React dashboard with Cytoscape.js graph rendering.
+The platform still uses graph analytics, heuristics, and risk scoring, but those outputs now feed a workflow chain instead of existing as a standalone demo.
 
 ---
 
@@ -103,7 +102,7 @@ d:/rift/
 
 ---
 
-## 🔬 Detection Engine — Algorithms
+## 🔬 Detection Engine — Analysis Layer
 
 ### 1. Cycle Detection (`detectors/cycle.py`)
 Finds **circular money flows** using recursive DFS with lexicographic pruning to eliminate duplicate cycle reports. Searches paths of length 3–4 hops (configurable).
@@ -159,21 +158,17 @@ Score = min(Score, 100)
 
 ---
 
-## 🗄️ Database Schema
+## 🗄️ Workflow Schema
 
 ```sql
--- User authentication
-users (id, username, hashed_password, created_at)
-
--- Audit trail with JSONB-style details
-audit_logs (id, user_id, event_type, event_action, event_status,
-            ip_address, user_agent, details TEXT, error_message,
-            duration_ms, timestamp)
--- Indexes:
---   (user_id, timestamp), (event_type, event_action)
+- service_requests track client submissions and status
+- workflow_instances track the lifecycle across admin, TraceLab, InvoSpace, and report release
+- activity_timeline records every workflow transition and handoff
+- assignments track ownership changes and due dates
+- client_reports track draft, review, approval, and release states
 ```
 
-> **Note:** Transaction data is currently stateless (parsed from uploaded CSV per request). Persistent `accounts`, `transactions`, `analysis_jobs`, and `detected_rings` tables are planned for v3.
+> **Note:** The workflow foundation now persists service requests, workflow instances, alerts, cases, reports, assignments, and timeline events. The detection layer still remains stateless per uploaded dataset.
 
 ---
 
@@ -181,8 +176,8 @@ audit_logs (id, user_id, event_type, event_action, event_status,
 
 | Route | Component | Description |
 |-------|-----------|-------------|
-| `/` | `LandingPage` | 3D animated hero with Cytoscape graph demo |
-| `/login` | `LoginCard` | 3D glassmorphic auth card with mouse perspective tilt |
+| `/` | `LandingPage` | TraceAcc Pro product and workflow overview |
+| `/login` | `LoginCard` | Enterprise sign-in and workspace routing |
 | `/overview` | `OverviewPage` | Stat cards + recent analysis jobs table |
 | `/dashboard` | `Dashboard` | CSV upload, analysis trigger, graph panel |
 | `/graph-viewer` | `GraphViewer` | Full-screen Cytoscape interactive graph |
@@ -192,6 +187,21 @@ audit_logs (id, user_id, event_type, event_action, event_status,
 | `/statistics` | `StatisticsPage` | Quantitative distribution charts |
 | `/reports` | `ReportsPage` | Export-ready analyst reports |
 | `/cases` | `CasesPage` | Case management and triage |
+### Workflow Coverage
+
+- Client request submission
+- Admin acceptance, rejection, and assignment
+- TraceLab analysis and alert generation
+- InvoSpace case handling and investigation reports
+- Admin report review and client release
+
+---
+
+## 🧪 Validation
+
+Backend workflow regression coverage lives in `backend/tests/test_workflow_foundation.py` and now covers request creation, alert escalation, case handoff, and report release.
+
+---
 | `/audit-history` | `AuditHistory` | Complete audit log viewer |
 | `/profile` | `ProfilePage` | Analyst user profile |
 | `/settings` | `SettingsPage` | Heuristic threshold configuration |

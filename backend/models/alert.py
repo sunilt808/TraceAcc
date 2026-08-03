@@ -12,6 +12,7 @@ class Alert(Base):
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     analysis_job_id = Column(Integer, ForeignKey("analysis_jobs.id"), nullable=True, index=True)
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=True, index=True)
+    workflow_instance_id = Column(Integer, ForeignKey("workflow_instances.id"), nullable=True, index=True)
     
     alert_type = Column(String(100), nullable=False) # e.g., 'BURST_ACTIVITY', 'RAPID_MOVER'
     risk_score = Column(Float, default=0.0)

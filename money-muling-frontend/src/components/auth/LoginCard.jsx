@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
-import { Form, Alert, Spinner } from 'react-bootstrap';
-import { Navigate, useNavigate, Link } from 'react-router-dom';
+import { Alert, Badge, Button, Card, Col, Container, Form, Row, Spinner } from 'react-bootstrap';
+import { Navigate, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import '../../assets/landing.css';
 
-const LoginCard = () => {
+const workspaceCopy = [
+  'Admin is the only communication hub',
+  'TraceLab detects suspicious activity',
+  'InvoSpace investigates and closes cases',
+  'Clients only see approved final reports',
+];
+
+function LoginCard() {
   const { login, isAuthenticated, role } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
@@ -20,8 +27,8 @@ const LoginCard = () => {
     return <Navigate to="/login" replace />;
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const submit = async (event) => {
+    event.preventDefault();
     setError('');
     setLoading(true);
 
@@ -39,161 +46,118 @@ const LoginCard = () => {
         navigate('/login', { replace: true });
       }
     } catch (err) {
-      const msg =
-        err.response?.data?.detail ||
-        err.response?.data?.message ||
-        err.message ||
-        'Something went wrong';
-      setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      const message = err.response?.data?.detail || err.response?.data?.message || err.message || 'Sign in failed';
+      setError(typeof message === 'string' ? message : JSON.stringify(message));
     } finally {
       setLoading(false);
     }
   };
 
-  // 3D Mouse Movement effect on card
-  const handleMouseMove = (e) => {
-    const card = e.currentTarget;
-    const rect = card.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-    const rotateX = ((y - centerY) / centerY) * -8;
-    const rotateY = ((x - centerX) / centerX) * 8;
-    
-    card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(8px)`;
-  };
-
-  const handleMouseLeave = (e) => {
-    const card = e.currentTarget;
-    card.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) translateZ(0px)`;
-  };
-
   return (
-    <div className="landing-shell d-flex align-items-center justify-content-center min-vh-100 position-relative py-5">
-      {/* Dynamic Background Elements */}
-      <div className="bg-grid"></div>
-      <div className="bg-orb orb-1"></div>
-      <div className="bg-orb orb-2"></div>
+    <div className="landing-shell min-vh-100 d-flex align-items-center py-4 position-relative">
+      <div className="bg-grid" />
+      <div className="bg-orb orb-1" />
+      <div className="bg-orb orb-2" />
+      <div className="bg-orb orb-3" />
 
-      <div 
-        className="login-card-3d-wrapper"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        style={{ zIndex: 10, width: '100%', maxWidth: '440px', padding: '0 20px' }}
-      >
-        <div className="login-card-inner">
-          {/* Logo Branding Header */}
-          <div className="text-center mb-4">
-            <Link to="/" className="text-decoration-none d-inline-flex align-items-center gap-2 mb-2">
-              <div className="logo-icon fs-2">⬡</div>
-              <span className="logo-text text-light fs-3">TraceAcc</span>
-              <span className="logo-version-tag ms-1">v3.0</span>
-            </Link>
-            <p className="text-secondary small mb-0">Graph-Based Financial Fraud Intelligence</p>
-          </div>
+      <Container className="position-relative" style={{ zIndex: 2 }}>
+        <Row className="align-items-stretch g-4">
+          <Col lg={7} className="d-flex">
+            <Card className="w-100 bg-transparent border-0 shadow-none text-light h-100">
+              <Card.Body className="p-0 d-flex flex-column justify-content-center pe-lg-4">
+                <Badge bg="info" className="align-self-start mb-3 text-dark">TraceAcc Pro Operations Platform</Badge>
+                <h1 className="display-4 fw-bold mb-3 text-light" style={{ maxWidth: '12ch' }}>
+                  One hub for AML intake, analysis, investigation, and release.
+                </h1>
+                <p className="lead text-secondary mb-4" style={{ maxWidth: '54ch' }}>
+                  Admin owns communication. TraceLab finds suspicious activity. InvoSpace investigates it. Clients only receive approved reports.
+                </p>
 
-          {error && (
-            <Alert variant="danger" className="py-2 small mb-3 bg-danger bg-opacity-20 text-danger border-danger border-opacity-30">
-              {error}
-            </Alert>
-          )}
+                <div className="d-grid gap-3 mb-4">
+                  {workspaceCopy.map((line) => (
+                    <div key={line} className="d-flex align-items-center gap-3 text-light">
+                      <span className="badge rounded-pill bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">•</span>
+                      <span>{line}</span>
+                    </div>
+                  ))}
+                </div>
 
-          <Form onSubmit={handleSubmit}>
-            <Form.Group className="mb-3" controlId="username">
-              <Form.Label className="small text-secondary fw-semibold">USERNAME</Form.Label>
-              <Form.Control
-                type="text"
-                placeholder="Enter your username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="custom-glass-input"
-                minLength={3}
-                required
-                autoComplete="username"
-              />
-            </Form.Group>
-            <Form.Group className="mb-4" controlId="password">
-              <Form.Label className="small text-secondary fw-semibold">PASSWORD</Form.Label>
-              <Form.Control
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="custom-glass-input"
-                minLength={8}
-                required
-                autoComplete="current-password"
-              />
-            </Form.Group>
+                <div className="d-flex flex-wrap gap-2">
+                  <Badge bg="success">Workflow Timeline</Badge>
+                  <Badge bg="secondary">Request Queue</Badge>
+                  <Badge bg="warning" text="dark">Report Review</Badge>
+                  <Badge bg="danger">Client Release</Badge>
+                </div>
+              </Card.Body>
+            </Card>
+          </Col>
 
-            <button type="submit" className="btn-glow w-100 py-3 justify-content-center mb-4" disabled={loading}>
-              {loading ? (
-                <Spinner animation="border" size="sm" />
-              ) : (
-                <span>Sign In to TraceAcc</span>
-              )}
-            </button>
-          </Form>
+          <Col lg={5} className="d-flex">
+            <Card className="login-panel w-100 border-0 shadow-lg bg-dark bg-opacity-75 text-light">
+              <Card.Body className="p-4 p-md-5">
+                <div className="text-center mb-4">
+                  <Link to="/" className="text-decoration-none d-inline-flex align-items-center gap-2 mb-2">
+                    <span className="logo-icon fs-2">⬡</span>
+                    <span className="logo-text text-light fs-3">TraceAcc</span>
+                    <span className="logo-version-tag">Pro</span>
+                  </Link>
+                  <div className="text-muted small">Enterprise AML Operations Sign In</div>
+                </div>
 
-          <div className="text-center mt-2 border-top border-white border-opacity-10 pt-3">
-            <span className="text-secondary small fw-semibold d-block mb-3">DEMO ACCOUNTS</span>
-            <div className="d-flex flex-wrap justify-content-center gap-2">
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-primary"
-                onClick={() => {
-                  setUsername('client');
-                  setPassword('Password123!');
-                }}
-              >
-                Client
-              </button>
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-info"
-                onClick={() => {
-                  setUsername('analyst');
-                  setPassword('Password123!');
-                }}
-              >
-                TraceLab Analyst
-              </button>
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-secondary"
-                onClick={() => {
-                  setUsername('investigator');
-                  setPassword('Password123!');
-                }}
-              >
-                Investigator
-              </button>
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-danger"
-                onClick={() => {
-                  setUsername('admin');
-                  setPassword('Password123!');
-                }}
-              >
-                Admin
-              </button>
-            </div>
-            <div className="small text-muted mt-2" style={{ fontSize: '11px' }}>
-              Choose a demo account, then sign in.
-            </div>
-          </div>
+                {error && (
+                  <Alert variant="danger" className="bg-danger bg-opacity-20 border-danger text-danger small">
+                    {error}
+                  </Alert>
+                )}
 
-          <div className="text-center mt-3 pt-3 border-top border-white border-opacity-10">
-            <Link to="/" className="text-secondary small text-decoration-none hover-blue">
-              ← Return to TraceAcc Landing Page
-            </Link>
-          </div>
-        </div>
-      </div>
+                <Form onSubmit={submit}>
+                  <Form.Group className="mb-3" controlId="loginUsername">
+                    <Form.Label className="small text-secondary fw-semibold text-uppercase">Username</Form.Label>
+                    <Form.Control
+                      type="text"
+                      placeholder="Enter username"
+                      value={username}
+                      onChange={(event) => setUsername(event.target.value)}
+                      className="custom-glass-input"
+                      autoComplete="username"
+                      required
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-4" controlId="loginPassword">
+                    <Form.Label className="small text-secondary fw-semibold text-uppercase">Password</Form.Label>
+                    <Form.Control
+                      type="password"
+                      placeholder="Enter password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      className="custom-glass-input"
+                      autoComplete="current-password"
+                      required
+                    />
+                  </Form.Group>
+
+                  <Button type="submit" className="btn-glow w-100 py-3 mb-3 justify-content-center" disabled={loading}>
+                    {loading ? <Spinner animation="border" size="sm" /> : 'Sign In'}
+                  </Button>
+                </Form>
+
+                <div className="d-flex flex-wrap gap-2 justify-content-center mb-4">
+                  <Button size="sm" variant="outline-info" onClick={() => { setUsername('client1'); setPassword('client123'); }}>Client</Button>
+                  <Button size="sm" variant="outline-info" onClick={() => { setUsername('analyst'); setPassword('analyst123'); }}>TraceLab</Button>
+                  <Button size="sm" variant="outline-info" onClick={() => { setUsername('admin'); setPassword('admin123'); }}>Admin</Button>
+                </div>
+
+                <div className="text-center text-muted small">
+                  Need a new workspace? Contact your platform administrator.
+                </div>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
     </div>
   );
-};
+}
 
 export default LoginCard;

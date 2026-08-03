@@ -229,82 +229,82 @@ function LandingPage() {
   // Content for Detection Algorithm Matrix
   const algorithmData = {
     cycle: {
-      title: 'Lexicographical Cycle Detection Algorithm',
-      tag: 'Circular Fund Movement',
-      badge: 'Cycles (Length 3 to 5)',
-      description: 'Identifies circular transfers where illicit money flows through intermediate mule accounts before returning to the seed account (A → B → C → A). Uses lexicographical pruning to eliminate redundant searches and optimize path detection.',
-      complexity: 'O(V + E) per seed node',
-      formula: 'Path(v_0, v_1, ..., v_k) where v_0 = v_k and degree(v_i) > 0',
-      weight: '40 Risk Points',
-      useCase: 'Detecting laundering syndicates trying to inflate account volume or pass funds back to originators.'
+      title: 'Client Intake & Review Queue',
+      tag: 'Admin Control Point',
+      badge: 'Pending Requests',
+      description: 'Collects new client requests, validates the submission, and routes the item for admin accept, reject, or assignment decisions.',
+      complexity: 'O(1) queue lookup per request',
+      formula: 'Request(status) → {PENDING, APPROVED, REJECTED, IN_PROGRESS, COMPLETED}',
+      weight: 'Operations Hub',
+      useCase: 'Centralizing request handling before TraceLab or InvoSpace receives work.'
     },
     fan: {
-      title: 'Fan-In & Fan-Out Hub Detector',
-      tag: 'High Velocity Smurfing & Disbursement',
-      badge: 'Hub Topology Search',
-      description: 'Detects accounts exhibiting disproportionate high-frequency incoming (Fan-In: Many-to-One) or outgoing (Fan-Out: One-to-Many) transfers within narrow temporal sliding windows, filtering out verified merchant patterns.',
-      complexity: 'O(E log E) temporal sliding window',
-      formula: 'InDegree(v) ≥ T_in AND OutDegree(v) < T_out within Δt',
-      weight: '25 Risk Points',
-      useCase: 'Catching smurfing hubs collecting micro-deposits from multiple mules or central aggregators disbursing funds.'
+      title: 'TraceLab Analysis Workspace',
+      tag: 'Technical AML Unit',
+      badge: 'Analysis Jobs',
+      description: 'Validates datasets, runs graph and anomaly analysis, and produces findings and technical reports without creating investigation cases.',
+      complexity: 'O(E log E) detector execution',
+      formula: 'Dataset → validation → patterns → risk score → findings → technical report',
+      weight: 'Detection Only',
+      useCase: 'Surfacing suspicious behavior for escalation to admin and InvoSpace.'
     },
     layering: {
-      title: 'Multi-Hop Pass-Through Chain Detector',
-      tag: 'Layering & Shell Chains',
-      badge: 'DFS Pass-Through Analysis',
-      description: 'Executes recursive Depth-First Traversal (DFS) across low-degree intermediate accounts. Traces sequential pass-through transactions designed to obscure the ultimate beneficial ownership of funds.',
-      complexity: 'O(V * max_depth) bounded DFS',
-      formula: 'Path(v_start → ... → v_end) with degree(v_mid) ≤ MaxDegree',
-      weight: '20 Risk Points',
-      useCase: 'Exposing rapid chain transactions moving money across 5-10 intermediate shell accounts within minutes.'
+      title: 'InvoSpace Investigation Workspace',
+      tag: 'Case Ownership',
+      badge: 'Active Cases',
+      description: 'Turns escalated alerts into cases, tracks evidence, timelines, notes, assignment, and final reports until closure.',
+      complexity: 'O(n) case lifecycle orchestration',
+      formula: 'Alert → Case → Evidence → Timeline → Investigation Report',
+      weight: 'Investigation Only',
+      useCase: 'Managing every human investigation while preserving the same workflow instance.'
     },
     burst: {
-      title: 'Sliding-Window Temporal Burst Engine',
-      tag: 'Dormant Account Exploitation',
-      badge: 'Chronological Sliding Window',
-      description: 'Flags long-dormant accounts that suddenly display explosive, high-frequency transaction spikes. Compares historical inactivity periods (e.g., 180 days) against sudden activity bursts within hours.',
-      complexity: 'O(N log N) sorted timestamp search',
-      formula: 'Count(t_i ∈ [T, T+Δt]) ≥ Burst_Threshold AND Inactivity(T-180d) > 90%',
-      weight: '25 Risk Points',
-      useCase: 'Catching compromised sleeping mule accounts activated simultaneously for laundering operations.'
+      title: 'Report Review & Client Release',
+      tag: 'Approval Gate',
+      badge: 'Ready for Review',
+      description: 'Lets Admin approve, request changes, reject, or release technical and investigation reports before client visibility.',
+      complexity: 'O(1) review action per report',
+      formula: 'Report(status) → {DRAFT, READY_FOR_REVIEW, CHANGES_REQUESTED, APPROVED, RELEASED}',
+      weight: 'Admin Release',
+      useCase: 'Ensuring clients only receive final approved content.'
     },
     score: {
-      title: 'Unified Account & Ring Suspicion Engine',
-      tag: 'Multi-Heuristic Risk Matrix',
-      badge: 'Consolidated Score 0 - 100',
-      description: 'Combines heuristic flags with multi-ring involvement multipliers. Accounts are ranked by risk score (0-100), while financial rings receive an aggregate ring risk score computed from member nodes.',
-      complexity: 'O(N) score aggregation',
-      formula: 'Score = Min(100, ∑ Weight_i + Bonus(Ring_Count))',
-      weight: 'Unified 0 - 100 Index',
-      useCase: 'Prioritizing high-risk alerts for compliance analysts, drastically reducing manual triage workload.'
+      title: 'Governed Workflow Timeline',
+      tag: 'Audit-Ready Chain',
+      badge: 'Every Action Recorded',
+      description: 'Records request submission, admin review, team assignment, analysis, alert escalation, investigation, report review, and client release.',
+      complexity: 'O(n) immutable audit trail',
+      formula: 'Timeline = Σ(workflow events) + actor + status transition',
+      weight: 'Compliance Trail',
+      useCase: 'Providing a complete operational record for every step in the platform.'
     }
   };
 
   const architectureSteps = [
     {
       num: '01',
-      title: 'CSV Data Ingestion & Validation',
-      desc: 'Analyst uploads raw transaction streams (Sender, Receiver, Amount, Timestamp). Data is parsed, validated, and normalized in memory.'
+      title: 'Client Request Submitted',
+      desc: 'Client uploads request metadata and transaction files into the admin-controlled intake queue.'
     },
     {
       num: '02',
-      title: 'Directed Graph Construction',
-      desc: 'Builds a directed adjacency list and reverse adjacency matrix using NetworkX, mapping accounts to graph nodes and transfers to directed edges.'
+      title: 'Admin Review & Assignment',
+      desc: 'Admin accepts or rejects the request and assigns it to TraceLab or InvoSpace based on priority.'
     },
     {
       num: '03',
-      title: 'Concurrent Heuristic Traversal',
-      desc: 'Executes Lexicographical Cycle Search, Fan-In/Out Hub Detection, Bounded DFS Layering Chains, and Sliding-Window Temporal Burst algorithms.'
+      title: 'TraceLab Analysis',
+      desc: 'TraceLab validates the dataset, runs AML detection, and submits technical findings or alerts.'
     },
     {
       num: '04',
-      title: 'Consolidated Suspicion Scoring',
-      desc: 'Fuses detector signals, assigns weighted risk scores (0-100), tags suspicious rings, and writes persistent audit logs.'
+      title: 'InvoSpace Investigation',
+      desc: 'Alerted work is converted into a case, evidence is collected, and an investigation report is prepared.'
     },
     {
       num: '05',
-      title: 'Interactive 3D Graph Dashboard',
-      desc: 'Renders full interactive topology with node inspection, ring export, synthetic scenario generation, and compliance audit trail.'
+      title: 'Admin Review & Client Release',
+      desc: 'Admin reviews reports, requests changes if needed, and releases only approved reports to the client portal.'
     }
   ];
 
@@ -371,20 +371,20 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
 
   const faqs = [
     {
-      q: 'What CSV columns are required for money muling detection?',
-      a: 'The system expects standard transaction records with headers: sender_account, receiver_account, amount, and timestamp (ISO-8601 format).'
+      q: 'Can clients talk directly to TraceLab or InvoSpace?',
+      a: 'No. Admin is the only communication hub. Clients submit requests to Admin, and Admin routes work to TraceLab or InvoSpace.'
     },
     {
-      q: 'How does TraceAcc differ from traditional rules-based AML systems?',
-      a: 'Rules engines inspect individual transactions in isolation. TraceAcc builds a directed graph network, tracing multi-hop layering paths, circular loops, and community structures across thousands of accounts.'
+      q: 'What does TraceLab do in the platform?',
+      a: 'TraceLab performs technical AML analysis, generates findings and alerts, and submits technical reports. It never creates investigation cases.'
     },
     {
-      q: 'Can TraceAcc run offline or with custom SQLite database instances?',
-      a: 'Yes! The FastAPI backend uses SQLAlchemy ORM and automatically falls back to an SQLite local database if PostgreSQL is not configured.'
+      q: 'What does InvoSpace own?',
+      a: 'InvoSpace owns alerts that become cases, evidence collection, timeline building, investigation notes, and final investigation reports.'
     },
     {
-      q: 'Is synthetic fraud generation configurable?',
-      a: 'Absolutely. The Synthetic Data Generator allows compliance officers to specify total node count, transaction density, and exact fraud ratios.'
+      q: 'How are reports released to clients?',
+      a: 'Reports are reviewed in Admin first. Only approved reports can be released to the client portal.'
     }
   ];
 
@@ -402,15 +402,15 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
         <div className="landing-logo">
           <div className="logo-icon">⬡</div>
           <span className="logo-text">TraceAcc</span>
-          <span className="logo-version-tag">v3.0 Graph AI</span>
+          <span className="logo-version-tag">TraceAcc Pro</span>
         </div>
         <div className="nav-links-center">
-          <a href="#features">Detection Engine</a>
+          <a href="#features">Operations Hub</a>
+          <a href="#architecture">Workflow</a>
           <a href="#analyzer">Live Analyzer</a>
-          <a href="#architecture">Architecture</a>
-          <a href="#algorithms">Graph Algorithms</a>
+          <a href="#algorithms">Detection Logic</a>
           <a href="#sandbox">Synthetic Data</a>
-          <a href="#specs">Tech Stack</a>
+          <a href="#specs">Platform Stack</a>
           <a href="#faq">FAQ</a>
         </div>
         <div className="landing-actions">
@@ -424,40 +424,40 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
         <div className="hero-content">
           <div className="hero-badge">
             <span className="badge-pulse"></span>
-            Enterprise Graph-Theory AML Platform
+            Enterprise AML Operations Platform
           </div>
           <h1 className="hero-title">
-            Uncover Money Mule Syndicates.<br />
-            <span className="text-gradient">3D Graph Intelligence.</span>
+            Admin-led AML workflow.<br />
+            <span className="text-gradient">TraceLab to InvoSpace.</span>
           </h1>
           <p className="hero-subtitle">
-            Detect circular fund routing, multi-hop layering chains, smurfing hubs, and sleeping mule accounts in real time with high-performance graph heuristics and unified risk scoring.
+            TraceAcc Pro routes client requests through a controlled admin hub, sends technical analysis to TraceLab, moves escalations to InvoSpace, and releases only approved reports back to clients.
           </p>
           <div className="hero-cta-group">
             <Link to="/overview" className="btn-glow large">
-              <span>Explore Live Dashboard</span>
+              <span>Open Operations Hub</span>
               <i className="bi bi-arrow-right-short"></i>
             </Link>
             <Link to="/sample-generator" className="btn-glass large">
               <i className="bi bi-cpu"></i>
-              <span>Synthetic Generator</span>
+              <span>Dataset Sandbox</span>
             </Link>
           </div>
 
           <div className="hero-metrics-pill">
             <div className="metric-item">
               <span className="metric-val">&lt; 50ms</span>
-              <span className="metric-lbl">Graph Processing</span>
+              <span className="metric-lbl">Intake Routing</span>
             </div>
             <div className="metric-divider"></div>
             <div className="metric-item">
-              <span className="metric-val">10+ Hops</span>
-              <span className="metric-lbl">Layering Traversal</span>
+              <span className="metric-val">3 Hubs</span>
+              <span className="metric-lbl">Admin, TraceLab, InvoSpace</span>
             </div>
             <div className="metric-divider"></div>
             <div className="metric-item">
               <span className="metric-val">0-100</span>
-              <span className="metric-lbl">Risk Scoring Index</span>
+              <span className="metric-lbl">Workflow Risk Index</span>
             </div>
           </div>
         </div>
@@ -488,37 +488,37 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
       <div className="trusted-section">
         <div className="stat-card-3d" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
           <div className="stat-card-inner">
-            <div className="stat-icon"><i className="bi bi-diagram-3-fill"></i></div>
-            <div className="stat-num">4 Core</div>
-            <div className="stat-label">Graph Detectors</div>
-            <div className="stat-desc">Cycle, Fan, Layering & Burst</div>
+            <div className="stat-icon"><i className="bi bi-inboxes-fill"></i></div>
+            <div className="stat-num">Admin Hub</div>
+            <div className="stat-label">Request Control</div>
+            <div className="stat-desc">Accept, assign, review, release</div>
           </div>
         </div>
 
         <div className="stat-card-3d" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
           <div className="stat-card-inner">
-            <div className="stat-icon"><i className="bi bi-shield-check"></i></div>
-            <div className="stat-num">Full Audit</div>
-            <div className="stat-label">Compliance Trail</div>
-            <div className="stat-desc">DB-backed User & Analysis Logs</div>
+            <div className="stat-icon"><i className="bi bi-search"></i></div>
+            <div className="stat-num">TraceLab</div>
+            <div className="stat-label">Technical Analysis</div>
+            <div className="stat-desc">Findings, alerts, reports</div>
           </div>
         </div>
 
         <div className="stat-card-3d" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
           <div className="stat-card-inner">
-            <div className="stat-icon"><i className="bi bi-lightning-charge-fill"></i></div>
-            <div className="stat-num">FastAPI</div>
-            <div className="stat-label">High Velocity API</div>
-            <div className="stat-desc">In-memory NetworkX Graph Engine</div>
+            <div className="stat-icon"><i className="bi bi-shield-lock-fill"></i></div>
+            <div className="stat-num">InvoSpace</div>
+            <div className="stat-label">Case Investigation</div>
+            <div className="stat-desc">Evidence, notes, closure</div>
           </div>
         </div>
 
         <div className="stat-card-3d" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
           <div className="stat-card-inner">
-            <div className="stat-icon"><i className="bi bi-database-fill-gear"></i></div>
-            <div className="stat-num">Synthetic</div>
-            <div className="stat-label">Data Generator</div>
-            <div className="stat-desc">Configurable Seed Fraud Typologies</div>
+            <div className="stat-icon"><i className="bi bi-file-earmark-check"></i></div>
+            <div className="stat-num">Client Portal</div>
+            <div className="stat-label">Final Release</div>
+            <div className="stat-desc">Approved reports only</div>
           </div>
         </div>
       </div>
@@ -526,53 +526,53 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
       {/* Features Section */}
       <div className="landing-section" id="features">
         <div className="section-header">
-          <span className="section-subtitle">Multi-Heuristic Engine</span>
-          <h2>Comprehensive Fraud Detection Matrix</h2>
-          <p>TraceAcc pairs classical graph theory algorithms with temporal windowing to expose sophisticated financial muling rings.</p>
+          <span className="section-subtitle">Operations Hub</span>
+          <h2>Admin, TraceLab, InvoSpace, Client</h2>
+          <p>TraceAcc Pro keeps communication centralized in Admin while TraceLab and InvoSpace execute the operational work behind the scenes.</p>
         </div>
 
         <div className="landing-features">
           <div className="feature-card-3d" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
             <div className="feature-card-inner">
               <div className="feature-icon-wrapper">
-                <i className="bi bi-arrow-repeat"></i>
+                <i className="bi bi-inbox"></i>
               </div>
-              <h3>Lexicographical Cycle Search</h3>
-              <p>Traces circular fund movement across 3 to 5 hop loops. Employs lexicographical node pruning to prevent duplicate paths and maximize execution speed.</p>
-              <div className="card-pill">40 Risk Pts</div>
+              <h3>Client Request Queue</h3>
+              <p>Tracks pending, accepted, rejected, assigned, and completed requests as the control point for the entire platform.</p>
+              <div className="card-pill">Admin</div>
             </div>
           </div>
 
           <div className="feature-card-3d" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
             <div className="feature-card-inner">
               <div className="feature-icon-wrapper">
-                <i className="bi bi-share-fill"></i>
+                <i className="bi bi-graph-up"></i>
               </div>
-              <h3>Fan-In & Fan-Out Hubs</h3>
-              <p>Flags central aggregator accounts receiving rapid deposits from multiple mule sources or disbursing funds instantly while ignoring verified merchant hubs.</p>
-              <div className="card-pill">25 Risk Pts</div>
+              <h3>TraceLab Analysis</h3>
+              <p>Runs transaction validation, graph analysis, AML pattern detection, risk scoring, and technical reporting without creating cases.</p>
+              <div className="card-pill">Detection</div>
             </div>
           </div>
 
           <div className="feature-card-3d" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
             <div className="feature-card-inner">
               <div className="feature-icon-wrapper">
-                <i className="bi bi-bezier2"></i>
+                <i className="bi bi-shield-lock-fill"></i>
               </div>
-              <h3>Multi-Hop Layering Chains</h3>
-              <p>Performs recursive Bounded DFS to map long chains of low-degree intermediate pass-through shell accounts designed to obscure fund origins.</p>
-              <div className="card-pill">20 Risk Pts</div>
+              <h3>InvoSpace Investigation</h3>
+              <p>Converts alerts into cases, manages evidence, timelines, notes, and final investigation reports inside a dedicated investigation workspace.</p>
+              <div className="card-pill">Investigation</div>
             </div>
           </div>
 
           <div className="feature-card-3d" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
             <div className="feature-card-inner">
               <div className="feature-icon-wrapper">
-                <i className="bi bi-clock-history"></i>
+                <i className="bi bi-file-earmark-check"></i>
               </div>
-              <h3>Temporal Burst Engine</h3>
-              <p>Analyzes chronological transaction timestamps to catch long-dormant accounts experiencing sudden high-frequency bursts of activity.</p>
-              <div className="card-pill">25 Risk Pts</div>
+              <h3>Report Review & Release</h3>
+              <p>Routes technical and investigation reports back through Admin for approval, change requests, rejection, and final client release.</p>
+              <div className="card-pill">Release</div>
             </div>
           </div>
         </div>
@@ -581,9 +581,9 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
       {/* NEW: Live Instant In-Browser CSV Fraud Analyzer Sandbox */}
       <div className="landing-section alt-bg" id="analyzer">
         <div className="section-header">
-          <span className="section-subtitle">Instant Sandbox</span>
-          <h2>Interactive Live Fraud Analyzer</h2>
-          <p>Paste sample CSV data below to execute instant in-browser graph analysis and calculate risk scores.</p>
+          <span className="section-subtitle">TraceLab Sandbox</span>
+          <h2>Interactive Technical Analysis View</h2>
+          <p>Paste sample CSV data below to execute the same style of transaction analysis that feeds the TraceLab workspace.</p>
         </div>
 
         <div className="live-analyzer-container">
@@ -591,7 +591,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
             <div className="editor-title-bar">
               <span><i className="bi bi-file-earmark-code"></i> Live Input CSV Stream</span>
               <button className="sample-btn" onClick={() => handleQuickAnalyze()}>
-                {analyzing ? 'Analyzing Graph...' : 'Run Quick Analysis'}
+                {analyzing ? 'Analyzing Graph...' : 'Run Analysis'}
               </button>
             </div>
             <textarea 
@@ -628,7 +628,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
             ) : (
               <div className="empty-analyzer-state">
                 <i className="bi bi-cpu-fill"></i>
-                <p>Click "Run Quick Analysis" above to process the sample CSV stream.</p>
+                <p>Click "Run Analysis" above to process the sample CSV stream.</p>
               </div>
             )}
           </div>
@@ -638,27 +638,27 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
       {/* Interactive Algorithm Breakdown Matrix Section */}
       <div className="landing-section" id="algorithms">
         <div className="section-header">
-          <span className="section-subtitle">Algorithmic Deep-Dive</span>
-          <h2>Detection Mechanics & Formulae</h2>
-          <p>Select a detector below to inspect its mathematical formulation, search complexity, and operational use-case.</p>
+          <span className="section-subtitle">Workflow Mechanics</span>
+          <h2>How Work Moves Across TraceAcc Pro</h2>
+          <p>Select a phase below to inspect the admin-controlled request lifecycle, analysis handoff, investigation handoff, and release path.</p>
         </div>
 
         <div className="algo-matrix-container">
           <div className="algo-tabs">
             <button className={`algo-tab ${activeTab === 'cycle' ? 'active' : ''}`} onClick={() => setActiveTab('cycle')}>
-              <i className="bi bi-arrow-repeat"></i> Cycle Detection
+              <i className="bi bi-inbox"></i> Intake
             </button>
             <button className={`algo-tab ${activeTab === 'fan' ? 'active' : ''}`} onClick={() => setActiveTab('fan')}>
-              <i className="bi bi-share-fill"></i> Fan-In / Fan-Out
+              <i className="bi bi-search"></i> TraceLab
             </button>
             <button className={`algo-tab ${activeTab === 'layering' ? 'active' : ''}`} onClick={() => setActiveTab('layering')}>
-              <i className="bi bi-bezier2"></i> Layering Chains
+              <i className="bi bi-shield-lock-fill"></i> InvoSpace
             </button>
             <button className={`algo-tab ${activeTab === 'burst' ? 'active' : ''}`} onClick={() => setActiveTab('burst')}>
-              <i className="bi bi-clock-history"></i> Burst Detection
+              <i className="bi bi-arrow-left-right"></i> Reports
             </button>
             <button className={`algo-tab ${activeTab === 'score' ? 'active' : ''}`} onClick={() => setActiveTab('score')}>
-              <i className="bi bi-speedometer2"></i> Risk Score Engine
+              <i className="bi bi-speedometer2"></i> Governance
             </button>
           </div>
 
@@ -755,9 +755,9 @@ tx_9012,ACC_5099,ACC_3310,9850.00,2026-07-22T08:18:11Z`}</code></pre>
               )}
               {activeArchStep === 4 && (
                 <div className="ui-preview-box">
-                  <div className="ui-pill">Cytoscape 3D Canvas</div>
-                  <div className="ui-pill">Audit Log Entry Written</div>
-                  <div className="ui-pill">CSV Report Ready</div>
+                  <div className="ui-pill">Admin Review</div>
+                  <div className="ui-pill">Client Release</div>
+                  <div className="ui-pill">Timeline Recorded</div>
                 </div>
               )}
             </div>

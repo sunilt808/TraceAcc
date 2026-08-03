@@ -17,6 +17,7 @@ class Case(Base):
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     created_by_id   = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     assignee_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    workflow_instance_id = Column(Integer, ForeignKey("workflow_instances.id"), nullable=True, index=True)
     title         = Column(String(255), nullable=False)
     description   = Column(Text, nullable=True)
     # OPEN | INVESTIGATING | REVIEW | CLOSED | ESCALATED
