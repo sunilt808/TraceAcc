@@ -82,7 +82,6 @@ const routeMap = {
   },
   cases: {
     CLIENT: '/client-dashboard',
-    TRACE_LAB_ANALYST: '/tracelab/cases',
     INVESTIGATOR: '/invospace/cases',
   },
   alerts: {
@@ -92,7 +91,6 @@ const routeMap = {
   },
   caseDetail: {
     CLIENT: '/client-dashboard',
-    TRACE_LAB_ANALYST: '/tracelab/cases',
     INVESTIGATOR: '/invospace/cases',
   },
 };
@@ -108,9 +106,7 @@ const adminWorkspacePaths = {
     timeline: '/tracelab/timeline',
     statistics: '/tracelab/statistics',
     reports: '/tracelab/reports',
-    cases: '/tracelab/cases',
     alerts: '/tracelab/alerts',
-    caseDetail: '/tracelab/cases',
   },
   invospace: {
     overview: '/invospace/overview',
@@ -186,8 +182,6 @@ function App() {
               <Route path="/tracelab/timeline" element={<TimelinePage />} />
               <Route path="/tracelab/statistics" element={<StatisticsPage />} />
               <Route path="/tracelab/reports" element={<ReportsPage />} />
-              <Route path="/tracelab/cases" element={<CasesPage />} />
-              <Route path="/tracelab/cases/:id" element={<CaseDetail />} />
               <Route path="/tracelab/alerts" element={<AlertsPage />} />
             </Route>
 

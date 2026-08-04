@@ -63,7 +63,13 @@ class RoleChecker:
         self.allowed_roles = allowed_roles
 
     def __call__(self, user: User = Depends(get_current_user)):
-        if user.role not in self.allowed_roles:
+        from models.role import Role
+        # If ADMIN is allowed, SUPER_ADMIN should also be automatically allowed
+        effective_allowed = set(self.allowed_roles)
+        if Role.ADMIN.value in effective_allowed:
+            effective_allowed.add(Role.SUPER_ADMIN.value)
+            
+        if user.role not in effective_allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Operation not permitted. Required role: {self.allowed_roles}"

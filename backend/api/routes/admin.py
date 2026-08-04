@@ -32,6 +32,16 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
     organization_id: Optional[int] = None
+    phone: Optional[str] = None
+
+
+class UserCreateAdmin(BaseModel):
+    username: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    password: str
+    role: str
+    organization_id: Optional[int] = None
 
 
 class OrganizationCreate(BaseModel):
@@ -74,6 +84,7 @@ def list_users(
                 "id": u.id,
                 "username": u.username,
                 "email": u.email,
+                "phone": u.phone,
                 "role": u.role,
                 "organization_id": u.organization_id,
                 "is_active": u.is_active,
@@ -119,16 +130,83 @@ def update_user(
     if body.organization_id is not None:
         user.organization_id = body.organization_id
 
+    if body.phone is not None:
+        user.phone = body.phone
+
     db.commit()
     db.refresh(user)
     return {
         "id": user.id,
         "username": user.username,
         "email": user.email,
+        "phone": user.phone,
         "role": user.role,
         "organization_id": user.organization_id,
         "is_active": user.is_active,
     }
+
+
+@router.post("/users", status_code=201)
+def create_admin_user(
+    body: UserCreateAdmin,
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
+    db: Session = Depends(get_db),
+):
+    from services.auth_service import create_user as auth_create_user, get_user_by_username
+    
+    existing_user = get_user_by_username(db, body.username)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+        
+    valid_roles = {r.value for r in Role}
+    if body.role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"role must be one of {valid_roles}")
+        
+    org_id = current_user.organization_id if current_user.role != Role.SUPER_ADMIN.value else body.organization_id
+    if current_user.role != Role.SUPER_ADMIN.value and body.organization_id and body.organization_id != org_id:
+        raise HTTPException(status_code=403, detail="Cannot create users for other organizations.")
+        
+    new_user = auth_create_user(
+        db=db,
+        username=body.username,
+        password=body.password,
+        email=body.email,
+        role=Role(body.role),
+        organization_id=org_id
+    )
+    new_user.phone = body.phone
+    db.commit()
+    
+    return {
+        "id": new_user.id,
+        "username": new_user.username,
+        "email": new_user.email,
+        "phone": new_user.phone,
+        "role": new_user.role,
+        "organization_id": new_user.organization_id,
+        "is_active": new_user.is_active,
+    }
+
+
+@router.delete("/users/{user_id}", status_code=204)
+def delete_user(
+    user_id: int,
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
+    db: Session = Depends(get_db),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+        
+    if current_user.role == Role.ADMIN.value and user.organization_id != current_user.organization_id:
+        raise HTTPException(status_code=403, detail="Cannot delete users outside your organization.")
+        
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account.")
+        
+    db.delete(user)
+    db.commit()
+    return None
 
 
 # ---------- Organization Management ----------

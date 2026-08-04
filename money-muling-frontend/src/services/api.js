@@ -205,6 +205,14 @@ export const adminAPI = {
     const res = await api.patch(`/admin/users/${id}`, data);
     return res.data;
   },
+  createUser: async (data) => {
+    const res = await api.post('/admin/users', data);
+    return res.data;
+  },
+  deleteUser: async (id) => {
+    const res = await api.delete(`/admin/users/${id}`);
+    return res.data;
+  },
   listOrganizations: async () => {
     const res = await api.get('/admin/organizations');
     return res.data;

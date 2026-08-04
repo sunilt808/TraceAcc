@@ -37,7 +37,7 @@ const NAV_ITEMS = [
     roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'],
     items: [
       { path: '/alerts',     icon: '🚨', label: 'Alerts', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
-      { path: '/cases',      icon: '🗂️', label: 'Cases', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
+      { path: '/cases',      icon: '🗂️', label: 'Cases', roles: ['INVESTIGATOR', 'ADMIN'] },
       { path: '/statistics', icon: '📈', label: 'Statistics', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
       { path: '/reports',    icon: '📄', label: 'Reports', roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'] },
     ],

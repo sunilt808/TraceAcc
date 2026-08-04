@@ -9,6 +9,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(150), unique=True, index=True, nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=True)
+    phone = Column(String(20), nullable=True)
     password = Column(String(255), nullable=False)
     role = Column(String(50), default=Role.CLIENT_USER.value, nullable=False)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)

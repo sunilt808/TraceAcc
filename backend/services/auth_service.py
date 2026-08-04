@@ -28,7 +28,8 @@ def create_user(
     db: Session, 
     username: str, 
     password: str, 
-    email: Optional[str] = None, 
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
     role: Role = Role.CLIENT_USER, 
     organization_id: Optional[int] = None
 ) -> User:
@@ -36,6 +37,7 @@ def create_user(
         username=username, 
         password=get_password_hash(password),
         email=email,
+        phone=phone,
         role=role.value,
         organization_id=organization_id
     )

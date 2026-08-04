@@ -3,6 +3,7 @@ import AppLayout from '../layout/AppLayout';
 import { adminAPI } from '../../services/api';
 import { Badge, Button, ButtonGroup, Card, Form, Spinner, Table, Alert } from 'react-bootstrap';
 import { FolderCheck, ArrowRepeat, CheckCircleFill, DashCircleFill, Diagram3Fill, FileEarmarkTextFill } from 'react-bootstrap-icons';
+import traceAccBadge from '../../assets/traceaccbadge.png';
 
 const requestStatuses = ['PENDING', 'APPROVED', 'REJECTED', 'IN_PROGRESS', 'COMPLETED'];
 const reportStatuses = ['DRAFT', 'READY_FOR_REVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'REJECTED', 'RELEASED'];
@@ -240,8 +241,8 @@ function AdminDashboard() {
                       <Button variant="danger" disabled={busyId === `report-${item.id}-REJECT`} onClick={() => runReportAction(item.id, 'REJECT')}>
                         Reject
                       </Button>
-                      <Button variant="info" disabled={busyId === `report-${item.id}-RELEASE`} onClick={() => runReportAction(item.id, 'RELEASE')}>
-                        Release
+                      <Button variant="info" disabled={busyId === `report-${item.id}-RELEASE`} onClick={() => runReportAction(item.id, 'RELEASE')} className="d-flex align-items-center">
+                        <img src={traceAccBadge} alt="Stamp" style={{ width: 16, height: 16, marginRight: 6 }} /> Stamp & Release
                       </Button>
                     </ButtonGroup>
                   </td>

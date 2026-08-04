@@ -22,8 +22,11 @@ function OverviewPage() {
           api.get('/analyze/jobs?limit=5'),
           api.get('/audit/stats'),
         ]);
-        if (jobsRes.status === 'fulfilled') setJobs(jobsRes.value.data);
-        if (statsRes.status === 'fulfilled') setAuditStats(statsRes.value.data);
+        if (jobsRes.status === 'fulfilled' && Array.isArray(jobsRes.value.data)) setJobs(jobsRes.value.data);
+        else console.error('Failed to load jobs', jobsRes.reason);
+        
+        if (statsRes.status === 'fulfilled' && statsRes.value.data) setAuditStats(statsRes.value.data);
+        else console.error('Failed to load stats', statsRes.reason);
       } finally {
         setLoading(false);
       }
