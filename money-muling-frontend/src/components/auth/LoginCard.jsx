@@ -250,7 +250,7 @@ function LoginCard() {
       setActiveTab('login');
 
       // Use organization email as login username
-      setUsername(registerData.org_email);
+      setUsername(registerData.org_email.split('@')[0]);
 
       setPassword('');
 
