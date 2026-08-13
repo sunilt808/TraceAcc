@@ -2,26 +2,36 @@ import React from 'react';
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './assets/theme.css';
+
 import LoginCard from './components/auth/LoginCard';
 import Dashboard from './components/dashboard/Dashboard';
 import ProfilePage from './components/profile/ProfilePage';
 import RoleRoute from './components/auth/RoleRoute';
-import ClientPortal from './components/pages/ClientPortal';
-import ClientRequestForm from './components/pages/ClientRequestForm';
-import ClientReportsPage from './components/pages/ClientReportsPage';
-import AdminDashboard from './components/pages/AdminDashboard';
-import AdminUsersPage from './components/pages/AdminUsersPage';
-import AdminOrgsPage from './components/pages/AdminOrgsPage';
-import AuditHistory from './components/audit/AuditHistory';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { useAuth } from './context/AuthContext';
-import SampleGenerator from './components/dashboard/SampleGenerator';
 
 import AppLayout from './components/layout/AppLayout';
 import LandingPage from './components/pages/LandingPage';
 import WorkspaceSelector from './components/pages/WorkspaceSelector';
+import SampleGenerator from './components/dashboard/SampleGenerator';
 
-// New Pages
+// Client
+import ClientPortal from './components/pages/ClientPortal';
+import ClientRequestForm from './components/pages/ClientRequestForm';
+import ClientReportsPage from './components/pages/ClientReportsPage';
+
+// Admin
+import AdminDashboard from './components/pages/AdminDashboard';
+import AdminUsersPage from './components/pages/AdminUsersPage';
+import AdminOrgsPage from './components/pages/AdminOrgsPage';
+import AdminRequestsPage from './components/pages/AdminRequestsPage';
+import AdminReportsPage from './components/pages/AdminReportsPage';
+import AdminOperationsPage from './components/pages/AdminOperationsPage';
+
+// Audit
+import AuditHistory from './components/audit/AuditHistory';
+
+// TraceLab / InvoSpace
 import OverviewPage from './components/pages/OverviewPage';
 import GraphViewer from './components/pages/GraphViewer';
 import CommunitiesPage from './components/pages/CommunitiesPage';
@@ -35,66 +45,87 @@ import AlertsPage from './components/pages/AlertsPage';
 
 import SettingsPage from './components/settings/SettingsPage';
 
+
+// ============================================================
+// ROLE ROUTE MAP
+// ============================================================
+
 const routeMap = {
   overview: {
     CLIENT: '/client-dashboard',
     TRACE_LAB_ANALYST: '/tracelab/overview',
     INVESTIGATOR: '/invospace/overview',
   },
+
   dashboard: {
     CLIENT: '/client-dashboard',
     TRACE_LAB_ANALYST: '/tracelab/dashboard',
     INVESTIGATOR: '/invospace/dashboard',
   },
+
   upload: {
     CLIENT: '/client-dashboard',
     TRACE_LAB_ANALYST: '/tracelab/upload',
     INVESTIGATOR: '/invospace/upload',
   },
+
   graph: {
     CLIENT: '/client-dashboard',
     TRACE_LAB_ANALYST: '/tracelab/graph-viewer',
     INVESTIGATOR: '/invospace/graph-viewer',
   },
+
   riskMap: {
     CLIENT: '/client-dashboard',
     TRACE_LAB_ANALYST: '/tracelab/risk-map',
     INVESTIGATOR: '/invospace/risk-map',
   },
+
   communities: {
     CLIENT: '/client-dashboard',
     TRACE_LAB_ANALYST: '/tracelab/communities',
     INVESTIGATOR: '/invospace/communities',
   },
+
   timeline: {
     CLIENT: '/client-dashboard',
     TRACE_LAB_ANALYST: '/tracelab/timeline',
     INVESTIGATOR: '/invospace/timeline',
   },
+
   statistics: {
     CLIENT: '/client-dashboard',
     TRACE_LAB_ANALYST: '/tracelab/statistics',
     INVESTIGATOR: '/invospace/statistics',
   },
+
   reports: {
     CLIENT: '/client-dashboard',
     TRACE_LAB_ANALYST: '/tracelab/reports',
     INVESTIGATOR: '/invospace/reports',
   },
+
   cases: {
     CLIENT: '/client-dashboard',
     INVESTIGATOR: '/invospace/cases',
   },
+
   alerts: {
     CLIENT: '/client-dashboard',
     TRACE_LAB_ANALYST: '/tracelab/alerts',
     INVESTIGATOR: '/invospace/alerts',
   },
+
   caseDetail: {
     CLIENT: '/client-dashboard',
     INVESTIGATOR: '/invospace/cases',
   },
 };
+
+
+// ============================================================
+// ADMIN WORKSPACE PATHS
+// ============================================================
 
 const adminWorkspacePaths = {
   tracelab: {
@@ -109,6 +140,7 @@ const adminWorkspacePaths = {
     reports: '/tracelab/reports',
     alerts: '/tracelab/alerts',
   },
+
   invospace: {
     overview: '/invospace/overview',
     dashboard: '/invospace/dashboard',
@@ -125,25 +157,58 @@ const adminWorkspacePaths = {
   },
 };
 
+
+// ============================================================
+// WORKSPACE REDIRECT
+// ============================================================
+
 const WorkspaceRedirect = ({ page }) => {
   const { role, workspace } = useAuth();
   const params = useParams();
 
+  // ADMIN must select a workspace first.
   if (role === 'ADMIN') {
     if (!workspace || workspace === 'admin') {
       return <Navigate to="/workspace-selector" replace />;
     }
+
     const adminPath = adminWorkspacePaths[workspace]?.[page];
+
     if (!adminPath) {
       return <Navigate to="/workspace-selector" replace />;
     }
-    return <Navigate to={page === 'caseDetail' && params.id ? `${adminPath}/${params.id}` : adminPath} replace />;
+
+    return (
+      <Navigate
+        to={
+          page === 'caseDetail' && params.id
+            ? `${adminPath}/${params.id}`
+            : adminPath
+        }
+        replace
+      />
+    );
   }
 
   const roleMap = routeMap[page] ?? routeMap.overview;
   const path = roleMap?.[role] || '/login';
-  return <Navigate to={page === 'caseDetail' && params.id ? `${path}/${params.id}` : path} replace />;
+
+  return (
+    <Navigate
+      to={
+        page === 'caseDetail' && params.id
+          ? `${path}/${params.id}`
+          : path
+      }
+      replace
+    />
+  );
 };
+
+
+// ============================================================
+// APP
+// ============================================================
 
 function App() {
   const { loading } = useAuth();
@@ -158,80 +223,403 @@ function App() {
 
   return (
     <Routes>
+
+      {/* ======================================================
+          PUBLIC
+      ====================================================== */}
+
       <Route path="/" element={<LandingPage />} />
+
       <Route path="/login" element={<LoginCard />} />
-      <Route path="/sample-generator" element={<ProtectedRoute><AppLayout title="Sample Generator"><SampleGenerator /></AppLayout></ProtectedRoute>} />
-      
+
+
+      {/* ======================================================
+          PROTECTED ROUTES
+      ====================================================== */}
+
       <Route element={<ProtectedRoute />}>
-            
-            {/* Client Portal Routes */}
-            <Route element={<RoleRoute allowedRoles={['CLIENT']} redirectPath="/overview" />}>
-              <Route path="/client-dashboard" element={<ClientPortal />} />
-              <Route path="/client-requests/new" element={<ClientRequestForm />} />
-              <Route path="/client-reports" element={<ClientReportsPage />} />
-            </Route>
 
-            {/* TraceLab Workspace Routes */}
-            <Route element={<RoleRoute allowedRoles={['TRACE_LAB_ANALYST', 'ADMIN']} redirectPath="/client-dashboard" />}>
-              <Route path="/tracelab" element={<Navigate to="/tracelab/overview" replace />} />
-              <Route path="/tracelab/overview" element={<OverviewPage />} />
-              <Route path="/tracelab/dashboard" element={<AppLayout title="Analyze"><Dashboard /></AppLayout>} />
-              <Route path="/tracelab/upload" element={<AppLayout title="Upload CSV"><Dashboard /></AppLayout>} />
-              <Route path="/tracelab/risk-map" element={<RiskMapPage />} />
-              <Route path="/tracelab/graph-viewer" element={<GraphViewer />} />
-              <Route path="/tracelab/communities" element={<CommunitiesPage />} />
-              <Route path="/tracelab/timeline" element={<TimelinePage />} />
-              <Route path="/tracelab/statistics" element={<StatisticsPage />} />
-              <Route path="/tracelab/reports" element={<ReportsPage />} />
-              <Route path="/tracelab/alerts" element={<AlertsPage />} />
-            </Route>
+        {/* ====================================================
+            SAMPLE GENERATOR
+        ==================================================== */}
 
-            {/* InvoSpace Workspace Routes */}
-            <Route element={<RoleRoute allowedRoles={['INVESTIGATOR', 'ADMIN']} redirectPath="/client-dashboard" />}>
-              <Route path="/invospace" element={<Navigate to="/invospace/overview" replace />} />
-              <Route path="/invospace/overview" element={<OverviewPage />} />
-              <Route path="/invospace/dashboard" element={<AppLayout title="Analyze"><Dashboard /></AppLayout>} />
-              <Route path="/invospace/upload" element={<AppLayout title="Upload CSV"><Dashboard /></AppLayout>} />
-              <Route path="/invospace/risk-map" element={<RiskMapPage />} />
-              <Route path="/invospace/graph-viewer" element={<GraphViewer />} />
-              <Route path="/invospace/communities" element={<CommunitiesPage />} />
-              <Route path="/invospace/timeline" element={<TimelinePage />} />
-              <Route path="/invospace/statistics" element={<StatisticsPage />} />
-              <Route path="/invospace/reports" element={<ReportsPage />} />
-              <Route path="/invospace/cases" element={<CasesPage />} />
-              <Route path="/invospace/cases/:id" element={<CaseDetail />} />
-              <Route path="/invospace/alerts" element={<AlertsPage />} />
-            </Route>
+        <Route
+          path="/sample-generator"
+          element={
+            <AppLayout title="Sample Generator">
+              <SampleGenerator />
+            </AppLayout>
+          }
+        />
 
-            {/* Admin Routes */}
-            <Route element={<RoleRoute allowedRoles={['ADMIN']} redirectPath="/overview" />}>
-              <Route path="/workspace-selector" element={<WorkspaceSelector />} />
-              <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/admin/users" element={<AdminUsersPage />} />
-              <Route path="/admin/organizations" element={<AdminOrgsPage />} />
-            </Route>
 
-            {/* Common Authenticated Routes */}
-            <Route path="/profile" element={<AppLayout title="Profile"><ProfilePage /></AppLayout>} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/audit-history" element={<AppLayout title="Audit Logs"><AuditHistory /></AppLayout>} />
-            <Route path="/overview" element={<WorkspaceRedirect page="overview" />} />
-            <Route path="/dashboard" element={<WorkspaceRedirect page="dashboard" />} />
-            <Route path="/upload" element={<WorkspaceRedirect page="upload" />} />
-            <Route path="/graph-viewer" element={<WorkspaceRedirect page="graph" />} />
-            <Route path="/risk-map" element={<WorkspaceRedirect page="riskMap" />} />
-            <Route path="/communities" element={<WorkspaceRedirect page="communities" />} />
-            <Route path="/timeline" element={<WorkspaceRedirect page="timeline" />} />
-            <Route path="/statistics" element={<WorkspaceRedirect page="statistics" />} />
-            <Route path="/reports" element={<WorkspaceRedirect page="reports" />} />
-            <Route path="/cases" element={<WorkspaceRedirect page="cases" />} />
-            <Route path="/cases/:id" element={<WorkspaceRedirect page="caseDetail" />} />
-            <Route path="/alerts" element={<WorkspaceRedirect page="alerts" />} />
-            
-          </Route>
+        {/* ====================================================
+            CLIENT PORTAL
+        ==================================================== */}
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          element={
+            <RoleRoute
+              allowedRoles={['CLIENT']}
+              redirectPath="/overview"
+            />
+          }
+        >
+          <Route
+            path="/client-dashboard"
+            element={<ClientPortal />}
+          />
+
+          <Route
+            path="/client-requests/new"
+            element={<ClientRequestForm />}
+          />
+
+          <Route
+            path="/client-reports"
+            element={<ClientReportsPage />}
+          />
+        </Route>
+
+
+        {/* ====================================================
+            TRACELAB WORKSPACE
+        ==================================================== */}
+
+        <Route
+          element={
+            <RoleRoute
+              allowedRoles={['TRACE_LAB_ANALYST', 'ADMIN']}
+              redirectPath="/client-dashboard"
+            />
+          }
+        >
+          <Route
+            path="/tracelab"
+            element={
+              <Navigate
+                to="/tracelab/overview"
+                replace
+              />
+            }
+          />
+
+          <Route
+            path="/tracelab/overview"
+            element={<OverviewPage />}
+          />
+
+          <Route
+            path="/tracelab/dashboard"
+            element={
+              <AppLayout title="Analyze">
+                <Dashboard />
+              </AppLayout>
+            }
+          />
+
+          <Route
+            path="/tracelab/upload"
+            element={
+              <AppLayout title="Upload CSV">
+                <Dashboard />
+              </AppLayout>
+            }
+          />
+
+          <Route
+            path="/tracelab/risk-map"
+            element={<RiskMapPage />}
+          />
+
+          <Route
+            path="/tracelab/graph-viewer"
+            element={<GraphViewer />}
+          />
+
+          <Route
+            path="/tracelab/communities"
+            element={<CommunitiesPage />}
+          />
+
+          <Route
+            path="/tracelab/timeline"
+            element={<TimelinePage />}
+          />
+
+          <Route
+            path="/tracelab/statistics"
+            element={<StatisticsPage />}
+          />
+
+          <Route
+            path="/tracelab/reports"
+            element={<ReportsPage />}
+          />
+
+          <Route
+            path="/tracelab/alerts"
+            element={<AlertsPage />}
+          />
+        </Route>
+
+
+        {/* ====================================================
+            INVOSPACE WORKSPACE
+        ==================================================== */}
+
+        <Route
+          element={
+            <RoleRoute
+              allowedRoles={['INVESTIGATOR', 'ADMIN']}
+              redirectPath="/client-dashboard"
+            />
+          }
+        >
+          <Route
+            path="/invospace"
+            element={
+              <Navigate
+                to="/invospace/overview"
+                replace
+              />
+            }
+          />
+
+          <Route
+            path="/invospace/overview"
+            element={<OverviewPage />}
+          />
+
+          <Route
+            path="/invospace/dashboard"
+            element={
+              <AppLayout title="Analyze">
+                <Dashboard />
+              </AppLayout>
+            }
+          />
+
+          <Route
+            path="/invospace/upload"
+            element={
+              <AppLayout title="Upload CSV">
+                <Dashboard />
+              </AppLayout>
+            }
+          />
+
+          <Route
+            path="/invospace/risk-map"
+            element={<RiskMapPage />}
+          />
+
+          <Route
+            path="/invospace/graph-viewer"
+            element={<GraphViewer />}
+          />
+
+          <Route
+            path="/invospace/communities"
+            element={<CommunitiesPage />}
+          />
+
+          <Route
+            path="/invospace/timeline"
+            element={<TimelinePage />}
+          />
+
+          <Route
+            path="/invospace/statistics"
+            element={<StatisticsPage />}
+          />
+
+          <Route
+            path="/invospace/reports"
+            element={<ReportsPage />}
+          />
+
+          <Route
+            path="/invospace/cases"
+            element={<CasesPage />}
+          />
+
+          <Route
+            path="/invospace/cases/:id"
+            element={<CaseDetail />}
+          />
+
+          <Route
+            path="/invospace/alerts"
+            element={<AlertsPage />}
+          />
+        </Route>
+
+
+        {/* ====================================================
+            ADMIN WORKSPACE
+        ==================================================== */}
+
+        <Route
+          element={
+            <RoleRoute
+              allowedRoles={['ADMIN']}
+              redirectPath="/overview"
+            />
+          }
+        >
+
+          {/* Workspace selector */}
+          <Route
+            path="/workspace-selector"
+            element={<WorkspaceSelector />}
+          />
+
+          {/* Admin dashboard */}
+          <Route
+            path="/admin"
+            element={<AdminDashboard />}
+          />
+
+          {/* User management */}
+          <Route
+            path="/admin/users"
+            element={<AdminUsersPage />}
+          />
+
+          {/* Organization management */}
+          <Route
+            path="/admin/organizations"
+            element={<AdminOrgsPage />}
+          />
+
+          {/* Service request queue */}
+          <Route
+            path="/admin/requests"
+            element={<AdminRequestsPage />}
+          />
+
+          {/* Report review queue */}
+          <Route
+            path="/admin/reports"
+            element={<AdminReportsPage />}
+          />
+
+          {/* Operations queue */}
+          <Route
+            path="/admin/operations"
+            element={<AdminOperationsPage />}
+          />
+
+        </Route>
+
+
+        {/* ====================================================
+            COMMON AUTHENTICATED ROUTES
+        ==================================================== */}
+
+        <Route
+          path="/profile"
+          element={
+            <AppLayout title="Profile">
+              <ProfilePage />
+            </AppLayout>
+          }
+        />
+
+        <Route
+          path="/settings"
+          element={<SettingsPage />}
+        />
+
+        <Route
+          path="/audit-history"
+          element={
+            <AppLayout title="Audit Logs">
+              <AuditHistory />
+            </AppLayout>
+          }
+        />
+
+
+        {/* ====================================================
+            ROLE-AWARE SHORTCUT ROUTES
+        ==================================================== */}
+
+        <Route
+          path="/overview"
+          element={<WorkspaceRedirect page="overview" />}
+        />
+
+        <Route
+          path="/dashboard"
+          element={<WorkspaceRedirect page="dashboard" />}
+        />
+
+        <Route
+          path="/upload"
+          element={<WorkspaceRedirect page="upload" />}
+        />
+
+        <Route
+          path="/graph-viewer"
+          element={<WorkspaceRedirect page="graph" />}
+        />
+
+        <Route
+          path="/risk-map"
+          element={<WorkspaceRedirect page="riskMap" />}
+        />
+
+        <Route
+          path="/communities"
+          element={<WorkspaceRedirect page="communities" />}
+        />
+
+        <Route
+          path="/timeline"
+          element={<WorkspaceRedirect page="timeline" />}
+        />
+
+        <Route
+          path="/statistics"
+          element={<WorkspaceRedirect page="statistics" />}
+        />
+
+        <Route
+          path="/reports"
+          element={<WorkspaceRedirect page="reports" />}
+        />
+
+        <Route
+          path="/cases"
+          element={<WorkspaceRedirect page="cases" />}
+        />
+
+        <Route
+          path="/cases/:id"
+          element={<WorkspaceRedirect page="caseDetail" />}
+        />
+
+        <Route
+          path="/alerts"
+          element={<WorkspaceRedirect page="alerts" />}
+        />
+
+      </Route>
+
+
+      {/* ======================================================
+          FALLBACK
+      ====================================================== */}
+
+      <Route
+        path="*"
+        element={<Navigate to="/" replace />}
+      />
+
     </Routes>
   );
 }
+
 export default App;

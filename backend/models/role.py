@@ -1,29 +1,46 @@
 """
 role.py — Role definitions for TraceAcc Pro.
 
-Four operational roles:
-  CLIENT    (DB: CLIENT_USER)
-  ADMIN     (DB: ADMIN)
-  ANALYST   (DB: TRACE_LAB_ANALYST)
-  INVOSPACE (DB: INVESTIGATOR)
+Operational roles:
+    CLIENT_USER
+    ADMIN
+    TRACE_LAB_ANALYST
+    INVESTIGATOR
 
-SUPER_ADMIN is a legacy/platform role treated as ADMIN.
-Do NOT introduce it as a fifth operational role.
+Platform role:
+    SUPER_ADMIN
+
+SUPER_ADMIN is a platform-level administrator and inherits
+ADMIN permissions wherever ADMIN access is allowed.
+
+Database values MUST NOT be renamed because existing records
+and authorization logic depend on them.
 """
+
 import enum
 
 
 class Role(str, enum.Enum):
-    # Operational roles (DB values — do NOT rename)
-    CLIENT    = "CLIENT_USER"         # External clients
-    ADMIN     = "ADMIN"               # Operations / communication hub
-    ANALYST   = "TRACE_LAB_ANALYST"  # TraceLab detection & analysis
-    INVOSPACE = "INVESTIGATOR"        # Deep investigation & case management
-    
-    # Legacy/platform role — treated as ADMIN in all permission checks
+
+    # ========================================================
+    # OPERATIONAL ROLES
+    # ========================================================
+
+    CLIENT = "CLIENT_USER"
+    ADMIN = "ADMIN"
+    ANALYST = "TRACE_LAB_ANALYST"
+    INVOSPACE = "INVESTIGATOR"
+
+    # ========================================================
+    # PLATFORM ROLE
+    # ========================================================
+
     SUPER_ADMIN = "SUPER_ADMIN"
 
-    # Legacy aliases (kept for backward compat with any code using old names)
-    CLIENT_USER       = "CLIENT_USER"
+    # ========================================================
+    # BACKWARD-COMPATIBILITY ALIASES
+    # ========================================================
+
+    CLIENT_USER = "CLIENT_USER"
     TRACE_LAB_ANALYST = "TRACE_LAB_ANALYST"
-    INVESTIGATOR      = "INVESTIGATOR"
+    INVESTIGATOR = "INVESTIGATOR"

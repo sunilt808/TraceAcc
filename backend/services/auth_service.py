@@ -1,3 +1,7 @@
+"""
+auth_service.py — Authentication and JWT services.
+"""
+
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -9,98 +13,255 @@ from config.settings import settings
 from models.user import User
 from models.role import Role
 
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
+pwd_context = CryptContext(
+    schemes=["pbkdf2_sha256"],
+    deprecated="auto",
+)
+
+
+# ============================================================
+# PASSWORD
+# ============================================================
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+def verify_password(
+    plain_password: str,
+    hashed_password: str,
+) -> bool:
+    return pwd_context.verify(
+        plain_password,
+        hashed_password,
+    )
 
 
-def get_user_by_username(db: Session, username: str) -> Optional[User]:
-    return db.query(User).filter(User.username == username).first()
+# ============================================================
+# USER LOOKUP
+# ============================================================
 
+def get_user_by_username(
+    db: Session,
+    username: str,
+) -> Optional[User]:
+
+    return (
+        db.query(User)
+        .filter(
+            User.username == username
+        )
+        .first()
+    )
+
+
+# ============================================================
+# CREATE USER
+# ============================================================
 
 def create_user(
-    db: Session, 
-    username: str, 
-    password: str, 
+    db: Session,
+    username: str,
+    password: str,
     email: Optional[str] = None,
     phone: Optional[str] = None,
-    role: Role = Role.CLIENT_USER, 
-    organization_id: Optional[int] = None
+    role: Role = Role.CLIENT_USER,
+    organization_id: Optional[int] = None,
 ) -> User:
+
     user = User(
-        username=username, 
+        username=username.strip(),
         password=get_password_hash(password),
-        email=email,
+        email=(
+            str(email).lower().strip()
+            if email
+            else None
+        ),
         phone=phone,
         role=role.value,
-        organization_id=organization_id
+        organization_id=organization_id,
+        is_active=True,
+        failed_login_count=0,
+        locked_until=None,
     )
+
     db.add(user)
     db.commit()
     db.refresh(user)
+
     return user
 
 
-def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
-    user = get_user_by_username(db, username)
+# ============================================================
+# AUTHENTICATE USER
+# ============================================================
+
+def authenticate_user(
+    db: Session,
+    username: str,
+    password: str,
+) -> Optional[User]:
+
+    user = get_user_by_username(
+        db,
+        username,
+    )
+
     if not user:
         return None
-        
+
+    # --------------------------------------------------------
+    # ACTIVE CHECK
+    # --------------------------------------------------------
+
     if not user.is_active:
         return None
-        
+
+    # --------------------------------------------------------
+    # ACCOUNT LOCK CHECK
+    # --------------------------------------------------------
+
     now = datetime.now(timezone.utc)
+
     if user.locked_until:
+
         locked_until = user.locked_until
+
         if locked_until.tzinfo is None:
-            locked_until = locked_until.replace(tzinfo=timezone.utc)
+            locked_until = locked_until.replace(
+                tzinfo=timezone.utc
+            )
+
         if locked_until > now:
             return None
-        
-    if not verify_password(password, user.password):
-        user.failed_login_count += 1
-        if user.failed_login_count >= 5:
-            user.locked_until = now + timedelta(minutes=15)
-        db.commit()
+
+    # --------------------------------------------------------
+    # PASSWORD
+    # --------------------------------------------------------
+
+    try:
+        password_valid = verify_password(
+            password,
+            user.password,
+        )
+    except Exception:
         return None
-        
-    # Success, reset counters
+
+    if not password_valid:
+
+        user.failed_login_count += 1
+
+        if user.failed_login_count >= 5:
+            user.locked_until = (
+                now + timedelta(minutes=15)
+            )
+
+        db.commit()
+
+        return None
+
+    # --------------------------------------------------------
+    # SUCCESS
+    #
+    # Do NOT update last_login here.
+    #
+    # auth.py performs organization approval first.
+    # --------------------------------------------------------
+
+    return user
+
+
+# ============================================================
+# RECORD SUCCESSFUL LOGIN
+# ============================================================
+
+def mark_login_success(
+    db: Session,
+    user: User,
+) -> User:
+
+    now = datetime.now(timezone.utc)
+
     user.failed_login_count = 0
     user.locked_until = None
     user.last_login = now
+
     db.commit()
+    db.refresh(user)
+
     return user
 
 
-def create_access_token(user: User, expires_delta: Optional[timedelta] = None) -> str:
+# ============================================================
+# JWT
+# ============================================================
+
+def create_access_token(
+    user: User,
+    expires_delta: Optional[timedelta] = None,
+) -> str:
+
     expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
+        expires_delta
+        or timedelta(
+            minutes=settings.access_token_expire_minutes
+        )
     )
+
     to_encode = {
-        "sub": user.username, 
+        "sub": user.username,
         "exp": expire,
         "role": user.role,
-        "org_id": user.organization_id
+        "org_id": user.organization_id,
     }
-    return jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+    return jwt.encode(
+        to_encode,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
 
 
-def decode_access_token(token: str) -> Optional[dict]:
+# ============================================================
+# DECODE JWT
+# ============================================================
+
+def decode_access_token(
+    token: str,
+) -> Optional[dict]:
+
     try:
-        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[
+                settings.jwt_algorithm
+            ],
+        )
+
         return payload
+
     except JWTError:
         return None
 
 
-def change_password(db: Session, user: User, new_password: str) -> User:
-    user.password = get_password_hash(new_password)
+# ============================================================
+# CHANGE PASSWORD
+# ============================================================
+
+def change_password(
+    db: Session,
+    user: User,
+    new_password: str,
+) -> User:
+
+    user.password = get_password_hash(
+        new_password
+    )
+
     db.commit()
     db.refresh(user)
+
     return user

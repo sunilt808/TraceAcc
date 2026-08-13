@@ -1,18 +1,45 @@
 """
-admin.py — Admin Management API.
+admin.py — TraceAcc Pro Admin Management API.
 
-Provides admin-only endpoints for user management,
-organization management, and system dashboard stats.
+Responsibilities:
+    - User management
+    - Organization management
+    - Organization approval
+    - Service request review
+    - TraceLab / InvoSpace assignment
+    - Client report review
+    - Operations queue
+    - Dashboard statistics
+
+Operational roles:
+    CLIENT_USER
+    ADMIN
+    TRACE_LAB_ANALYST
+    INVESTIGATOR
+
+Legacy:
+    SUPER_ADMIN
+
+SUPER_ADMIN has platform-wide administrative access.
+ADMIN is the normal Operations / Communication Hub role.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import func as sa_func
-from typing import Optional
-from pydantic import BaseModel
-from datetime import datetime, timezone
 
-from api.deps import get_current_user, RoleChecker
+from datetime import datetime, timezone
+from typing import Optional
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+)
+from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import func as sa_func
+from sqlalchemy.orm import Session
+
+from api.deps import RoleChecker
 from db.database import get_db
+
 from models.user import User
 from models.role import Role
 from models.organization import Organization
@@ -24,9 +51,74 @@ from models.assignment import Assignment
 from models.activity_timeline import ActivityTimeline
 from models.client_report import ClientReport
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+from services.auth_service import (
+    create_user as auth_create_user,
+    get_user_by_username,
+)
 
-# ---------- Schemas ----------
+
+router = APIRouter(
+    prefix="/admin",
+    tags=["admin"],
+)
+
+
+# ============================================================
+# ROLE HELPERS
+# ============================================================
+
+ADMIN_ROLES = [
+    Role.ADMIN.value,
+    Role.SUPER_ADMIN.value,
+]
+
+
+def _is_super_admin(user: User) -> bool:
+    return user.role == Role.SUPER_ADMIN.value
+
+
+def _is_admin(user: User) -> bool:
+    return user.role == Role.ADMIN.value
+
+
+def _is_admin_or_super_admin(user: User) -> bool:
+    return user.role in ADMIN_ROLES
+
+
+def _can_manage_role(
+    current_user: User,
+    target_role: str,
+) -> bool:
+    """
+    SUPER_ADMIN:
+        Can provision every role.
+
+    ADMIN:
+        Can provision:
+            CLIENT_USER
+            TRACE_LAB_ANALYST
+            INVESTIGATOR
+
+        Cannot provision:
+            ADMIN
+            SUPER_ADMIN
+    """
+
+    if _is_super_admin(current_user):
+        return True
+
+    if target_role in {
+        Role.ADMIN.value,
+        Role.SUPER_ADMIN.value,
+    }:
+        return False
+
+    return True
+
+
+# ============================================================
+# SCHEMAS
+# ============================================================
 
 class UserUpdate(BaseModel):
     role: Optional[str] = None
@@ -36,16 +128,31 @@ class UserUpdate(BaseModel):
 
 
 class UserCreateAdmin(BaseModel):
-    username: str
-    email: Optional[str] = None
+    username: str = Field(
+        min_length=3,
+        max_length=150,
+    )
+
+    email: Optional[EmailStr] = None
+
     phone: Optional[str] = None
-    password: str
+
+    password: str = Field(
+        min_length=8,
+        max_length=128,
+    )
+
     role: str
+
     organization_id: Optional[int] = None
 
 
 class OrganizationCreate(BaseModel):
-    name: str
+    name: str = Field(
+        min_length=2,
+        max_length=255,
+    )
+
     org_type: Optional[str] = None
     registration_number: Optional[str] = None
     country: Optional[str] = None
@@ -54,12 +161,12 @@ class OrganizationCreate(BaseModel):
     address: Optional[str] = None
     website: Optional[str] = None
     phone: Optional[str] = None
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
     contact_person: Optional[str] = None
 
 
 class OrganizationUpdate(BaseModel):
-    status: Optional[str] = None   # APPROVED | REJECTED
+    status: Optional[str] = None
     name: Optional[str] = None
     org_type: Optional[str] = None
     registration_number: Optional[str] = None
@@ -69,7 +176,7 @@ class OrganizationUpdate(BaseModel):
     address: Optional[str] = None
     website: Optional[str] = None
     phone: Optional[str] = None
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
     contact_person: Optional[str] = None
 
 
@@ -85,11 +192,9 @@ class ReportReviewAction(BaseModel):
     note: Optional[str] = None
 
 
-# ---------- Helpers ----------
-
-def _is_super_admin(user: User) -> bool:
-    return user.role == Role.SUPER_ADMIN.value
-
+# ============================================================
+# ORGANIZATION SERIALIZER
+# ============================================================
 
 def _org_to_dict(org: Organization) -> dict:
     return {
@@ -106,45 +211,178 @@ def _org_to_dict(org: Organization) -> dict:
         "email": org.email,
         "contact_person": org.contact_person,
         "status": org.status,
-        "approved_at": org.approved_at.isoformat() if org.approved_at else None,
-        "created_at": org.created_at.isoformat() if org.created_at else None,
-        "updated_at": org.updated_at.isoformat() if org.updated_at else None,
+        "approved_at": (
+            org.approved_at.isoformat()
+            if org.approved_at
+            else None
+        ),
+        "approved_by_id": org.approved_by_id,
+        "created_at": (
+            org.created_at.isoformat()
+            if org.created_at
+            else None
+        ),
+        "updated_at": (
+            org.updated_at.isoformat()
+            if org.updated_at
+            else None
+        ),
     }
 
 
-# ---------- User Management ----------
+# ============================================================
+# USER SCOPE
+# ============================================================
+
+def _get_user_in_scope(
+    db: Session,
+    current_user: User,
+    user_id: int,
+):
+    query = db.query(User).filter(
+        User.id == user_id
+    )
+
+    if not _is_super_admin(current_user):
+        query = query.filter(
+            User.organization_id
+            == current_user.organization_id
+        )
+
+    return query.first()
+
+
+# ============================================================
+# ORGANIZATION SCOPE
+# ============================================================
+
+def _get_org_in_scope(
+    db: Session,
+    current_user: User,
+    org_id: int,
+):
+    """
+    SUPER_ADMIN:
+        Can access every organization.
+
+    ADMIN:
+        Can access own organization.
+
+    Exception:
+        ADMIN can access PENDING organizations for
+        registration/approval review.
+
+    This is necessary because a newly registered client
+    does not yet belong to an approved operational tenant.
+    """
+
+    org = (
+        db.query(Organization)
+        .filter(
+            Organization.id == org_id
+        )
+        .first()
+    )
+
+    if not org:
+        return None
+
+    # SUPER_ADMIN = platform-wide
+    if _is_super_admin(current_user):
+        return org
+
+    # Own organization
+    if org.id == current_user.organization_id:
+        return org
+
+    # --------------------------------------------------------
+    # IMPORTANT:
+    # ADMIN may inspect pending registrations.
+    # --------------------------------------------------------
+
+    if (
+        _is_admin(current_user)
+        and org.status == "PENDING"
+    ):
+        return org
+
+    raise HTTPException(
+        status_code=403,
+        detail=(
+            "You are not authorized to access "
+            "this organization."
+        ),
+    )
+
+
+# ============================================================
+# USER MANAGEMENT
+# ============================================================
 
 @router.get("/users")
 def list_users(
-    limit: int = Query(100, le=500),
-    offset: int = Query(0, ge=0),
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
+    limit: int = Query(
+        100,
+        ge=1,
+        le=500,
+    ),
+    offset: int = Query(
+        0,
+        ge=0,
+    ),
+    current_user: User = Depends(
+        RoleChecker(ADMIN_ROLES)
+    ),
     db: Session = Depends(get_db),
 ):
-    """List all users. SUPER_ADMIN sees all users, ADMIN sees users in their org."""
-    q = db.query(User)
+    """
+    SUPER_ADMIN:
+        All users.
 
-    # SUPER_ADMIN sees everything, regular ADMIN only their org
+    ADMIN:
+        Users in own organization.
+    """
+
+    query = db.query(User)
+
     if not _is_super_admin(current_user):
-        q = q.filter(User.organization_id == current_user.organization_id)
+        query = query.filter(
+            User.organization_id
+            == current_user.organization_id
+        )
 
-    total = q.count()
-    users = q.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
+    total = query.count()
+
+    users = (
+        query
+        .order_by(User.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
     return {
         "items": [
             {
-                "id": u.id,
-                "username": u.username,
-                "email": u.email,
-                "phone": u.phone,
-                "role": u.role,
-                "organization_id": u.organization_id,
-                "is_active": u.is_active,
-                "last_login": u.last_login.isoformat() if u.last_login else None,
-                "created_at": u.created_at.isoformat() if u.created_at else None,
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "phone": user.phone,
+                "role": user.role,
+                "organization_id": user.organization_id,
+                "is_active": user.is_active,
+                "last_login": (
+                    user.last_login.isoformat()
+                    if user.last_login
+                    else None
+                ),
+                "created_at": (
+                    user.created_at.isoformat()
+                    if user.created_at
+                    else None
+                ),
             }
-            for u in users
+            for user in users
         ],
         "total": total,
     }
@@ -154,39 +392,127 @@ def list_users(
 def update_user(
     user_id: int,
     body: UserUpdate,
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
+    current_user: User = Depends(
+        RoleChecker(ADMIN_ROLES)
+    ),
     db: Session = Depends(get_db),
 ):
-    """Update a user's role, active status, or organization."""
-    user = db.query(User).filter(User.id == user_id).first()
+    user = _get_user_in_scope(
+        db,
+        current_user,
+        user_id,
+    )
+
     if not user:
-        raise HTTPException(status_code=404, detail="User not found.")
+        raise HTTPException(
+            status_code=404,
+            detail="User not found.",
+        )
 
-    # Admin can only manage users within their org (SUPER_ADMIN can manage all)
-    if not _is_super_admin(current_user) and user.organization_id != current_user.organization_id:
-        raise HTTPException(status_code=403, detail="Cannot manage users outside your organization.")
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Cannot modify your own account "
+                "through admin API."
+            ),
+        )
 
-    # Prevent self-demotion
-    if user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="Cannot modify your own account via admin API.")
+    # --------------------------------------------------------
+    # ROLE
+    # --------------------------------------------------------
 
-    valid_roles = {r.value for r in Role}
     if body.role is not None:
+
+        valid_roles = {
+            Role.CLIENT.value,
+            Role.ADMIN.value,
+            Role.ANALYST.value,
+            Role.INVOSPACE.value,
+            Role.SUPER_ADMIN.value,
+        }
+
         if body.role not in valid_roles:
-            raise HTTPException(status_code=400, detail=f"role must be one of {valid_roles}")
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Invalid role. Allowed roles: "
+                    f"{sorted(valid_roles)}"
+                ),
+            )
+
+        if not _can_manage_role(
+            current_user,
+            body.role,
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "ADMIN cannot assign "
+                    "ADMIN or SUPER_ADMIN."
+                ),
+            )
+
         user.role = body.role
+
+    # --------------------------------------------------------
+    # ACTIVE
+    # --------------------------------------------------------
 
     if body.is_active is not None:
         user.is_active = body.is_active
 
+    # --------------------------------------------------------
+    # ORGANIZATION
+    # --------------------------------------------------------
+
     if body.organization_id is not None:
-        user.organization_id = body.organization_id
+
+        if not _is_super_admin(current_user):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Only SUPER_ADMIN can move "
+                    "users between organizations."
+                ),
+            )
+
+        target_org = (
+            db.query(Organization)
+            .filter(
+                Organization.id
+                == body.organization_id
+            )
+            .first()
+        )
+
+        if not target_org:
+            raise HTTPException(
+                status_code=404,
+                detail="Target organization not found.",
+            )
+
+        if target_org.status != "APPROVED":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "User cannot be assigned to a "
+                    "non-approved organization."
+                ),
+            )
+
+        user.organization_id = target_org.id
+
+    # --------------------------------------------------------
+    # PHONE
+    # --------------------------------------------------------
 
     if body.phone is not None:
         user.phone = body.phone
 
     db.commit()
     db.refresh(user)
+
     return {
         "id": user.id,
         "username": user.username,
@@ -198,37 +524,168 @@ def update_user(
     }
 
 
-@router.post("/users", status_code=201)
+# ============================================================
+# CREATE USER
+# ============================================================
+
+@router.post(
+    "/users",
+    status_code=201,
+)
 def create_admin_user(
     body: UserCreateAdmin,
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
+    current_user: User = Depends(
+        RoleChecker(ADMIN_ROLES)
+    ),
     db: Session = Depends(get_db),
 ):
-    from services.auth_service import create_user as auth_create_user, get_user_by_username
-    
-    existing_user = get_user_by_username(db, body.username)
+    existing_user = get_user_by_username(
+        db,
+        body.username,
+    )
+
     if existing_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
-        
-    valid_roles = {r.value for r in Role}
+        raise HTTPException(
+            status_code=400,
+            detail="Username already registered.",
+        )
+
+    valid_roles = {
+        Role.CLIENT.value,
+        Role.ADMIN.value,
+        Role.ANALYST.value,
+        Role.INVOSPACE.value,
+        Role.SUPER_ADMIN.value,
+    }
+
     if body.role not in valid_roles:
-        raise HTTPException(status_code=400, detail=f"role must be one of {valid_roles}")
-        
-    org_id = body.organization_id if _is_super_admin(current_user) else current_user.organization_id
-    if not _is_super_admin(current_user) and body.organization_id and body.organization_id != org_id:
-        raise HTTPException(status_code=403, detail="Cannot create users for other organizations.")
-        
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Invalid role. Allowed roles: "
+                f"{sorted(valid_roles)}"
+            ),
+        )
+
+    if not _can_manage_role(
+        current_user,
+        body.role,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "ADMIN cannot create "
+                "ADMIN or SUPER_ADMIN users."
+            ),
+        )
+
+    # --------------------------------------------------------
+    # SUPER ADMIN
+    # --------------------------------------------------------
+
+    if _is_super_admin(current_user):
+
+        if body.organization_id is None:
+
+            # Only platform-level SUPER_ADMIN may be
+            # organization-less.
+            if body.role != Role.SUPER_ADMIN.value:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Operational users must belong "
+                        "to an approved organization."
+                    ),
+                )
+
+            org_id = None
+
+        else:
+
+            target_org = (
+                db.query(Organization)
+                .filter(
+                    Organization.id
+                    == body.organization_id
+                )
+                .first()
+            )
+
+            if not target_org:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Organization not found.",
+                )
+
+            if target_org.status != "APPROVED":
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Users can only be created "
+                        "inside approved organizations."
+                    ),
+                )
+
+            org_id = target_org.id
+
+    # --------------------------------------------------------
+    # NORMAL ADMIN
+    # --------------------------------------------------------
+
+    else:
+
+        if not current_user.organization_id:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "ADMIN does not belong "
+                    "to an organization."
+                ),
+            )
+
+        org_id = current_user.organization_id
+
+        if body.organization_id is not None:
+            if body.organization_id != org_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        "Cannot create users "
+                        "for another organization."
+                    ),
+                )
+
+        org = (
+            db.query(Organization)
+            .filter(
+                Organization.id == org_id
+            )
+            .first()
+        )
+
+        if not org or org.status != "APPROVED":
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Users cannot be created "
+                    "inside a non-approved organization."
+                ),
+            )
+
+    # --------------------------------------------------------
+    # CREATE
+    # --------------------------------------------------------
+
     new_user = auth_create_user(
         db=db,
         username=body.username,
         password=body.password,
         email=body.email,
+        phone=body.phone,
         role=Role(body.role),
-        organization_id=org_id
+        organization_id=org_id,
     )
-    new_user.phone = body.phone
-    db.commit()
-    
+
     return {
         "id": new_user.id,
         "username": new_user.username,
@@ -240,55 +697,182 @@ def create_admin_user(
     }
 
 
-@router.delete("/users/{user_id}", status_code=204)
+# ============================================================
+# DELETE USER
+# ============================================================
+
+@router.delete(
+    "/users/{user_id}",
+    status_code=204,
+)
 def delete_user(
     user_id: int,
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
+    current_user: User = Depends(
+        RoleChecker(ADMIN_ROLES)
+    ),
     db: Session = Depends(get_db),
 ):
-    user = db.query(User).filter(User.id == user_id).first()
+    user = _get_user_in_scope(
+        db,
+        current_user,
+        user_id,
+    )
+
     if not user:
-        raise HTTPException(status_code=404, detail="User not found.")
-        
-    if not _is_super_admin(current_user) and user.organization_id != current_user.organization_id:
-        raise HTTPException(status_code=403, detail="Cannot delete users outside your organization.")
-        
-    if user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="Cannot delete your own account.")
-        
+        raise HTTPException(
+            status_code=404,
+            detail="User not found.",
+        )
+
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete your own account.",
+        )
+
+    if (
+        not _is_super_admin(current_user)
+        and user.role in {
+            Role.ADMIN.value,
+            Role.SUPER_ADMIN.value,
+        }
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "ADMIN cannot delete "
+                "ADMIN or SUPER_ADMIN."
+            ),
+        )
+
     db.delete(user)
     db.commit()
+
     return None
 
 
-# ---------- Organization Management ----------
+# ============================================================
+# ORGANIZATION LIST
+# ============================================================
 
 @router.get("/organizations")
 def list_organizations(
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
+    current_user: User = Depends(
+        RoleChecker(ADMIN_ROLES)
+    ),
     db: Session = Depends(get_db),
 ):
-    """List all organizations with full details."""
-    orgs = db.query(Organization).order_by(Organization.created_at.desc()).all()
+    """
+    SUPER_ADMIN:
+        All organizations.
+
+    ADMIN:
+        Own organization + pending registrations.
+
+    This allows the Admin Workspace to function as
+    the client-intake/approval hub.
+    """
+
+    if _is_super_admin(current_user):
+
+        orgs = (
+            db.query(Organization)
+            .order_by(
+                Organization.created_at.desc()
+            )
+            .all()
+        )
+
+    else:
+
+        orgs = (
+            db.query(Organization)
+            .filter(
+                (
+                    Organization.id
+                    == current_user.organization_id
+                )
+                |
+                (
+                    Organization.status
+                    == "PENDING"
+                )
+            )
+            .order_by(
+                Organization.created_at.desc()
+            )
+            .all()
+        )
+
     result = []
+
     for org in orgs:
-        d = _org_to_dict(org)
-        # Count users in this org
-        d["user_count"] = db.query(sa_func.count(User.id)).filter(User.organization_id == org.id).scalar() or 0
-        result.append(d)
+
+        data = _org_to_dict(org)
+
+        data["user_count"] = (
+            db.query(
+                sa_func.count(User.id)
+            )
+            .filter(
+                User.organization_id
+                == org.id
+            )
+            .scalar()
+            or 0
+        )
+
+        result.append(data)
+
     return result
 
 
-@router.post("/organizations", status_code=201)
+# ============================================================
+# CREATE ORGANIZATION
+# ============================================================
+
+@router.post(
+    "/organizations",
+    status_code=201,
+)
 def create_organization(
     body: OrganizationCreate,
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
+    current_user: User = Depends(
+        RoleChecker(ADMIN_ROLES)
+    ),
     db: Session = Depends(get_db),
 ):
-    """Create a new client organization (pre-approved by admin)."""
-    existing = db.query(Organization).filter(Organization.name == body.name).first()
+    """
+    Direct organization creation is platform-level.
+
+    Normal client registration creates PENDING organizations.
+    """
+
+    if not _is_super_admin(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Only SUPER_ADMIN can create "
+                "organizations directly."
+            ),
+        )
+
+    existing = (
+        db.query(Organization)
+        .filter(
+            Organization.name == body.name
+        )
+        .first()
+    )
+
     if existing:
-        raise HTTPException(status_code=409, detail="Organization with this name already exists.")
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Organization with this name "
+                "already exists."
+            ),
+        )
 
     org = Organization(
         name=body.name,
@@ -302,257 +886,804 @@ def create_organization(
         phone=body.phone,
         email=body.email,
         contact_person=body.contact_person,
-        status="APPROVED",  # Admin-created orgs are pre-approved
+        status="APPROVED",
         approved_at=datetime.now(timezone.utc),
         approved_by_id=current_user.id,
     )
+
     db.add(org)
     db.commit()
     db.refresh(org)
+
     return _org_to_dict(org)
 
 
-@router.patch("/organizations/{org_id}")
+# ============================================================
+# UPDATE / APPROVE ORGANIZATION
+# ============================================================
+
+@router.patch(
+    "/organizations/{org_id}"
+)
 def update_organization(
     org_id: int,
     body: OrganizationUpdate,
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
+    current_user: User = Depends(
+        RoleChecker(ADMIN_ROLES)
+    ),
     db: Session = Depends(get_db),
 ):
-    """Update organization details or approve/reject."""
-    org = db.query(Organization).filter(Organization.id == org_id).first()
+    """
+    Organization governance.
+
+    ADMIN:
+        - Can approve/reject PENDING registrations.
+        - Can update own organization.
+        - Cannot modify another approved organization.
+
+    SUPER_ADMIN:
+        - Full organization governance.
+    """
+
+    org = _get_org_in_scope(
+        db,
+        current_user,
+        org_id,
+    )
+
     if not org:
-        raise HTTPException(status_code=404, detail="Organization not found.")
+        raise HTTPException(
+            status_code=404,
+            detail="Organization not found.",
+        )
+
+    # ========================================================
+    # STATUS CHANGE
+    # ========================================================
 
     if body.status is not None:
-        valid_statuses = {"PENDING", "APPROVED", "REJECTED"}
-        if body.status.upper() not in valid_statuses:
-            raise HTTPException(status_code=400, detail=f"status must be one of {valid_statuses}")
-        org.status = body.status.upper()
-        if body.status.upper() == "APPROVED":
-            org.approved_at = datetime.now(timezone.utc)
-            org.approved_by_id = current_user.id
+
+        new_status = body.status.upper()
+
+        valid_statuses = {
+            "PENDING",
+            "APPROVED",
+            "REJECTED",
+        }
+
+        if new_status not in valid_statuses:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "status must be one of "
+                    f"{sorted(valid_statuses)}"
+                ),
+            )
+
+        # ----------------------------------------------------
+        # NORMAL ADMIN
+        # ----------------------------------------------------
+
+        if not _is_super_admin(current_user):
+
+            # ADMIN may approve/reject only PENDING
+            # organizations.
+            if org.status != "PENDING":
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        "ADMIN can only approve or reject "
+                        "pending organizations."
+                    ),
+                )
+
+            if new_status not in {
+                "APPROVED",
+                "REJECTED",
+            }:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "A pending organization can only "
+                        "be APPROVED or REJECTED."
+                    ),
+                )
+
+        # ----------------------------------------------------
+        # APPLY STATUS
+        # ----------------------------------------------------
+
+        org.status = new_status
+
+        if new_status == "APPROVED":
+
+            org.approved_at = (
+                datetime.now(timezone.utc)
+            )
+
+            org.approved_by_id = (
+                current_user.id
+            )
+
+        elif new_status == "REJECTED":
+
+            org.approved_at = None
+            org.approved_by_id = None
+
+        elif new_status == "PENDING":
+
+            org.approved_at = None
+            org.approved_by_id = None
+
+    # ========================================================
+    # ORGANIZATION DETAILS
+    # ========================================================
+
+    # A normal ADMIN may edit only their own organization.
+    # Pending organizations are approval-only for ADMIN.
+
+    if not _is_super_admin(current_user):
+
+        editing_details = any([
+            body.name is not None,
+            body.org_type is not None,
+            body.registration_number is not None,
+            body.country is not None,
+            body.state is not None,
+            body.city is not None,
+            body.address is not None,
+            body.website is not None,
+            body.phone is not None,
+            body.email is not None,
+            body.contact_person is not None,
+        ])
+
+        if editing_details:
+            if (
+                org.id
+                != current_user.organization_id
+            ):
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        "ADMIN cannot edit another "
+                        "organization's details."
+                    ),
+                )
+
+    # ========================================================
+    # APPLY DETAILS
+    # ========================================================
 
     if body.name is not None:
         org.name = body.name
+
     if body.org_type is not None:
         org.org_type = body.org_type
+
     if body.registration_number is not None:
-        org.registration_number = body.registration_number
+        org.registration_number = (
+            body.registration_number
+        )
+
     if body.country is not None:
         org.country = body.country
+
     if body.state is not None:
         org.state = body.state
+
     if body.city is not None:
         org.city = body.city
+
     if body.address is not None:
         org.address = body.address
+
     if body.website is not None:
         org.website = body.website
+
     if body.phone is not None:
         org.phone = body.phone
+
     if body.email is not None:
         org.email = body.email
+
     if body.contact_person is not None:
-        org.contact_person = body.contact_person
+        org.contact_person = (
+            body.contact_person
+        )
 
     db.commit()
     db.refresh(org)
+
     return _org_to_dict(org)
 
 
-# ---------- Request Queue ----------
+# ============================================================
+# REQUEST QUEUE HELPERS
+# ============================================================
 
-def _request_queue_item(db: Session, request: ServiceRequest) -> dict:
-    workflow = db.query(WorkflowInstance).filter(WorkflowInstance.service_request_id == request.id).order_by(WorkflowInstance.created_at.desc()).first()
-    assignee = db.query(User).filter(User.id == request.assigned_to_id).first() if request.assigned_to_id else None
+def _request_queue_item(
+    db: Session,
+    request: ServiceRequest,
+) -> dict:
+
+    workflow = (
+        db.query(WorkflowInstance)
+        .filter(
+            WorkflowInstance.service_request_id
+            == request.id
+        )
+        .order_by(
+            WorkflowInstance.created_at.desc()
+        )
+        .first()
+    )
+
+    assignee = (
+        db.query(User)
+        .filter(
+            User.id == request.assigned_to_id
+        )
+        .first()
+        if request.assigned_to_id
+        else None
+    )
+
     latest_assignment = None
-    if workflow:
-        latest_assignment = db.query(Assignment).filter(Assignment.workflow_instance_id == workflow.id).order_by(Assignment.created_at.desc()).first()
 
-    # Get org name
-    org = db.query(Organization).filter(Organization.id == request.organization_id).first()
+    if workflow:
+        latest_assignment = (
+            db.query(Assignment)
+            .filter(
+                Assignment.workflow_instance_id
+                == workflow.id
+            )
+            .order_by(
+                Assignment.created_at.desc()
+            )
+            .first()
+        )
+
+    org = (
+        db.query(Organization)
+        .filter(
+            Organization.id
+            == request.organization_id
+        )
+        .first()
+    )
 
     assigned_team = None
+
     if assignee:
-        if assignee.role == Role.TRACE_LAB_ANALYST.value:
+
+        if (
+            assignee.role
+            == Role.ANALYST.value
+        ):
             assigned_team = "TraceLab"
-        elif assignee.role == Role.INVESTIGATOR.value:
+
+        elif (
+            assignee.role
+            == Role.INVOSPACE.value
+        ):
             assigned_team = "InvoSpace"
+
         else:
             assigned_team = assignee.role
 
     return {
         "id": request.id,
         "organization_id": request.organization_id,
-        "organization_name": org.name if org else None,
+        "organization_name": (
+            org.name
+            if org
+            else None
+        ),
         "title": request.title,
         "description": request.description,
         "request_type": request.request_type,
         "status": request.status,
         "assigned_to_id": request.assigned_to_id,
-        "assigned_user": assignee.username if assignee else None,
+        "assigned_user": (
+            assignee.username
+            if assignee
+            else None
+        ),
         "assigned_team": assigned_team,
-        "priority": "HIGH" if request.request_type == "INVESTIGATION" else "MEDIUM",
-        "due_at": latest_assignment.due_at.isoformat() if latest_assignment and latest_assignment.due_at else None,
-        "workflow_instance_id": workflow.id if workflow else None,
-        "current_stage": workflow.current_stage if workflow else None,
-        "current_status": workflow.current_status if workflow else request.status,
-        "created_at": request.created_at.isoformat() if request.created_at else None,
-        "updated_at": request.updated_at.isoformat() if request.updated_at else None,
+        "priority": (
+            "HIGH"
+            if request.request_type
+            == "INVESTIGATION"
+            else "MEDIUM"
+        ),
+        "due_at": (
+            latest_assignment.due_at.isoformat()
+            if (
+                latest_assignment
+                and latest_assignment.due_at
+            )
+            else None
+        ),
+        "workflow_instance_id": (
+            workflow.id
+            if workflow
+            else None
+        ),
+        "current_stage": (
+            workflow.current_stage
+            if workflow
+            else None
+        ),
+        "current_status": (
+            workflow.current_status
+            if workflow
+            else request.status
+        ),
+        "created_at": (
+            request.created_at.isoformat()
+            if request.created_at
+            else None
+        ),
+        "updated_at": (
+            request.updated_at.isoformat()
+            if request.updated_at
+            else None
+        ),
     }
 
 
-def _service_request_workflow(db: Session, request_id: int, org_id: int):
-    return db.query(WorkflowInstance).filter(
-        WorkflowInstance.service_request_id == request_id,
-        WorkflowInstance.organization_id == org_id,
-    ).order_by(WorkflowInstance.created_at.desc()).first()
+def _service_request_workflow(
+    db: Session,
+    request_id: int,
+    org_id: int,
+):
+    return (
+        db.query(WorkflowInstance)
+        .filter(
+            WorkflowInstance.service_request_id
+            == request_id,
+            WorkflowInstance.organization_id
+            == org_id,
+        )
+        .order_by(
+            WorkflowInstance.created_at.desc()
+        )
+        .first()
+    )
 
 
-def _record_workflow_event(db: Session, workflow: WorkflowInstance, actor_id: int, action: str, from_status: str, to_status: str, note: Optional[str]):
-    db.add(ActivityTimeline(
-        organization_id=workflow.organization_id,
-        workflow_instance_id=workflow.id,
-        actor_id=actor_id,
-        action=action,
-        from_status=from_status,
-        to_status=to_status,
-        details=note,
-    ))
+def _record_workflow_event(
+    db: Session,
+    workflow: WorkflowInstance,
+    actor_id: int,
+    action: str,
+    from_status: str,
+    to_status: str,
+    note: Optional[str],
+):
+    db.add(
+        ActivityTimeline(
+            organization_id=workflow.organization_id,
+            workflow_instance_id=workflow.id,
+            actor_id=actor_id,
+            action=action,
+            from_status=from_status,
+            to_status=to_status,
+            details=note,
+        )
+    )
 
 
-def _service_request_scope_query(db: Session, current_user: User):
+def _service_request_scope_query(
+    db: Session,
+    current_user: User,
+):
     query = db.query(ServiceRequest)
+
     if not _is_super_admin(current_user):
-        query = query.filter(ServiceRequest.organization_id == current_user.organization_id)
+        query = query.filter(
+            ServiceRequest.organization_id
+            == current_user.organization_id
+        )
+
     return query
 
 
-def _service_request_for_review(db: Session, current_user: User, request_id: int):
-    request = db.query(ServiceRequest).filter(ServiceRequest.id == request_id)
-    if not _is_super_admin(current_user):
-        request = request.filter(ServiceRequest.organization_id == current_user.organization_id)
-    return request.first()
+def _service_request_for_review(
+    db: Session,
+    current_user: User,
+    request_id: int,
+):
+    query = (
+        db.query(ServiceRequest)
+        .filter(
+            ServiceRequest.id == request_id
+        )
+    )
 
+    if not _is_super_admin(current_user):
+        query = query.filter(
+            ServiceRequest.organization_id
+            == current_user.organization_id
+        )
+
+    return query.first()
+
+
+# ============================================================
+# REQUEST QUEUE
+# ============================================================
 
 @router.get("/request-queue")
 def request_queue(
     status: Optional[str] = Query(None),
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    current_user: User = Depends(
+        RoleChecker(ADMIN_ROLES)
+    ),
     db: Session = Depends(get_db),
 ):
-    q = _service_request_scope_query(db, current_user)
+
+    q = _service_request_scope_query(
+        db,
+        current_user,
+    )
+
     if status:
-        q = q.filter(ServiceRequest.status == status.upper())
-    items = q.order_by(ServiceRequest.created_at.desc()).all()
-    grouped = {key: 0 for key in ["SUBMITTED", "APPROVED", "REJECTED", "IN_PROGRESS", "COMPLETED"]}
-    for request in _service_request_scope_query(db, current_user).all():
-        grouped[request.status] = grouped.get(request.status, 0) + 1
+        q = q.filter(
+            ServiceRequest.status
+            == status.upper()
+        )
+
+    items = (
+        q.order_by(
+            ServiceRequest.created_at.desc()
+        )
+        .all()
+    )
+
+    grouped = {
+        key: 0
+        for key in [
+            "SUBMITTED",
+            "APPROVED",
+            "REJECTED",
+            "IN_PROGRESS",
+            "COMPLETED",
+        ]
+    }
+
+    for request in (
+        _service_request_scope_query(
+            db,
+            current_user,
+        ).all()
+    ):
+        grouped[request.status] = (
+            grouped.get(request.status, 0) + 1
+        )
 
     return {
-        "items": [_request_queue_item(db, request) for request in items],
+        "items": [
+            _request_queue_item(
+                db,
+                request,
+            )
+            for request in items
+        ],
         "counts": grouped,
         "total": len(items),
     }
 
 
-@router.patch("/service-requests/{request_id}/review")
+# ============================================================
+# SERVICE REQUEST REVIEW
+# ============================================================
+
+@router.patch(
+    "/service-requests/{request_id}/review"
+)
 def review_service_request(
     request_id: int,
     body: RequestReviewAction,
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    current_user: User = Depends(
+        RoleChecker(ADMIN_ROLES)
+    ),
     db: Session = Depends(get_db),
 ):
-    request = _service_request_for_review(db, current_user, request_id)
+
+    request = _service_request_for_review(
+        db,
+        current_user,
+        request_id,
+    )
+
     if not request:
-        raise HTTPException(status_code=404, detail="Service request not found.")
+        raise HTTPException(
+            status_code=404,
+            detail="Service request not found.",
+        )
 
     org_id = request.organization_id
-    workflow = _service_request_workflow(db, request.id, org_id)
+
+    workflow = _service_request_workflow(
+        db,
+        request.id,
+        org_id,
+    )
+
     action = body.action.upper()
-    valid_actions = {"ACCEPT", "REJECT", "ASSIGN_TRACELAB", "ASSIGN_INVOSPACE", "REASSIGN"}
+
+    valid_actions = {
+        "ACCEPT",
+        "REJECT",
+        "ASSIGN_TRACELAB",
+        "ASSIGN_INVOSPACE",
+        "REASSIGN",
+    }
+
     if action not in valid_actions:
-        raise HTTPException(status_code=400, detail=f"action must be one of {valid_actions}")
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"action must be one of "
+                f"{sorted(valid_actions)}"
+            ),
+        )
 
     old_status = request.status
-    old_stage = workflow.current_stage if workflow else None
+
+    old_stage = (
+        workflow.current_stage
+        if workflow
+        else None
+    )
+
+    # ========================================================
+    # ACCEPT
+    # ========================================================
 
     if action == "ACCEPT":
+
         request.status = "APPROVED"
+
         if workflow:
+
             workflow.current_status = "APPROVED"
             workflow.current_stage = "ADMIN_REVIEW"
-            workflow.last_note = body.note or "Request accepted"
-            _record_workflow_event(db, workflow, current_user.id, "TRANSITION", old_status, request.status, body.note or "Request accepted")
+            workflow.last_note = (
+                body.note
+                or "Request accepted"
+            )
+
+            _record_workflow_event(
+                db,
+                workflow,
+                current_user.id,
+                "TRANSITION",
+                old_status,
+                request.status,
+                body.note
+                or "Request accepted",
+            )
+
+    # ========================================================
+    # REJECT
+    # ========================================================
+
     elif action == "REJECT":
+
         request.status = "REJECTED"
+
         if workflow:
+
             workflow.current_status = "REJECTED"
             workflow.current_stage = "ADMIN_REVIEW"
-            workflow.last_note = body.note or "Request rejected"
-            _record_workflow_event(db, workflow, current_user.id, "TRANSITION", old_status, request.status, body.note or "Request rejected")
+            workflow.last_note = (
+                body.note
+                or "Request rejected"
+            )
+
+            _record_workflow_event(
+                db,
+                workflow,
+                current_user.id,
+                "TRANSITION",
+                old_status,
+                request.status,
+                body.note
+                or "Request rejected",
+            )
+
+    # ========================================================
+    # ASSIGNMENT
+    # ========================================================
+
     else:
+
         if not body.assignee_id:
-            raise HTTPException(status_code=400, detail="assignee_id is required for assignment actions.")
-        assignee_query = db.query(User).filter(User.id == body.assignee_id)
-        if not _is_super_admin(current_user):
-            assignee_query = assignee_query.filter(User.organization_id == org_id)
-        assignee = assignee_query.first()
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "assignee_id is required "
+                    "for assignment."
+                ),
+            )
+
+        assignee = (
+            db.query(User)
+            .filter(
+                User.id == body.assignee_id,
+                User.organization_id == org_id,
+                User.is_active.is_(True),
+            )
+            .first()
+        )
+
         if not assignee:
-            raise HTTPException(status_code=404, detail="Assignee not found in this organization.")
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Assignee not found in "
+                    "this organization."
+                ),
+            )
+
+        if action == "ASSIGN_TRACELAB":
+
+            if assignee.role != Role.ANALYST.value:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "TraceLab assignment requires "
+                        "a TRACE_LAB_ANALYST."
+                    ),
+                )
+
+            target_stage = "TRACE_LAB"
+
+        elif action == "ASSIGN_INVOSPACE":
+
+            if (
+                assignee.role
+                != Role.INVOSPACE.value
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "InvoSpace assignment requires "
+                        "an INVESTIGATOR."
+                    ),
+                )
+
+            target_stage = "INVOSPACE"
+
+        else:
+
+            if assignee.role == Role.ANALYST.value:
+                target_stage = "TRACE_LAB"
+
+            elif (
+                assignee.role
+                == Role.INVOSPACE.value
+            ):
+                target_stage = "INVOSPACE"
+
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Request can only be assigned "
+                        "to TRACE_LAB_ANALYST or "
+                        "INVESTIGATOR."
+                    ),
+                )
+
         request.assigned_to_id = assignee.id
         request.status = "IN_PROGRESS"
+
         if workflow:
+
             workflow.assignee_id = assignee.id
             workflow.owner_id = current_user.id
             workflow.current_status = "IN_PROGRESS"
-            workflow.current_stage = "TRACE_LAB" if action == "ASSIGN_TRACELAB" else "INVOSPACE"
-            workflow.last_note = body.note or f"Assigned to {assignee.username}"
-            db.add(Assignment(
-                organization_id=org_id,
-                workflow_instance_id=workflow.id,
-                entity_type="SERVICE_REQUEST",
-                entity_id=request.id,
-                assignee_id=assignee.id,
-                assigned_by_id=current_user.id,
-                status="ACTIVE",
-                due_at=body.due_at,
-            ))
-            _record_workflow_event(db, workflow, current_user.id, "ASSIGN", old_stage or old_status, workflow.current_stage, body.note or f"Assigned to {assignee.username}")
+            workflow.current_stage = target_stage
+            workflow.last_note = (
+                body.note
+                or f"Assigned to {assignee.username}"
+            )
+
+            db.add(
+                Assignment(
+                    organization_id=org_id,
+                    workflow_instance_id=workflow.id,
+                    entity_type="SERVICE_REQUEST",
+                    entity_id=request.id,
+                    assignee_id=assignee.id,
+                    assigned_by_id=current_user.id,
+                    status="ACTIVE",
+                    due_at=body.due_at,
+                )
+            )
+
+            _record_workflow_event(
+                db,
+                workflow,
+                current_user.id,
+                "ASSIGN",
+                old_stage or old_status,
+                target_stage,
+                body.note
+                or f"Assigned to {assignee.username}",
+            )
+
+    # ========================================================
+    # ADMIN NOTE
+    # ========================================================
 
     if body.note:
         request.admin_notes = body.note
 
+    # ========================================================
+    # AUDIT
+    # ========================================================
+
     if workflow:
-        db.add(ActivityTimeline(
-            organization_id=org_id,
-            workflow_instance_id=workflow.id,
-            actor_id=current_user.id,
-            action="REQUEST_REVIEW",
-            from_status=old_status,
-            to_status=request.status,
-            details=body.note,
-        ))
+
+        db.add(
+            ActivityTimeline(
+                organization_id=org_id,
+                workflow_instance_id=workflow.id,
+                actor_id=current_user.id,
+                action="REQUEST_REVIEW",
+                from_status=old_status,
+                to_status=request.status,
+                details=body.note,
+            )
+        )
 
     db.commit()
-    return _request_queue_item(db, request)
+
+    return _request_queue_item(
+        db,
+        request,
+    )
 
 
-# ---------- Report Queue ----------
+# ============================================================
+# REPORT QUEUE
+# ============================================================
 
 @router.get("/report-queue")
 def report_queue(
     status: Optional[str] = Query(None),
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    current_user: User = Depends(
+        RoleChecker(ADMIN_ROLES)
+    ),
     db: Session = Depends(get_db),
 ):
+
     q = db.query(ClientReport)
+
     if not _is_super_admin(current_user):
-        q = q.filter(ClientReport.organization_id == current_user.organization_id)
+        q = q.filter(
+            ClientReport.organization_id
+            == current_user.organization_id
+        )
+
     if status:
-        q = q.filter(ClientReport.status == status.upper())
-    items = q.order_by(ClientReport.created_at.desc()).all()
+        q = q.filter(
+            ClientReport.status
+            == status.upper()
+        )
+
+    items = (
+        q.order_by(
+            ClientReport.created_at.desc()
+        )
+        .all()
+    )
+
     return {
         "items": [
             {
@@ -562,9 +1693,19 @@ def report_queue(
                 "report_type": report.report_type,
                 "is_released": report.is_released,
                 "case_id": report.case_id,
-                "service_request_id": report.service_request_id,
-                "created_at": report.created_at.isoformat() if report.created_at else None,
-                "updated_at": report.updated_at.isoformat() if report.updated_at else None,
+                "service_request_id": (
+                    report.service_request_id
+                ),
+                "created_at": (
+                    report.created_at.isoformat()
+                    if report.created_at
+                    else None
+                ),
+                "updated_at": (
+                    report.updated_at.isoformat()
+                    if report.updated_at
+                    else None
+                ),
             }
             for report in items
         ],
@@ -572,157 +1713,431 @@ def report_queue(
     }
 
 
-@router.patch("/reports/{report_id}/review")
+# ============================================================
+# REPORT REVIEW
+# ============================================================
+
+@router.patch(
+    "/reports/{report_id}/review"
+)
 def review_report(
     report_id: int,
     body: ReportReviewAction,
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    current_user: User = Depends(
+        RoleChecker(ADMIN_ROLES)
+    ),
     db: Session = Depends(get_db),
 ):
-    report = db.query(ClientReport).filter(ClientReport.id == report_id)
+
+    query = (
+        db.query(ClientReport)
+        .filter(
+            ClientReport.id == report_id
+        )
+    )
+
     if not _is_super_admin(current_user):
-        report = report.filter(ClientReport.organization_id == current_user.organization_id)
-    report = report.first()
+
+        query = query.filter(
+            ClientReport.organization_id
+            == current_user.organization_id
+        )
+
+    report = query.first()
+
     if not report:
-        raise HTTPException(status_code=404, detail="Report not found.")
+        raise HTTPException(
+            status_code=404,
+            detail="Report not found.",
+        )
 
     action = body.action.upper()
-    valid_actions = {"APPROVE", "REQUEST_CHANGES", "REJECT", "RELEASE"}
+
+    valid_actions = {
+        "APPROVE",
+        "REQUEST_CHANGES",
+        "REJECT",
+        "RELEASE",
+    }
+
     if action not in valid_actions:
-        raise HTTPException(status_code=400, detail=f"action must be one of {valid_actions}")
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"action must be one of "
+                f"{sorted(valid_actions)}"
+            ),
+        )
 
     workflow = None
+
     if report.workflow_instance_id:
-        workflow = db.query(WorkflowInstance).filter(
-            WorkflowInstance.id == report.workflow_instance_id,
-            WorkflowInstance.organization_id == report.organization_id,
-        ).first()
+
+        workflow = (
+            db.query(WorkflowInstance)
+            .filter(
+                WorkflowInstance.id
+                == report.workflow_instance_id,
+                WorkflowInstance.organization_id
+                == report.organization_id,
+            )
+            .first()
+        )
 
     previous_status = report.status
+
+    # --------------------------------------------------------
+    # APPROVE
+    # --------------------------------------------------------
+
     if action == "APPROVE":
+
         report.status = "APPROVED"
+
         if workflow:
             workflow.current_status = "APPROVED"
             workflow.current_stage = "REPORT_REVIEW"
-            workflow.last_note = body.note or "Report approved"
+            workflow.last_note = (
+                body.note
+                or "Report approved"
+            )
+
+    # --------------------------------------------------------
+    # REQUEST CHANGES
+    # --------------------------------------------------------
+
     elif action == "REQUEST_CHANGES":
+
         report.status = "CHANGES_REQUESTED"
+
         if workflow:
-            workflow.current_status = "CHANGES_REQUESTED"
+            workflow.current_status = (
+                "CHANGES_REQUESTED"
+            )
             workflow.current_stage = "REPORT_REVIEW"
-            workflow.last_note = body.note or "Changes requested"
+            workflow.last_note = (
+                body.note
+                or "Changes requested"
+            )
+
+    # --------------------------------------------------------
+    # REJECT
+    # --------------------------------------------------------
+
     elif action == "REJECT":
+
         report.status = "REJECTED"
+
         if workflow:
             workflow.current_status = "REJECTED"
             workflow.current_stage = "REPORT_REVIEW"
-            workflow.last_note = body.note or "Report rejected"
+            workflow.last_note = (
+                body.note
+                or "Report rejected"
+            )
+
+    # --------------------------------------------------------
+    # RELEASE
+    # --------------------------------------------------------
+
     elif action == "RELEASE":
-        if report.file_path is None:
-            raise HTTPException(status_code=400, detail="Cannot release a report without an uploaded file.")
+
+        if report.status != "APPROVED":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Only an APPROVED report "
+                    "can be released."
+                ),
+            )
+
+        if not report.file_path:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Cannot release a report "
+                    "without an uploaded file."
+                ),
+            )
+
         report.status = "RELEASED"
         report.is_released = True
-        report.released_at = datetime.now(timezone.utc)
-        report.released_by_id = current_user.id
+        report.released_at = (
+            datetime.now(timezone.utc)
+        )
+        report.released_by_id = (
+            current_user.id
+        )
+
         if workflow:
+
             workflow.current_status = "CLOSED"
-            workflow.current_stage = "REPORT_RELEASED"
-            workflow.last_note = body.note or "Report released to client"
+            workflow.current_stage = (
+                "REPORT_RELEASED"
+            )
+            workflow.last_note = (
+                body.note
+                or "Report released to client"
+            )
+
+    # --------------------------------------------------------
+    # AUDIT
+    # --------------------------------------------------------
 
     if workflow:
-        db.add(ActivityTimeline(
-            organization_id=report.organization_id,
-            workflow_instance_id=workflow.id,
-            actor_id=current_user.id,
-            action="REPORT_REVIEW",
-            from_status=previous_status,
-            to_status=report.status,
-            details=body.note,
-        ))
+
+        db.add(
+            ActivityTimeline(
+                organization_id=report.organization_id,
+                workflow_instance_id=workflow.id,
+                actor_id=current_user.id,
+                action="REPORT_REVIEW",
+                from_status=previous_status,
+                to_status=report.status,
+                details=body.note,
+            )
+        )
+
     db.commit()
     db.refresh(report)
+
     return {
         "id": report.id,
         "status": report.status,
         "is_released": report.is_released,
-        "released_at": report.released_at.isoformat() if report.released_at else None,
+        "released_at": (
+            report.released_at.isoformat()
+            if report.released_at
+            else None
+        ),
     }
 
 
-# ---------- Dashboard Stats ----------
+# ============================================================
+# OPERATIONS QUEUE
+# ============================================================
 
 @router.get("/operations-queue")
 def operations_queue(
-    limit: int = Query(20, le=100),
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+    ),
+    current_user: User = Depends(
+        RoleChecker(ADMIN_ROLES)
+    ),
     db: Session = Depends(get_db),
 ):
-    """Return a lightweight operations queue for admins to review workflow items."""
-    org_id = current_user.organization_id
-    q = db.query(WorkflowInstance)
-    if not _is_super_admin(current_user) and org_id:
-        q = q.filter(WorkflowInstance.organization_id == org_id)
-    
-    workflows = q.order_by(WorkflowInstance.created_at.desc()).limit(limit).all()
+
+    query = db.query(WorkflowInstance)
+
+    if not _is_super_admin(current_user):
+        query = query.filter(
+            WorkflowInstance.organization_id
+            == current_user.organization_id
+        )
+
+    workflows = (
+        query
+        .order_by(
+            WorkflowInstance.created_at.desc()
+        )
+        .limit(limit)
+        .all()
+    )
+
     items = []
 
     for workflow in workflows:
+
         entry = {
             "id": workflow.id,
             "type": "WORKFLOW",
             "title": "Workflow item",
-            "current_status": workflow.current_status,
-            "current_stage": workflow.current_stage,
+            "current_status": (
+                workflow.current_status
+            ),
+            "current_stage": (
+                workflow.current_stage
+            ),
             "last_note": workflow.last_note,
-            "created_at": workflow.created_at.isoformat() if workflow.created_at else None,
+            "created_at": (
+                workflow.created_at.isoformat()
+                if workflow.created_at
+                else None
+            ),
         }
+
         if workflow.service_request_id:
-            sr = db.query(ServiceRequest).filter(ServiceRequest.id == workflow.service_request_id).first()
+
+            sr = (
+                db.query(ServiceRequest)
+                .filter(
+                    ServiceRequest.id
+                    == workflow.service_request_id,
+                    ServiceRequest.organization_id
+                    == workflow.organization_id,
+                )
+                .first()
+            )
+
             if sr:
+
                 entry["title"] = sr.title
                 entry["service_request_id"] = sr.id
                 entry["request_status"] = sr.status
+
         if workflow.case_id:
-            case = db.query(Case).filter(Case.id == workflow.case_id).first()
+
+            case = (
+                db.query(Case)
+                .filter(
+                    Case.id == workflow.case_id,
+                    Case.organization_id
+                    == workflow.organization_id,
+                )
+                .first()
+            )
+
             if case:
+
                 entry["case_id"] = case.id
                 entry["case_title"] = case.title
+
         items.append(entry)
 
-    return {"items": items, "total": len(items)}
+    return {
+        "items": items,
+        "total": len(items),
+    }
 
+
+# ============================================================
+# DASHBOARD
+# ============================================================
 
 @router.get("/dashboard")
 def admin_dashboard(
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    current_user: User = Depends(
+        RoleChecker(ADMIN_ROLES)
+    ),
     db: Session = Depends(get_db),
 ):
-    """System-wide dashboard stats for admin."""
-    is_super = _is_super_admin(current_user)
-    org_id = None if is_super else current_user.organization_id
-    
+    """
+    Dashboard statistics.
+
+    SUPER_ADMIN:
+        Platform-wide.
+
+    ADMIN:
+        Own operational organization.
+
+    Pending organization registrations are also
+    visible to ADMIN because they belong to the
+    Admin intake/approval workflow.
+    """
+
+    is_super = _is_super_admin(
+        current_user
+    )
+
+    org_id = (
+        None
+        if is_super
+        else current_user.organization_id
+    )
+
     user_query = db.query(User)
     case_query = db.query(Case)
     alert_query = db.query(Alert)
     request_query = db.query(ServiceRequest)
     org_query = db.query(Organization)
-    
+
     if org_id is not None:
-        user_query = user_query.filter(User.organization_id == org_id)
-        case_query = case_query.filter(Case.organization_id == org_id)
-        alert_query = alert_query.filter(Alert.organization_id == org_id)
-        request_query = request_query.filter(ServiceRequest.organization_id == org_id)
+
+        user_query = user_query.filter(
+            User.organization_id == org_id
+        )
+
+        case_query = case_query.filter(
+            Case.organization_id == org_id
+        )
+
+        alert_query = alert_query.filter(
+            Alert.organization_id == org_id
+        )
+
+        request_query = request_query.filter(
+            ServiceRequest.organization_id
+            == org_id
+        )
+
+        org_query = org_query.filter(
+            Organization.id == org_id
+        )
 
     total_users = user_query.count()
+
     total_orgs = org_query.count()
+
     total_cases = case_query.count()
-    open_cases = case_query.filter(Case.status.in_(["OPEN", "INVESTIGATING", "REVIEW"])).count()
+
+    open_cases = (
+        case_query
+        .filter(
+            Case.status.in_(
+                [
+                    "OPEN",
+                    "INVESTIGATING",
+                    "REVIEW",
+                ]
+            )
+        )
+        .count()
+    )
+
     total_alerts = alert_query.count()
-    new_alerts = alert_query.filter(Alert.status == "NEW").count()
+
+    new_alerts = (
+        alert_query
+        .filter(
+            Alert.status == "NEW"
+        )
+        .count()
+    )
+
     total_requests = request_query.count()
-    # Count SUBMITTED (the actual default status) instead of PENDING
-    pending_requests = request_query.filter(ServiceRequest.status.in_(["SUBMITTED", "PENDING"])).count()
-    pending_orgs = org_query.filter(Organization.status == "PENDING").count()
+
+    pending_requests = (
+        request_query
+        .filter(
+            ServiceRequest.status.in_(
+                [
+                    "SUBMITTED",
+                    "PENDING",
+                ]
+            )
+        )
+        .count()
+    )
+
+    # --------------------------------------------------------
+    # PENDING ORGANIZATIONS
+    #
+    # IMPORTANT:
+    # This is intentionally NOT tenant-filtered for ADMIN.
+    # Pending registrations have not yet entered an approved
+    # operational tenant.
+    # --------------------------------------------------------
+
+    pending_orgs = (
+        db.query(Organization)
+        .filter(
+            Organization.status == "PENDING"
+        )
+        .count()
+    )
 
     return {
         "total_users": total_users,

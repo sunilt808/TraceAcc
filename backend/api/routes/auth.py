@@ -1,8 +1,33 @@
+"""
+auth.py — Authentication API.
+
+Responsibilities:
+    - Client self-registration
+    - User registration
+    - Login
+    - Current-user lookup
+    - Password change
+
+Client registration workflow:
+
+    Registration
+        ↓
+    Organization = PENDING
+        ↓
+    Admin/Super Admin approval
+        ↓
+    Organization = APPROVED
+        ↓
+    Client login allowed
+"""
+
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from api.deps import get_bearer_token, get_current_user, RoleChecker
+from api.deps import get_bearer_token, get_current_user
 from db.database import get_db
 
 from schemas.auth import (
@@ -35,7 +60,10 @@ from services.audit_service import (
 )
 
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(
+    prefix="/auth",
+    tags=["auth"],
+)
 
 
 # ============================================================
@@ -59,12 +87,13 @@ def client_register(
         1. Organization with PENDING status
         2. CLIENT_USER linked to that organization
 
-    Admin approval is required before the client can log in.
+    The organization MUST be approved by an administrator
+    before the client can log in.
     """
 
-    # ========================================================
-    # 1. VALIDATE PASSWORD
-    # ========================================================
+    # --------------------------------------------------------
+    # 1. PASSWORD VALIDATION
+    # --------------------------------------------------------
 
     if payload.password != payload.confirm_password:
         raise HTTPException(
@@ -72,13 +101,27 @@ def client_register(
             detail="Passwords do not match",
         )
 
-    # ========================================================
-    # 2. CHECK ORGANIZATION NAME
-    # ========================================================
+    # --------------------------------------------------------
+    # 2. NORMALIZE INPUT
+    # --------------------------------------------------------
+
+    org_name = payload.org_name.strip()
+    email = str(payload.org_email).lower().strip()
+    contact_person = payload.contact_person.strip()
+
+    if not org_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Organization name is required",
+        )
+
+    # --------------------------------------------------------
+    # 3. CHECK ORGANIZATION
+    # --------------------------------------------------------
 
     existing_org = (
         db.query(Organization)
-        .filter(Organization.name == payload.org_name)
+        .filter(Organization.name == org_name)
         .first()
     )
 
@@ -88,13 +131,9 @@ def client_register(
             detail="An organization with this name already exists",
         )
 
-    # ========================================================
-    # 3. CHECK EMAIL
-    #
-    # New registration uses org_email as the user's email.
-    # ========================================================
-
-    email = str(payload.org_email).lower().strip()
+    # --------------------------------------------------------
+    # 4. CHECK EMAIL
+    # --------------------------------------------------------
 
     existing_user = (
         db.query(User)
@@ -108,37 +147,37 @@ def client_register(
             detail="This email is already registered",
         )
 
-    # ========================================================
-    # 4. CREATE ORGANIZATION
+    # --------------------------------------------------------
+    # 5. CREATE ORGANIZATION
     #
-    # Only the reduced registration fields are collected.
-    # The remaining organization information can be completed
-    # later by Admin.
-    # ========================================================
+    # IMPORTANT:
+    # New client organizations are PENDING.
+    # They must NOT be automatically approved.
+    # --------------------------------------------------------
 
     org = Organization(
-        name=payload.org_name,
+        name=org_name,
         org_type=payload.org_type,
         registration_number=payload.registration_number,
         phone=payload.phone,
         email=email,
-        contact_person=payload.contact_person,
+        contact_person=contact_person,
+
+        # Correct workflow:
         status="PENDING",
+
+        approved_at=None,
+        approved_by_id=None,
     )
 
     db.add(org)
     db.flush()
 
-    # ========================================================
-    # 5. GENERATE USERNAME
-    #
-    # Example:
-    # compliance@abcfinancial.com
-    #        ↓
-    # compliance
-    # ========================================================
+    # --------------------------------------------------------
+    # 6. GENERATE USERNAME
+    # --------------------------------------------------------
 
-    username = email.split("@")[0]
+    username = email.split("@")[0].strip()
 
     existing_username = get_user_by_username(
         db,
@@ -154,6 +193,8 @@ def client_register(
         )
 
         if existing_username:
+            db.rollback()
+
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
@@ -162,9 +203,9 @@ def client_register(
                 ),
             )
 
-    # ========================================================
-    # 6. CREATE CLIENT USER
-    # ========================================================
+    # --------------------------------------------------------
+    # 7. CREATE CLIENT USER
+    # --------------------------------------------------------
 
     user = create_user(
         db=db,
@@ -176,9 +217,9 @@ def client_register(
         organization_id=org.id,
     )
 
-    # ========================================================
-    # 7. AUDIT LOG
-    # ========================================================
+    # --------------------------------------------------------
+    # 8. AUDIT LOG
+    # --------------------------------------------------------
 
     log_event(
         db=db,
@@ -190,13 +231,10 @@ def client_register(
         request=request,
         details={
             "organization_id": org.id,
-            "organization_name": payload.org_name,
+            "organization_name": org.name,
+            "organization_status": org.status,
         },
     )
-
-    # ========================================================
-    # 8. RETURN CREATED USER
-    # ========================================================
 
     return user
 
@@ -216,9 +254,11 @@ def register(
     db: Session = Depends(get_db),
 ):
     """
-    Generic registration endpoint.
+    Generic public registration.
 
-    Public registration is forced to CLIENT_USER.
+    Public registration is always CLIENT_USER.
+
+    The organization created here is PENDING.
     """
 
     existing_user = get_user_by_username(
@@ -244,25 +284,55 @@ def register(
             detail="Username already exists",
         )
 
-    # Force client role for public registration
+    # --------------------------------------------------------
+    # EMAIL DUPLICATE CHECK
+    # --------------------------------------------------------
+
+    if payload.email:
+        existing_email = (
+            db.query(User)
+            .filter(
+                User.email == str(payload.email).lower().strip()
+            )
+            .first()
+        )
+
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already registered",
+            )
+
+    # --------------------------------------------------------
+    # PUBLIC REGISTRATION CANNOT SELECT PRIVILEGED ROLE
+    # --------------------------------------------------------
+
     payload.role = Role.CLIENT_USER
 
-    # ========================================================
+    # --------------------------------------------------------
     # CREATE PENDING ORGANIZATION
-    # ========================================================
+    # --------------------------------------------------------
 
     org = Organization(
         name=f"{payload.username}'s Organization",
         contact_person=payload.username,
+        email=(
+            str(payload.email).lower().strip()
+            if payload.email
+            else None
+        ),
+        phone=payload.phone,
         status="PENDING",
+        approved_at=None,
+        approved_by_id=None,
     )
 
     db.add(org)
     db.flush()
 
-    # ========================================================
-    # CREATE USER
-    # ========================================================
+    # --------------------------------------------------------
+    # CREATE CLIENT USER
+    # --------------------------------------------------------
 
     user = create_user(
         db=db,
@@ -270,13 +340,13 @@ def register(
         password=payload.password,
         email=payload.email,
         phone=payload.phone,
-        role=payload.role,
+        role=Role.CLIENT_USER,
         organization_id=org.id,
     )
 
-    # ========================================================
-    # AUDIT LOG
-    # ========================================================
+    # --------------------------------------------------------
+    # AUDIT
+    # --------------------------------------------------------
 
     log_event(
         db=db,
@@ -286,6 +356,10 @@ def register(
         user_id=user.id,
         username=user.username,
         request=request,
+        details={
+            "organization_id": org.id,
+            "organization_status": org.status,
+        },
     )
 
     return user
@@ -306,7 +380,15 @@ def login(
 ):
     """
     Authenticate user and return JWT access token.
+
+    Important:
+        A client belonging to a PENDING or REJECTED
+        organization cannot log in.
     """
+
+    # --------------------------------------------------------
+    # AUTHENTICATE CREDENTIALS
+    # --------------------------------------------------------
 
     user = authenticate_user(
         db,
@@ -323,7 +405,7 @@ def login(
             username=form_data.username,
             request=request,
             details={
-                "reason": "invalid_credentials",
+                "reason": "invalid_credentials_or_account_state",
             },
         )
 
@@ -335,14 +417,21 @@ def login(
             },
         )
 
-    # ========================================================
-    # CHECK ORGANIZATION APPROVAL
-    #
-    # Platform admins without organization_id can log in.
-    # Client users require APPROVED organization.
-    # ========================================================
+    # --------------------------------------------------------
+    # ACTIVE ACCOUNT
+    # --------------------------------------------------------
 
-    if user.organization_id:
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is deactivated",
+        )
+
+    # --------------------------------------------------------
+    # ORGANIZATION APPROVAL
+    # --------------------------------------------------------
+
+    if user.organization_id is not None:
 
         org = (
             db.query(Organization)
@@ -352,7 +441,17 @@ def login(
             .first()
         )
 
-        if org and org.status != "APPROVED":
+        if not org:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User organization was not found",
+            )
+
+        # ----------------------------------------------------
+        # PENDING
+        # ----------------------------------------------------
+
+        if org.status == "PENDING":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
@@ -361,17 +460,40 @@ def login(
                 ),
             )
 
-    # ========================================================
+        # ----------------------------------------------------
+        # REJECTED
+        # ----------------------------------------------------
+
+        if org.status == "REJECTED":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Your organization registration was rejected. "
+                    "Please contact the administrator."
+                ),
+            )
+
+        # ----------------------------------------------------
+        # UNKNOWN STATUS
+        # ----------------------------------------------------
+
+        if org.status != "APPROVED":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your organization is not approved",
+            )
+
+    # --------------------------------------------------------
     # CREATE TOKEN
-    # ========================================================
+    # --------------------------------------------------------
 
     access_token = create_access_token(
         user=user,
     )
 
-    # ========================================================
-    # AUDIT LOG
-    # ========================================================
+    # --------------------------------------------------------
+    # AUDIT LOGIN
+    # --------------------------------------------------------
 
     log_event(
         db=db,
@@ -385,6 +507,7 @@ def login(
 
     return Token(
         access_token=access_token,
+        token_type="bearer",
     )
 
 
@@ -397,73 +520,25 @@ def login(
     response_model=UserOut,
 )
 def me(
-    request: Request,
-    token: str = Depends(get_bearer_token),
+    current_user: User = Depends(get_current_user),
+    request: Request = None,
     db: Session = Depends(get_db),
 ):
     """
-    Return the currently authenticated user.
+    Return currently authenticated user.
     """
-
-    payload = decode_access_token(token)
-
-    username = (
-        payload.get("sub")
-        if payload
-        else None
-    )
-
-    if not username:
-
-        log_event(
-            db=db,
-            event_type=EventType.AUTH,
-            event_action=EventAction.TOKEN_INVALID,
-            event_status=EventStatus.FAILURE,
-            request=request,
-            details={
-                "reason": "invalid_or_expired_token",
-            },
-        )
-
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={
-                "WWW-Authenticate": "Bearer",
-            },
-        )
-
-    # ========================================================
-    # FIND USER
-    # ========================================================
-
-    user = get_user_by_username(
-        db,
-        username,
-    )
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-
-    # ========================================================
-    # AUDIT LOG
-    # ========================================================
 
     log_event(
         db=db,
         event_type=EventType.PROFILE,
         event_action=EventAction.PROFILE_VIEW,
         event_status=EventStatus.SUCCESS,
-        user_id=user.id,
-        username=user.username,
+        user_id=current_user.id,
+        username=current_user.username,
         request=request,
     )
 
-    return user
+    return current_user
 
 
 # ============================================================
@@ -476,62 +551,29 @@ def me(
 )
 def change_user_password(
     payload: PasswordChange,
-    request: Request,
-    token: str = Depends(get_bearer_token),
+    current_user: User = Depends(get_current_user),
+    request: Request = None,
     db: Session = Depends(get_db),
 ):
     """
     Change password for authenticated user.
     """
 
-    payload_dict = decode_access_token(token)
-
-    username = (
-        payload_dict.get("sub")
-        if payload_dict
-        else None
-    )
-
-    if not username:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={
-                "WWW-Authenticate": "Bearer",
-            },
-        )
-
-    # ========================================================
-    # FIND USER
-    # ========================================================
-
-    user = get_user_by_username(
-        db,
-        username,
-    )
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-
-    # ========================================================
+    # --------------------------------------------------------
     # VERIFY CURRENT PASSWORD
-    # ========================================================
+    # --------------------------------------------------------
 
     if not verify_password(
         payload.current_password,
-        user.password,
+        current_user.password,
     ):
-
         log_event(
             db=db,
             event_type=EventType.PROFILE,
             event_action=EventAction.PASSWORD_CHANGE_FAILED,
             event_status=EventStatus.FAILURE,
-            user_id=user.id,
-            username=user.username,
+            user_id=current_user.id,
+            username=current_user.username,
             request=request,
             details={
                 "reason": "incorrect_current_password",
@@ -543,27 +585,27 @@ def change_user_password(
             detail="Current password is incorrect",
         )
 
-    # ========================================================
+    # --------------------------------------------------------
     # CHANGE PASSWORD
-    # ========================================================
+    # --------------------------------------------------------
 
     result = change_password(
         db,
-        user,
+        current_user,
         payload.new_password,
     )
 
-    # ========================================================
-    # AUDIT LOG
-    # ========================================================
+    # --------------------------------------------------------
+    # AUDIT
+    # --------------------------------------------------------
 
     log_event(
         db=db,
         event_type=EventType.PROFILE,
         event_action=EventAction.PASSWORD_CHANGE,
         event_status=EventStatus.SUCCESS,
-        user_id=user.id,
-        username=user.username,
+        user_id=current_user.id,
+        username=current_user.username,
         request=request,
     )
 
