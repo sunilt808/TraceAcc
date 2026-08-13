@@ -27,15 +27,29 @@ from db.database import Base
 
 # Import all models here so Alembic can discover them for autogenerate
 import models.user
+import models.organization
 import models.audit_log
 import models.analysis_job
 import models.case
-import models.organization
-import models.alert
 import models.case_event
+import models.alert
 import models.evidence
 import models.service_request
 import models.client_report
+import models.workflow_instance
+import models.activity_timeline
+import models.assignment
+import models.dataset
+import models.transaction
+import models.investigation_note
+import models.investigation_hypothesis
+import models.investigation_task
+import models.investigation_finding
+import models.technical_report
+import models.investigation_report
+import models.report_version
+import models.notification
+import models.message
 
 target_metadata = Base.metadata
 

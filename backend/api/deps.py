@@ -47,13 +47,22 @@ def get_current_user(token: str = Depends(get_bearer_token), db: Session = Depen
         )
     return user
 
-def get_current_workspace(user: User = Depends(get_current_user)) -> int:
-    """Dependency to guarantee a user has an active organization_id."""
+from fastapi import Header
+
+def get_current_workspace(
+    user: User = Depends(get_current_user),
+    x_organization_id: int = Header(None, alias="X-Organization-Id")
+) -> int:
+    """Dependency to guarantee a user has an active organization_id.
+    Internal users can pass X-Organization-Id to operate in a client's workspace."""
     if not user.organization_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User does not belong to any organization/workspace"
         )
+    from models.role import Role
+    if x_organization_id and user.role != Role.CLIENT_USER.value:
+        return x_organization_id
     return user.organization_id
 
 

@@ -21,7 +21,7 @@ def test_admin_request_queue_and_assignment_actions(setup_db, client):
 
     queue_resp = client.get('/admin/request-queue', headers=admin_headers)
     assert queue_resp.status_code == 200
-    assert queue_resp.json()['counts']['PENDING'] >= 1
+    assert queue_resp.json()['counts']['SUBMITTED'] >= 1
 
     accept_resp = client.patch(
         f'/admin/service-requests/{request_id}/review',
@@ -103,7 +103,7 @@ def test_admin_handles_multiple_requests_and_reviews(setup_db, client):
 
     queue_resp = client.get('/admin/request-queue', headers=admin_headers)
     assert queue_resp.status_code == 200
-    assert queue_resp.json()['counts']['PENDING'] >= 3
+    assert queue_resp.json()['counts']['SUBMITTED'] >= 3
 
     accept_first = client.patch(
         f"/admin/service-requests/{created_requests[0]['id']}/review",

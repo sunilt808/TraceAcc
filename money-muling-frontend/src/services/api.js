@@ -18,6 +18,11 @@ api.interceptors.request.use((config) => {
 
 // Auth API
 export const authAPI = {
+  clientRegister: async (data) => {
+    const res = await api.post('/auth/client-register', data);
+    return res.data;
+  },
+
   register: async (username, password) => {
     const res = await api.post('/auth/register', { username, password });
     return res.data;
@@ -224,7 +229,11 @@ export const adminAPI = {
   createOrganization: async (data) => {
     const res = await api.post('/admin/organizations', data);
     return res.data;
-  }
+  },
+  updateOrganization: async (id, data) => {
+    const res = await api.patch(`/admin/organizations/${id}`, data);
+    return res.data;
+  },
 };
 
 export const reportsAPI = {

@@ -16,56 +16,29 @@ from models.user import User
 from models.role import Role
 from services.auth_service import get_password_hash
 
-# Set up an in-memory SQLite database for testing with a shared connection pool.
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base.metadata.create_all(bind=engine)
-
-def override_get_db():
-    try:
-        db = TestingSessionLocal()
-        yield db
-    finally:
-        db.close()
-
-app.dependency_overrides[get_db] = override_get_db
-client = TestClient(app)
-
-@pytest.fixture(scope="module", autouse=True)
-def setup_db():
-    db = TestingSessionLocal()
-    
+def test_tenant_isolation_cases(setup_db, client):
     # Create Org A and Org B
     org_a = Organization(name="Bank A")
     org_b = Organization(name="Bank B")
-    db.add_all([org_a, org_b])
-    db.commit()
+    setup_db.add_all([org_a, org_b])
+    setup_db.commit()
     
     # Create User A and User B
     user_a = User(
         username="usera", password=get_password_hash("test"),
-        role=Role.INVESTIGATOR, organization_id=org_a.id, is_active=True, failed_login_count=0
+        role=Role.INVESTIGATOR.value, organization_id=org_a.id, is_active=True, failed_login_count=0
     )
     user_b = User(
         username="userb", password=get_password_hash("test"),
-        role=Role.INVESTIGATOR, organization_id=org_b.id, is_active=True, failed_login_count=0
+        role=Role.INVESTIGATOR.value, organization_id=org_b.id, is_active=True, failed_login_count=0
     )
-    db.add_all([user_a, user_b])
-    db.commit()
-    db.close()
+    setup_db.add_all([user_a, user_b])
+    setup_db.commit()
 
-
-def test_tenant_isolation_cases():
     # Login as User A
     response = client.post("/auth/login", data={"username": "usera", "password": "test"})
     token_a = response.json()["access_token"]
-    headers_a = {"Authorization": f"Bearer {token_a}"}
+    headers_a = {"Authorization": f"Bearer {token_a}", "X-Organization-Id": str(org_a.id)}
     
     # User A creates a case
     case_data = {"title": "Org A Case", "priority": "HIGH"}
@@ -76,7 +49,7 @@ def test_tenant_isolation_cases():
     # Login as User B
     response = client.post("/auth/login", data={"username": "userb", "password": "test"})
     token_b = response.json()["access_token"]
-    headers_b = {"Authorization": f"Bearer {token_b}"}
+    headers_b = {"Authorization": f"Bearer {token_b}", "X-Organization-Id": str(org_b.id)}
     
     # User B tries to read User A's case
     response = client.get(f"/cases/{case_id}", headers=headers_b)

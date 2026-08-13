@@ -21,6 +21,14 @@ def test_failed_login_lockout(setup_db, client):
     response = client.post("/auth/login", data={"username": "client1", "password": "client123"})
     assert response.status_code == 401
 
+    # Unlock the user so subsequent tests don't fail
+    from models.user import User
+    user = setup_db.query(User).filter(User.username == "client1").first()
+    if user:
+        user.failed_login_count = 0
+        user.locked_until = None
+        setup_db.commit()
+
 def test_rbac_register(setup_db, client):
     # client1 (CLIENT_USER) tries to register a new user
     login_resp = client.post("/auth/login", data={"username": "client2", "password": "client123"})

@@ -14,6 +14,7 @@ from api.deps import get_current_user, get_current_workspace, RoleChecker
 from db.database import get_db
 from models.user import User
 from models.role import Role
+from core.permissions import require_permission, require_any_permission
 from models.case import Case
 from models.case_event import CaseEvent
 from models.activity_timeline import ActivityTimeline
@@ -79,7 +80,7 @@ def _case_to_dict(case: Case) -> dict:
 @router.post("", status_code=201)
 def create_case(
     body: CaseCreate,
-    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    current_user: User = Depends(require_permission("case.create")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -123,7 +124,7 @@ def list_cases(
     priority: Optional[str] = Query(None),
     limit:    int = Query(50, le=200),
     offset:   int = Query(0, ge=0),
-    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value])),
+    current_user: User = Depends(require_any_permission("case.view_assigned", "request.view_all")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -140,7 +141,7 @@ def list_cases(
 @router.get("/{case_id}")
 def get_case(
     case_id: int,
-    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    current_user: User = Depends(require_any_permission("case.view_assigned", "request.view_all")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -155,7 +156,7 @@ def get_case(
 def update_case(
     case_id: int,
     body: CaseUpdate,
-    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    current_user: User = Depends(require_permission("case.update")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -238,7 +239,7 @@ def update_case(
 def assign_case(
     case_id: int,
     body: CaseAssign,
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    current_user: User = Depends(require_permission("case.assign")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -271,7 +272,7 @@ def assign_case(
 def add_case_note(
     case_id: int,
     body: CaseNote,
-    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    current_user: User = Depends(require_permission("investigation.note.create")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -296,7 +297,7 @@ def add_case_note(
 @router.get("/{case_id}/timeline")
 def get_case_timeline(
     case_id: int,
-    current_user: User = Depends(RoleChecker([Role.INVESTIGATOR.value, Role.ADMIN.value])),
+    current_user: User = Depends(require_any_permission("case.view_assigned", "request.view_all")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -314,4 +315,109 @@ def get_case_timeline(
         "content": e.content,
         "created_at": e.created_at.isoformat() if e.created_at else None
     } for e in events]
+
+
+# --- Investigation Artifacts ---
+
+from models.investigation_hypothesis import InvestigationHypothesis
+from models.investigation_task import InvestigationTask
+from models.investigation_finding import InvestigationFinding
+
+class HypothesisCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    status: str = "OPEN"
+
+@router.post("/{case_id}/hypotheses")
+def create_hypothesis(
+    case_id: int,
+    body: HypothesisCreate,
+    current_user: User = Depends(require_permission("investigation.hypothesis.create")),
+    org_id: int = Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    case = db.query(Case).filter(Case.id == case_id, Case.organization_id == org_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found.")
+        
+    hyp = InvestigationHypothesis(
+        organization_id=org_id,
+        case_id=case.id,
+        created_by_id=current_user.id,
+        title=body.title,
+        description=body.description,
+        status=body.status
+    )
+    db.add(hyp)
+    db.commit()
+    db.refresh(hyp)
+    return {"id": hyp.id, "title": hyp.title, "status": hyp.status}
+
+
+class TaskCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    task_type: str = "CUSTOM"
+    assigned_to_id: Optional[int] = None
+
+@router.post("/{case_id}/tasks")
+def create_task(
+    case_id: int,
+    body: TaskCreate,
+    current_user: User = Depends(require_permission("investigation.task.create")),
+    org_id: int = Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    case = db.query(Case).filter(Case.id == case_id, Case.organization_id == org_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found.")
+        
+    task = InvestigationTask(
+        organization_id=org_id,
+        case_id=case.id,
+        created_by_id=current_user.id,
+        assigned_to_id=body.assigned_to_id,
+        title=body.title,
+        description=body.description,
+        task_type=body.task_type
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return {"id": task.id, "title": task.title, "status": task.status}
+
+
+class FindingCreate(BaseModel):
+    title: str
+    description: str
+    finding_type: str = "OTHER"
+    confidence: str = "INCONCLUSIVE"
+    risk_contribution: float = 0.0
+
+@router.post("/{case_id}/findings")
+def create_finding(
+    case_id: int,
+    body: FindingCreate,
+    current_user: User = Depends(require_permission("investigation.finding.create")),
+    org_id: int = Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    case = db.query(Case).filter(Case.id == case_id, Case.organization_id == org_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found.")
+        
+    finding = InvestigationFinding(
+        organization_id=org_id,
+        case_id=case.id,
+        created_by_id=current_user.id,
+        title=body.title,
+        description=body.description,
+        finding_type=body.finding_type,
+        confidence=body.confidence,
+        risk_contribution=body.risk_contribution
+    )
+    db.add(finding)
+    db.commit()
+    db.refresh(finding)
+    return {"id": finding.id, "title": finding.title, "confidence": finding.confidence}
 

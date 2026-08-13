@@ -48,6 +48,7 @@ const NAV_ITEMS = [
     items: [
       { path: '/admin',       icon: '⚙️', label: 'Dashboard', roles: ['ADMIN'] },
       { path: '/admin/users', icon: '👥', label: 'Users', roles: ['ADMIN'] },
+      { path: '/admin/organizations', icon: '🏢', label: 'Organizations', roles: ['ADMIN'] },
     ],
   },
   {

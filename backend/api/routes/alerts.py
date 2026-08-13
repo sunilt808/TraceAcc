@@ -15,6 +15,7 @@ from models.case import Case
 from models.activity_timeline import ActivityTimeline
 from models.workflow_instance import WorkflowInstance
 from pydantic import BaseModel
+from core.permissions import require_permission, require_any_permission
 
 class AlertAssign(BaseModel):
     assignee_id: int
@@ -51,9 +52,7 @@ def list_alerts(
     status: Optional[str] = Query(None),
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(RoleChecker([
-        Role.TRACE_LAB_ANALYST.value, Role.INVESTIGATOR.value, Role.ADMIN.value, Role.SUPER_ADMIN.value
-    ])),
+    current_user: User = Depends(require_any_permission("alert.view_all", "alert.view_assigned")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -69,9 +68,7 @@ def list_alerts(
 def update_alert_status(
     alert_id: int,
     status: str = Query(...),
-    current_user: User = Depends(RoleChecker([
-        Role.INVESTIGATOR.value, Role.ADMIN.value, Role.SUPER_ADMIN.value
-    ])),
+    current_user: User = Depends(require_permission("alert.update")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -94,7 +91,7 @@ def update_alert_status(
 def assign_alert(
     alert_id: int,
     body: AlertAssign,
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    current_user: User = Depends(require_permission("alert.route_to_invospace")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -148,64 +145,61 @@ def _sync_workflow_for_alert(db: Session, org_id: int, workflow_id: Optional[int
     ))
     return workflow
 
+class AlertCreate(BaseModel):
+    service_request_id: Optional[int] = None
+    alert_type: str
+    pattern_type: Optional[str] = None
+    risk_score: float = 0.0
+    severity: str = "MEDIUM"
+    trigger_reason: Optional[str] = None
+
+@router.post("", status_code=201)
+def create_alert(
+    body: AlertCreate,
+    current_user: User = Depends(require_permission("alert.create")),
+    db: Session = Depends(get_db),
+):
+    """Analyst creates a new alert."""
+    alert = Alert(
+        organization_id=current_user.organization_id,
+        service_request_id=body.service_request_id,
+        alert_type=body.alert_type,
+        pattern_type=body.pattern_type,
+        risk_score=body.risk_score,
+        severity=body.severity,
+        trigger_reason=body.trigger_reason,
+        created_by_id=current_user.id,
+        status="NEW"
+    )
+    db.add(alert)
+    db.commit()
+    db.refresh(alert)
+    return _alert_to_dict(alert)
 
 @router.post("/{alert_id}/escalate")
-def escalate_alert_to_case(
+def escalate_alert_to_admin(
     alert_id: int,
-    current_user: User = Depends(RoleChecker([
-        Role.INVESTIGATOR.value, Role.ADMIN.value, Role.SUPER_ADMIN.value
-    ])),
+    current_user: User = Depends(require_permission("alert.escalate_to_admin")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
-    """Escalate an alert to an investigation case."""
+    """Analyst escalates an alert to Admin (NOT to case directly)."""
     alert = _query_alerts_for_user(db, current_user, org_id).filter(Alert.id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found.")
         
-    if alert.case_id:
-        raise HTTPException(status_code=400, detail="Alert is already linked to a case.")
-        
-    # Create the case
-    workflow_instance = _sync_workflow_for_alert(
+    alert.status = "ESCALATED"
+    alert.escalated_by_id = current_user.id
+    
+    _sync_workflow_for_alert(
         db=db,
         org_id=org_id,
         workflow_id=alert.workflow_instance_id,
         actor_id=current_user.id,
-        to_status="INVESTIGATION_IN_PROGRESS",
-        stage="CASE_CREATED",
-        note=f"Alert #{alert.id} escalated to investigation",
+        to_status="ESCALATED",
+        stage="ALERT_ESCALATED",
+        note=f"Alert #{alert.id} escalated to Admin",
         is_super_admin=current_user.role == Role.SUPER_ADMIN.value,
     )
-    workflow_org_id = workflow_instance.organization_id if workflow_instance else org_id
-
-    case = Case(
-        organization_id=workflow_org_id,
-        created_by_id=current_user.id,
-        workflow_instance_id=workflow_instance.id if workflow_instance else alert.workflow_instance_id,
-        title=f"Investigation for Alert #{alert.id} ({alert.alert_type})",
-        priority=alert.severity,
-        analysis_job_id=alert.analysis_job_id,
-        notes=f"Escalated from Alert #{alert.id}. Detection Reason: {alert.detection_reason}"
-    )
-    db.add(case)
-    db.flush() # Get case.id
-    
-    # Update alert
-    alert.status = "ESCALATED"
-    alert.case_id = case.id
-    alert.workflow_instance_id = workflow_instance.id if workflow_instance else alert.workflow_instance_id
-    if workflow_instance:
-        workflow_instance.case_id = case.id
-        db.add(ActivityTimeline(
-            organization_id=workflow_org_id,
-            workflow_instance_id=workflow_instance.id,
-            actor_id=current_user.id,
-            action="CASE_LINK",
-            from_status=workflow_instance.current_status,
-            to_status=workflow_instance.current_status,
-            details=f"Linked alert #{alert.id} to case #{case.id}",
-        ))
     db.commit()
-    
-    return {"message": "Alert escalated successfully", "case_id": case.id}
+    return _alert_to_dict(alert)

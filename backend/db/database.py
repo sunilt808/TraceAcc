@@ -43,18 +43,30 @@ def get_db():
 
 
 def init_db() -> None:
-    import models.user               # noqa: F401
-    import models.organization       # noqa: F401
-    import models.audit_log          # noqa: F401
-    import models.analysis_job       # noqa: F401
-    import models.case               # noqa: F401
-    import models.case_event         # noqa: F401
-    import models.alert              # noqa: F401
-    import models.evidence           # noqa: F401
-    import models.service_request    # noqa: F401
-    import models.client_report      # noqa: F401
-    import models.workflow_instance   # noqa: F401
-    import models.activity_timeline  # noqa: F401
-    import models.assignment         # noqa: F401
+    import models.user                    # noqa: F401
+    import models.organization            # noqa: F401
+    import models.audit_log               # noqa: F401
+    import models.analysis_job            # noqa: F401
+    import models.case                    # noqa: F401
+    import models.case_event              # noqa: F401
+    import models.alert                   # noqa: F401
+    import models.evidence                # noqa: F401
+    import models.service_request         # noqa: F401
+    import models.client_report           # noqa: F401
+    import models.workflow_instance       # noqa: F401
+    import models.activity_timeline       # noqa: F401
+    import models.assignment              # noqa: F401
+    # New models (Phase 4)
+    import models.dataset                 # noqa: F401
+    import models.transaction             # noqa: F401
+    import models.investigation_note      # noqa: F401
+    import models.investigation_hypothesis # noqa: F401
+    import models.investigation_task      # noqa: F401
+    import models.investigation_finding   # noqa: F401
+    import models.technical_report        # noqa: F401
+    import models.investigation_report    # noqa: F401
+    import models.report_version          # noqa: F401
+    import models.notification            # noqa: F401
+    import models.message                 # noqa: F401
 
     Base.metadata.create_all(bind=engine)

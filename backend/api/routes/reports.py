@@ -15,6 +15,7 @@ from api.deps import get_current_user, get_current_workspace, RoleChecker
 from db.database import get_db
 from models.user import User
 from models.role import Role
+from core.permissions import require_permission, require_any_permission
 from models.client_report import ClientReport
 from models.workflow_instance import WorkflowInstance
 from models.activity_timeline import ActivityTimeline
@@ -66,9 +67,7 @@ def _report_to_dict(r: ClientReport) -> dict:
 @router.post("", status_code=201)
 def create_report(
     body: ReportCreate,
-    current_user: User = Depends(RoleChecker([
-        Role.INVESTIGATOR.value, Role.TRACE_LAB_ANALYST.value, Role.ADMIN.value, Role.SUPER_ADMIN.value
-    ])),
+    current_user: User = Depends(require_any_permission("report.review", "technical_report.submit", "investigation_report.submit")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -107,9 +106,7 @@ def create_report(
 def upload_report_file(
     report_id: int,
     file: UploadFile = File(...),
-    current_user: User = Depends(RoleChecker([
-        Role.INVESTIGATOR.value, Role.TRACE_LAB_ANALYST.value, Role.ADMIN.value, Role.SUPER_ADMIN.value
-    ])),
+    current_user: User = Depends(require_any_permission("report.review", "technical_report.submit", "investigation_report.submit")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -130,9 +127,7 @@ def upload_report_file(
 @router.patch("/{report_id}/release")
 def release_report(
     report_id: int,
-    current_user: User = Depends(RoleChecker([
-        Role.ADMIN.value, Role.SUPER_ADMIN.value
-    ])),
+    current_user: User = Depends(require_permission("report.release")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -158,9 +153,7 @@ def release_report(
 @router.post("/{report_id}/submit-for-review")
 def submit_report_for_review(
     report_id: int,
-    current_user: User = Depends(RoleChecker([
-        Role.INVESTIGATOR.value, Role.TRACE_LAB_ANALYST.value, Role.ADMIN.value, Role.SUPER_ADMIN.value
-    ])),
+    current_user: User = Depends(require_any_permission("report.review", "technical_report.submit", "investigation_report.submit")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -200,9 +193,7 @@ def submit_report_for_review(
 @router.post("/{report_id}/approve")
 def approve_report(
     report_id: int,
-    current_user: User = Depends(RoleChecker([
-        Role.ADMIN.value, Role.SUPER_ADMIN.value
-    ])),
+    current_user: User = Depends(require_permission("report.approve")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -243,11 +234,35 @@ def approve_report(
     return _report_to_dict(report)
 
 
+@router.post("/{report_id}/sign")
+def sign_report(
+    report_id: int,
+    current_user: User = Depends(require_permission("report.sign")),
+    org_id: int = Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    report = db.query(ClientReport).filter(
+        ClientReport.id == report_id,
+        ClientReport.organization_id == org_id,
+    ).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found.")
+        
+    report.status = "SIGNED"
+    report.signed_by_id = current_user.id
+    report.signed_at = datetime.now(timezone.utc)
+    report.signature_hash = f"SIGNED-BY-{current_user.id}-{report.id}"
+    db.commit()
+    db.refresh(report)
+    return _report_to_dict(report)
+
+
+
 @router.get("")
 def list_reports(
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_any_permission("report.view_released", "report.view_internal")),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):

@@ -89,6 +89,10 @@ export const AuthProvider = ({ children }) => {
     return normalizedUser;
   };
 
+  const clientRegister = async (formData) => {
+    return await authAPI.clientRegister(formData);
+  };
+
   const register = async (username, password) => {
     return await authAPI.register(username, password);
   };
@@ -107,6 +111,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!user,
     login,
     register,
+    clientRegister,
     logout,
     setWorkspace,
     clearWorkspace,

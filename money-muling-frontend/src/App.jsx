@@ -11,6 +11,7 @@ import ClientRequestForm from './components/pages/ClientRequestForm';
 import ClientReportsPage from './components/pages/ClientReportsPage';
 import AdminDashboard from './components/pages/AdminDashboard';
 import AdminUsersPage from './components/pages/AdminUsersPage';
+import AdminOrgsPage from './components/pages/AdminOrgsPage';
 import AuditHistory from './components/audit/AuditHistory';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { useAuth } from './context/AuthContext';
@@ -207,6 +208,7 @@ function App() {
               <Route path="/workspace-selector" element={<WorkspaceSelector />} />
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/users" element={<AdminUsersPage />} />
+              <Route path="/admin/organizations" element={<AdminOrgsPage />} />
             </Route>
 
             {/* Common Authenticated Routes */}
