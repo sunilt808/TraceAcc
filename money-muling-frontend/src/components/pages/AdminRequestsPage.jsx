@@ -1,167 +1,237 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '../layout/AppLayout';
 import { adminAPI } from '../../services/api';
-import { Table, Spinner, Button, Badge, Card } from 'react-bootstrap';
+import {
+    Table,
+    Spinner,
+    Badge,
+    Card,
+    Button,
+} from 'react-bootstrap';
 
-export default function AdminRequestsPage() {
-    const [requests, setRequests] = useState([]);
+export default function AdminOperationsPage() {
+    const [operations, setOperations] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [actionLoading, setActionLoading] = useState(null);
     const [error, setError] = useState('');
 
-    const loadRequests = async () => {
+    const loadOperations = async () => {
         try {
             setLoading(true);
             setError('');
-            const data = await adminAPI.getRequestQueue();
-            setRequests(Array.isArray(data) ? data : data?.items || []);
+
+            const data = await adminAPI.getOperationsQueue();
+
+            setOperations(
+                Array.isArray(data)
+                    ? data
+                    : data?.items || []
+            );
+
         } catch (err) {
-            setError(err.response?.data?.detail || 'Failed to load requests');
+            setError(
+                err.response?.data?.detail ||
+                'Failed to load operations queue'
+            );
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        loadRequests();
+        loadOperations();
     }, []);
 
-    const reviewRequest = async (id, status) => {
-        try {
-            setActionLoading(id);
-            await adminAPI.reviewServiceRequest(id, { status });
-            await loadRequests();
-        } catch (err) {
-            alert(err.response?.data?.detail || 'Failed to review request');
-        } finally {
-            setActionLoading(null);
-        }
-    };
-
     const statusVariant = (status) => {
-        if (status === 'APPROVED') return 'success';
-        if (status === 'REJECTED') return 'danger';
-        if (status === 'UNDER_REVIEW') return 'warning';
+        if (
+            [
+                'COMPLETED',
+                'CLOSED',
+                'APPROVED',
+            ].includes(status)
+        ) {
+            return 'success';
+        }
+
+        if (
+            [
+                'FAILED',
+                'REJECTED',
+                'ERROR',
+            ].includes(status)
+        ) {
+            return 'danger';
+        }
+
+        if (
+            [
+                'IN_PROGRESS',
+                'PROCESSING',
+                'ANALYSIS',
+                'UNDER_REVIEW',
+            ].includes(status)
+        ) {
+            return 'warning';
+        }
+
+        if (
+            [
+                'ASSIGNED',
+                'ASSIGNMENT_PENDING',
+            ].includes(status)
+        ) {
+            return 'primary';
+        }
+
         return 'secondary';
     };
 
     return (
         <AppLayout
-            title="Service Requests"
-            subtitle="Review and manage client service requests"
+            title="Operations Queue"
+            subtitle="Monitor active AML operations and workflow progress"
         >
+
+            <div className="d-flex justify-content-end mb-3">
+                <Button
+                    variant="outline-light"
+                    onClick={loadOperations}
+                    disabled={loading}
+                >
+                    {loading ? (
+                        <>
+                            <Spinner
+                                size="sm"
+                                animation="border"
+                                className="me-2"
+                            />
+                            Loading
+                        </>
+                    ) : (
+                        'Refresh'
+                    )}
+                </Button>
+            </div>
+
             <Card
                 className="shadow-sm"
-                style={{ backgroundColor: '#0d1117', borderColor: '#21262d' }}
+                style={{
+                    backgroundColor: '#0d1117',
+                    borderColor: '#21262d',
+                }}
             >
                 <Card.Body className="p-0">
+
                     {loading ? (
                         <div className="text-center p-5">
                             <Spinner animation="border" />
                         </div>
+
                     ) : error ? (
-                        <div className="alert alert-danger m-3">{error}</div>
+                        <div className="alert alert-danger m-3">
+                            {error}
+                        </div>
+
                     ) : (
                         <div className="table-responsive">
+
                             <Table
                                 hover
-                                className="mb-0 align-middle"
                                 variant="dark"
+                                className="mb-0 align-middle"
                             >
+
                                 <thead>
                                     <tr>
                                         <th>ID</th>
-                                        <th>Client</th>
+                                        <th>Type</th>
                                         <th>Organization</th>
-                                        <th>Service</th>
+                                        <th>Assigned To</th>
                                         <th>Status</th>
-                                        <th>Created</th>
-                                        <th>Actions</th>
+                                        <th>Updated</th>
                                     </tr>
                                 </thead>
 
                                 <tbody>
-                                    {requests.length === 0 ? (
+
+                                    {operations.length === 0 ? (
                                         <tr>
-                                            <td colSpan="7" className="text-center py-5 text-secondary">
-                                                No service requests found
+                                            <td
+                                                colSpan="6"
+                                                className="text-center py-5 text-secondary"
+                                            >
+                                                No operations currently in
+                                                queue
                                             </td>
                                         </tr>
+
                                     ) : (
-                                        requests.map((request) => (
-                                            <tr key={request.id}>
-                                                <td>{request.id}</td>
+
+                                        operations.map((operation) => (
+                                            <tr key={operation.id}>
 
                                                 <td>
-                                                    {request.client_name ||
-                                                        request.username ||
-                                                        request.user?.username ||
+                                                    {operation.id}
+                                                </td>
+
+                                                <td>
+                                                    {operation.type ||
+                                                        operation.operation_type ||
+                                                        operation.service_type ||
+                                                        operation.request_type ||
+                                                        'Operation'}
+                                                </td>
+
+                                                <td>
+                                                    {operation.organization_name ||
+                                                        operation.organization?.name ||
                                                         'N/A'}
                                                 </td>
 
                                                 <td>
-                                                    {request.organization_name ||
-                                                        request.organization?.name ||
-                                                        'N/A'}
+                                                    {operation.assigned_to_name ||
+                                                        operation.assigned_user?.username ||
+                                                        operation.assignee ||
+                                                        'Unassigned'}
                                                 </td>
 
                                                 <td>
-                                                    {request.service_type ||
-                                                        request.request_type ||
-                                                        request.title ||
-                                                        'N/A'}
-                                                </td>
-
-                                                <td>
-                                                    <Badge bg={statusVariant(request.status)}>
-                                                        {request.status || 'UNKNOWN'}
+                                                    <Badge
+                                                        bg={statusVariant(
+                                                            operation.status
+                                                        )}
+                                                    >
+                                                        {operation.status ||
+                                                            'UNKNOWN'}
                                                     </Badge>
                                                 </td>
 
                                                 <td>
-                                                    {request.created_at
-                                                        ? new Date(request.created_at).toLocaleString()
-                                                        : 'N/A'}
+                                                    {operation.updated_at
+                                                        ? new Date(
+                                                            operation.updated_at
+                                                        ).toLocaleString()
+                                                        : operation.created_at
+                                                            ? new Date(
+                                                                operation.created_at
+                                                            ).toLocaleString()
+                                                            : 'N/A'}
                                                 </td>
 
-                                                <td>
-                                                    <div className="d-flex gap-2">
-                                                        {request.status !== 'APPROVED' && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="success"
-                                                                disabled={actionLoading === request.id}
-                                                                onClick={() =>
-                                                                    reviewRequest(request.id, 'APPROVED')
-                                                                }
-                                                            >
-                                                                Approve
-                                                            </Button>
-                                                        )}
-
-                                                        {request.status !== 'REJECTED' && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="danger"
-                                                                disabled={actionLoading === request.id}
-                                                                onClick={() =>
-                                                                    reviewRequest(request.id, 'REJECTED')
-                                                                }
-                                                            >
-                                                                Reject
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                </td>
                                             </tr>
                                         ))
+
                                     )}
+
                                 </tbody>
+
                             </Table>
+
                         </div>
                     )}
+
                 </Card.Body>
             </Card>
+
         </AppLayout>
     );
 }
