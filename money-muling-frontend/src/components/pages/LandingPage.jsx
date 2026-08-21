@@ -96,9 +96,9 @@ function LandingPage() {
         <motion.div initial="hidden" animate="visible" variants={fadeUp} transition={{ duration: 0.7, delay: 0.6 }} className="stats-strip">
           {[
             { val: '4', label: 'Distinct Roles' },
-            { val: '7+', label: 'Detection Heuristics' },
-            { val: '3+', label: 'ML Models' },
-            { val: '100%', label: 'Audit Trail' },
+            { val: '15+', label: 'Detection Modules' },
+            { val: '3', label: 'ML Models' },
+            { val: 'SHA-256', label: 'Tamper-Evident Seals' },
           ].map((s, i) => (
             <motion.div key={i} className="stat-item" whileHover={{ scale: 1.1 }}>
               <div className="stat-value">{s.val}</div>
@@ -118,7 +118,7 @@ function LandingPage() {
         <div className="feature-grid">
           {[
             { icon: '📋', title: 'Client Portal', desc: 'Submit service requests with CSV/Excel datasets. Track request status. Download only Admin-approved and digitally sealed final reports.', pill: 'CLIENT', color: '#10B981' },
-            { icon: '⚙️', title: 'Admin Operations Hub', desc: 'Accept/reject client requests. Assign work to TraceLab or InvoSpace. Review reports. Apply digital signature & seal. Release to client.', pill: 'ADMIN', color: '#3B82F6' },
+            { icon: '⚙️', title: 'Admin Operations Hub', desc: 'Accept/reject client requests. Assign work to TraceLab or InvoSpace. Review reports. Apply a tamper-evident SHA-256 digital seal. Release to client.', pill: 'ADMIN', color: '#3B82F6' },
             { icon: '🔬', title: 'TraceLab Analysis', desc: 'Validate datasets. Run graph analysis, pattern detection, ML scoring. Generate findings & technical reports. Escalate suspicious alerts.', pill: 'ANALYST', color: '#8B5CF6' },
             { icon: '🛡️', title: 'InvoSpace Investigation', desc: 'Convert alerts to cases. Deep investigation: Entity 360, multi-hop tracing, evidence, hypotheses, findings, timeline. Generate investigation reports.', pill: 'INVOSPACE', color: '#F59E0B' },
           ].map((f, i) => (
@@ -144,7 +144,7 @@ function LandingPage() {
             { num: '01', title: 'Client Submits Request', desc: 'Client uploads CSV/Excel dataset with transaction details and metadata into the admin-controlled intake queue.', color: '#10B981' },
             { num: '02', title: 'Admin Reviews & Assigns', desc: 'Admin accepts or rejects the request, then assigns it to TraceLab (for analysis) or InvoSpace (for investigation) based on priority.', color: '#3B82F6' },
             { num: '03', title: 'TraceLab Performs Analysis', desc: 'Analyst validates dataset, runs graph analysis (DFS cycle detection, fan-in/out, layering), behaviour analysis, temporal analysis, ML models, and risk scoring.', color: '#8B5CF6' },
-            { num: '04', title: 'Analyst Decision Point', desc: 'If low/no risk → Technical Report. If suspicious activity detected → Alert is created and can be escalated to InvoSpace for deep investigation.', color: '#EF4444' },
+            { num: '04', title: 'Analyst Decision Point', desc: 'If low/no risk → Technical Report. If suspicious activity detected → Alert is auto-generated and escalated to Admin, who routes it to InvoSpace for deep investigation.', color: '#EF4444' },
             { num: '05', title: 'InvoSpace Deep Investigation', desc: 'Investigator creates a case from the alert. Conducts Entity 360 analysis, multi-hop tracing, evidence collection, hypothesis testing, timeline building, and generates investigation report.', color: '#F59E0B' },
             { num: '06', title: 'Admin Review, Seal & Release', desc: 'Admin collects all reports, reviews them, applies digital signature/seal (TraceAcc badge watermark), and releases only approved reports to the client portal.', color: '#10B981' },
           ].map((step, i) => (
@@ -246,7 +246,7 @@ function LandingPage() {
             { label: 'Backend', items: 'Python · FastAPI · SQLAlchemy · Alembic' },
             { label: 'Frontend', items: 'React · Vite · Bootstrap · Framer Motion' },
             { label: 'Graph Analysis', items: 'NetworkX · Cytoscape.js · DFS/BFS' },
-            { label: 'ML / AI', items: 'Isolation Forest · GNN · Anomaly Detection' },
+            { label: 'ML / AI', items: 'Isolation Forest · LOF · DBSCAN · Hybrid Fusion' },
             { label: 'Security', items: 'JWT · RBAC · OTP · CAPTCHA · Audit Logs' },
             { label: 'Database', items: 'SQLite/PostgreSQL · Alembic Migrations' },
           ].map((t, i) => (

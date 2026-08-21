@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_BASE = 'http://127.0.0.1:8000';
+// Resolve API base from env (Vite) with a localhost dev fallback.
+const API_BASE =
+  import.meta.env?.VITE_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -119,17 +121,33 @@ export const auditAPI = {
 };
 
 // ============================================================
+// WORKBENCH API — role-aware overview aggregation
+// ============================================================
+
+export const workbenchAPI = {
+  analyst: async () => {
+    const res = await api.get('/workbench/analyst');
+    return res.data;
+  },
+
+  investigator: async () => {
+    const res = await api.get('/workbench/investigator');
+    return res.data;
+  },
+};
+
+// ============================================================
 // CASES API
 // ============================================================
 
 export const casesAPI = {
-  list: async (status = '') => {
-    const params = status ? { status } : {};
+  list: async ({ status = '', priority = '', mineOnly = false } = {}) => {
+    const params = {};
+    if (status) params.status = status;
+    if (priority) params.priority = priority;
+    if (mineOnly) params.mine_only = true;
 
-    const res = await api.get('/cases', {
-      params,
-    });
-
+    const res = await api.get('/cases', { params });
     return res.data;
   },
 
@@ -144,10 +162,14 @@ export const casesAPI = {
   },
 
   updateStatus: async (id, status) => {
-    const res = await api.patch(`/cases/${id}`, {
-      status,
-    });
+    const res = await api.patch(`/cases/${id}`, { status });
+    return res.data;
+  },
 
+  assign: async (id, assigneeId) => {
+    const res = await api.patch(`/cases/${id}/assign`, {
+      assignee_id: assigneeId,
+    });
     return res.data;
   },
 
@@ -156,8 +178,82 @@ export const casesAPI = {
     return res.data;
   },
 
-  delete: async (id) => {
-    const res = await api.delete(`/cases/${id}`);
+  addNote: async (id, content) => {
+    const res = await api.post(`/cases/${id}/notes`, { content });
+    return res.data;
+  },
+
+  // ---- Investigation artifacts -----------------------------
+
+  getHypotheses: async (id) => {
+    const res = await api.get(`/cases/${id}/hypotheses`);
+    return res.data;
+  },
+
+  createHypothesis: async (id, data) => {
+    const res = await api.post(`/cases/${id}/hypotheses`, data);
+    return res.data;
+  },
+
+  updateHypothesis: async (caseId, hypothesisId, data) => {
+    const res = await api.patch(
+      `/cases/${caseId}/hypotheses/${hypothesisId}`,
+      data
+    );
+    return res.data;
+  },
+
+  getTasks: async (id) => {
+    const res = await api.get(`/cases/${id}/tasks`);
+    return res.data;
+  },
+
+  createTask: async (id, data) => {
+    const res = await api.post(`/cases/${id}/tasks`, data);
+    return res.data;
+  },
+
+  updateTask: async (caseId, taskId, data) => {
+    const res = await api.patch(`/cases/${caseId}/tasks/${taskId}`, data);
+    return res.data;
+  },
+
+  getFindings: async (id) => {
+    const res = await api.get(`/cases/${id}/findings`);
+    return res.data;
+  },
+
+  createFinding: async (id, data) => {
+    const res = await api.post(`/cases/${id}/findings`, data);
+    return res.data;
+  },
+
+  updateFinding: async (caseId, findingId, data) => {
+    const res = await api.patch(`/cases/${caseId}/findings/${findingId}`, data);
+    return res.data;
+  },
+
+  // ---- Decision + readiness --------------------------------
+
+  recordDecision: async (id, { decision, reason, investigationRiskScore }) => {
+    const res = await api.post(`/cases/${id}/decision`, {
+      decision,
+      reason: reason || null,
+      investigation_risk_score:
+        investigationRiskScore === '' || investigationRiskScore == null
+          ? null
+          : Number(investigationRiskScore),
+    });
+    return res.data;
+  },
+
+  getCompleteness: async (id) => {
+    const res = await api.get(`/cases/${id}/completeness`);
+    return res.data;
+  },
+
+  getReportDraft: async (id) => {
+    const res = await api.get(`/cases/${id}/report-draft`);
     return res.data;
   },
 };
@@ -168,34 +264,60 @@ export const casesAPI = {
 
 export const alertsAPI = {
   list: async (status = '', limit = 50, offset = 0) => {
-    const params = {
-      limit,
-      offset,
-    };
+    const params = { limit, offset };
+    if (status) params.status = status;
 
-    if (status) {
-      params.status = status;
-    }
-
-    const res = await api.get('/alerts', {
-      params,
-    });
-
+    const res = await api.get('/alerts', { params });
     return res.data;
   },
 
-  updateStatus: async (id, status) => {
-    const res = await api.patch(`/alerts/${id}/status`, null, {
-      params: {
-        status,
-      },
-    });
-
+  get: async (id) => {
+    const res = await api.get(`/alerts/${id}`);
     return res.data;
   },
 
-  escalate: async (id) => {
-    const res = await api.post(`/alerts/${id}/escalate`);
+  updateStatus: async (id, status, note = null) => {
+    const params = { status };
+    if (note) params.note = note;
+
+    const res = await api.patch(`/alerts/${id}/status`, null, { params });
+    return res.data;
+  },
+
+  escalate: async (id, { reason = null, priority = null } = {}) => {
+    const body = {};
+    if (reason) body.reason = reason;
+    if (priority) body.priority = priority;
+
+    const res = await api.post(`/alerts/${id}/escalate`, body);
+    return res.data;
+  },
+
+  bulkAction: async (alertIds, action, note = null) => {
+    const res = await api.post('/alerts/bulk-action', {
+      alert_ids: alertIds,
+      action,
+      note,
+    });
+    return res.data;
+  },
+
+  // Admin routes an ESCALATED alert to an investigator.
+  routeToInvestigator: async (id, assigneeId) => {
+    const res = await api.patch(`/alerts/${id}/assign`, {
+      assignee_id: assigneeId,
+    });
+    return res.data;
+  },
+
+  // Investigator converts a routed ESCALATED alert into a case.
+  convertToCase: async (id, { title = null, description = null, priority = null } = {}) => {
+    const body = {};
+    if (title) body.title = title;
+    if (description) body.description = description;
+    if (priority) body.priority = priority;
+
+    const res = await api.post(`/alerts/${id}/convert-to-case`, body);
     return res.data;
   },
 };
@@ -212,26 +334,40 @@ export const evidenceAPI = {
 
   upload: async (caseId, file) => {
     const formData = new FormData();
-
     formData.append('file', file);
 
-    const res = await api.post(
-      `/cases/${caseId}/evidence`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
-    );
+    const res = await api.post(`/cases/${caseId}/evidence`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
 
     return res.data;
   },
 
-  downloadUrl: (caseId, evidenceId) => {
-    return `${API_BASE}/cases/${caseId}/evidence/${evidenceId}/download`;
+  // Authenticated blob download (browser cannot attach Bearer via href).
+  download: async (caseId, evidenceId, fileName = 'evidence') => {
+    const res = await api.get(`/cases/${caseId}/evidence/${evidenceId}/download`, {
+      responseType: 'blob',
+    });
+
+    triggerBlobDownload(res, fileName);
   },
 };
+
+// Shared helper: turn an axios blob response into a file download.
+function triggerBlobDownload(response, fallbackName) {
+  const disposition = response.headers?.['content-disposition'] || '';
+  const match = disposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  const name = match ? decodeURIComponent(match[1]) : fallbackName;
+
+  const url = URL.createObjectURL(new Blob([response.data]));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 // ============================================================
 // TOKEN HELPERS
@@ -254,13 +390,12 @@ export const clearToken = () => {
 // ============================================================
 
 export const serviceRequestsAPI = {
-  list: async (status = '') => {
-    const params = status ? { status } : {};
+  list: async ({ status = '', assignedToMe = false } = {}) => {
+    const params = {};
+    if (status) params.status = status;
+    if (assignedToMe) params.assigned_to_me = true;
 
-    const res = await api.get('/service-requests', {
-      params,
-    });
-
+    const res = await api.get('/service-requests', { params });
     return res.data;
   },
 
@@ -275,28 +410,17 @@ export const serviceRequestsAPI = {
   },
 
   update: async (id, data) => {
-    const res = await api.patch(
-      `/service-requests/${id}`,
-      data
-    );
-
+    const res = await api.patch(`/service-requests/${id}`, data);
     return res.data;
   },
 
   uploadDataset: async (id, file) => {
     const formData = new FormData();
-
     formData.append('file', file);
 
-    const res = await api.post(
-      `/service-requests/${id}/upload`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
-    );
+    const res = await api.post(`/service-requests/${id}/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
 
     return res.data;
   },
@@ -310,7 +434,6 @@ export const adminAPI = {
 
   // ----------------------------------------------------------
   // ADMIN DASHBOARD
-  // GET /admin/dashboard
   // ----------------------------------------------------------
 
   getDashboard: async () => {
@@ -320,64 +443,43 @@ export const adminAPI = {
 
   // ----------------------------------------------------------
   // ADMIN REQUEST QUEUE
-  // GET /admin/request-queue
-  // PATCH /admin/service-requests/{id}/review
   // ----------------------------------------------------------
 
   getRequestQueue: async (status = '') => {
     const params = status ? { status } : {};
 
-    const res = await api.get('/admin/request-queue', {
-      params,
-    });
-
+    const res = await api.get('/admin/request-queue', { params });
     return res.data;
   },
 
   reviewRequest: async (id, data) => {
-    const res = await api.patch(
-      `/admin/service-requests/${id}/review`,
-      data
-    );
-
+    const res = await api.patch(`/admin/service-requests/${id}/review`, data);
     return res.data;
   },
 
   // ----------------------------------------------------------
   // ADMIN REPORT QUEUE
-  // GET /admin/report-queue
-  // PATCH /admin/reports/{id}/review
   // ----------------------------------------------------------
 
   getReportQueue: async (status = '') => {
     const params = status ? { status } : {};
 
-    const res = await api.get('/admin/report-queue', {
-      params,
-    });
-
+    const res = await api.get('/admin/report-queue', { params });
     return res.data;
   },
 
   reviewReport: async (id, data) => {
-    const res = await api.patch(
-      `/admin/reports/${id}/review`,
-      data
-    );
-
+    const res = await api.patch(`/admin/reports/${id}/review`, data);
     return res.data;
   },
 
   // ----------------------------------------------------------
   // ADMIN OPERATIONS QUEUE
-  // GET /admin/operations-queue
   // ----------------------------------------------------------
 
   getOperationsQueue: async (limit = 20) => {
     const res = await api.get('/admin/operations-queue', {
-      params: {
-        limit,
-      },
+      params: { limit },
     });
 
     return res.data;
@@ -385,29 +487,15 @@ export const adminAPI = {
 
   // ----------------------------------------------------------
   // ADMIN USERS
-  // GET /admin/users
-  // POST /admin/users
-  // PATCH /admin/users/{id}
-  // DELETE /admin/users/{id}
   // ----------------------------------------------------------
 
   listUsers: async (limit = 100) => {
-    const res = await api.get('/admin/users', {
-      params: {
-        limit,
-      },
-    });
-
+    const res = await api.get('/admin/users', { params: { limit } });
     return res.data;
   },
 
   getUsers: async (limit = 100) => {
-    const res = await api.get('/admin/users', {
-      params: {
-        limit,
-      },
-    });
-
+    const res = await api.get('/admin/users', { params: { limit } });
     return res.data;
   },
 
@@ -417,11 +505,7 @@ export const adminAPI = {
   },
 
   updateUser: async (id, data) => {
-    const res = await api.patch(
-      `/admin/users/${id}`,
-      data
-    );
-
+    const res = await api.patch(`/admin/users/${id}`, data);
     return res.data;
   },
 
@@ -432,9 +516,6 @@ export const adminAPI = {
 
   // ----------------------------------------------------------
   // ADMIN ORGANIZATIONS
-  // GET /admin/organizations
-  // POST /admin/organizations
-  // PATCH /admin/organizations/{id}
   // ----------------------------------------------------------
 
   listOrganizations: async () => {
@@ -448,20 +529,12 @@ export const adminAPI = {
   },
 
   createOrganization: async (data) => {
-    const res = await api.post(
-      '/admin/organizations',
-      data
-    );
-
+    const res = await api.post('/admin/organizations', data);
     return res.data;
   },
 
   updateOrganization: async (id, data) => {
-    const res = await api.patch(
-      `/admin/organizations/${id}`,
-      data
-    );
-
+    const res = await api.patch(`/admin/organizations/${id}`, data);
     return res.data;
   },
 };
@@ -471,8 +544,15 @@ export const adminAPI = {
 // ============================================================
 
 export const reportsAPI = {
-  list: async () => {
-    const res = await api.get('/reports');
+  list: async (reportType = '') => {
+    const params = reportType ? { report_type: reportType } : {};
+
+    const res = await api.get('/reports', { params });
+    return res.data;
+  },
+
+  get: async (id) => {
+    const res = await api.get(`/reports/${id}`);
     return res.data;
   },
 
@@ -481,34 +561,77 @@ export const reportsAPI = {
     return res.data;
   },
 
+  update: async (id, data) => {
+    const res = await api.patch(`/reports/${id}`, data);
+    return res.data;
+  },
+
   uploadFile: async (id, file) => {
     const formData = new FormData();
-
     formData.append('file', file);
 
-    const res = await api.post(
-      `/reports/${id}/upload`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
-    );
+    const res = await api.post(`/reports/${id}/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
 
+    return res.data;
+  },
+
+  submitForReview: async (id) => {
+    const res = await api.post(`/reports/${id}/submit-for-review`);
+    return res.data;
+  },
+
+  approve: async (id) => {
+    const res = await api.post(`/reports/${id}/approve`);
+    return res.data;
+  },
+
+  sign: async (id) => {
+    const res = await api.post(`/reports/${id}/sign`);
+    return res.data;
+  },
+
+  verifySignature: async (id) => {
+    const res = await api.get(`/reports/${id}/signature`);
     return res.data;
   },
 
   release: async (id) => {
-    const res = await api.patch(
-      `/reports/${id}/release`
-    );
-
+    const res = await api.post(`/reports/${id}/release`);
     return res.data;
   },
 
-  downloadUrl: (id) => {
-    return `${API_BASE}/reports/${id}/download?token=${getToken()}`;
+  // Authenticated blob download.
+  download: async (report) => {
+    const res = await api.get(`/reports/${report.id}/download`, {
+      responseType: 'blob',
+    });
+
+    triggerBlobDownload(res, `${(report.title || 'report').replace(/\s+/g, '_')}.pdf`);
+  },
+};
+
+// ============================================================
+// NOTIFICATIONS API
+// ============================================================
+
+export const notificationsAPI = {
+  list: async (unreadOnly = false, limit = 50) => {
+    const res = await api.get('/notifications', {
+      params: { unread_only: unreadOnly, limit },
+    });
+    return res.data;
+  },
+
+  markRead: async (id) => {
+    const res = await api.patch(`/notifications/${id}/read`);
+    return res.data;
+  },
+
+  markAllRead: async () => {
+    const res = await api.post('/notifications/read-all');
+    return res.data;
   },
 };
 

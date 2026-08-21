@@ -47,8 +47,9 @@ const Dashboard = () => {
         throw new Error('No authentication token found. Please log in again.');
       }
 
-      // ✅ Use the same base URL as the auth API (deployed backend)
-      const response = await api.post('/analyze', formData, {
+      // Advanced analysis: persists an AnalysisJob + auto-creates
+      // alerts for accounts with hybrid score >= 70.
+      const response = await api.post('/analyze/advanced', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
