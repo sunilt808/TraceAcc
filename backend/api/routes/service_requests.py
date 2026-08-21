@@ -115,12 +115,31 @@ def create_service_request(
 
     db.commit()
     db.refresh(sr)
+
+    # Notify admins of the new request
+    from services.notification_service import notify_admins
+
+    notify_admins(
+        db,
+        org_id=org_id,
+        notification_type="REQUEST_SUBMITTED",
+        title="New service request",
+        message=(
+            f"{current_user.username} submitted '{sr.title}' "
+            f"({sr.request_type})."
+        ),
+        resource_type="SERVICE_REQUEST",
+        resource_id=sr.id,
+    )
+    db.commit()
+
     return _sr_to_dict(db, sr)
 
 
 @router.get("")
 def list_service_requests(
     status: Optional[str] = Query(None),
+    assigned_to_me: bool = Query(False),
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
@@ -131,12 +150,20 @@ def list_service_requests(
     List service requests.
     - CLIENT_USER sees only their own requests.
     - ADMIN/SUPER_ADMIN sees all requests in the organization.
+    - Analyst/Investigator can pass ?assigned_to_me=true to see only
+      requests routed to them (TraceLab / InvoSpace work queues).
     """
     q = db.query(ServiceRequest).filter(ServiceRequest.organization_id == org_id)
 
     # Client users see only their own requests
     if current_user.role == Role.CLIENT_USER.value:
         q = q.filter(ServiceRequest.created_by_id == current_user.id)
+    elif assigned_to_me:
+        q = q.filter(
+            (ServiceRequest.assigned_to_id == current_user.id)
+            | (ServiceRequest.assigned_analyst_id == current_user.id)
+            | (ServiceRequest.assigned_invospace_id == current_user.id)
+        )
 
     if status:
         q = q.filter(ServiceRequest.status == status.upper())
