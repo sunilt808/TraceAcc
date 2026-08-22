@@ -1,0 +1,205 @@
+================================================================
+TRACEACC PRO — PROJECT STATUS REVIEW
+Generated: 2026-08-21
+================================================================
+
+This file reviews what EXISTS (implemented and wired end-to-end)
+and what DOES NOT EXIST (gaps / future scope) in the codebase.
+
+================================================================
+1. WHAT EXISTS — BACKEND (FastAPI + SQLAlchemy + Alembic)
+================================================================
+
+AUTH & RBAC
+  [x] JWT auth: login, register, client-register, me, change-password
+  [x] Role model: CLIENT_USER, ADMIN (+legacy SUPER_ADMIN),
+      TRACE_LAB_ANALYST, INVESTIGATOR
+  [x] Permission matrix (core/permissions.py) with require_permission /
+      require_any_permission dependencies
+  [x] Tenant isolation via get_current_workspace (org scoping on every table;
+      SUPER_ADMIN may impersonate orgs via X-Organization-Id header)
+  [x] Audit logging service (login events, analyze events, activity)
+
+WORKFLOW ENGINE
+  [x] WorkflowInstance lifecycle spine (service_request OR case OR report)
+  [x] ActivityTimeline for workflow-level audit; CaseEvent for case-level audit
+  [x] Full state machine:
+      SUBMITTED -> UNDER_REVIEW -> APPROVED -> ASSIGNED_* ->
+      *_IN_PROGRESS -> ALERT_ESCALATED -> REPORT_SUBMITTED ->
+      ADMIN_REVIEW -> APPROVED -> RELEASED | CLOSED | REJECTED
+
+CLIENT PORTAL
+  [x] Service request CRUD (client sees only own rows)
+  [x] Dataset upload per request (StorageService, local disk)
+  [x] Released-reports-only listing + authenticated download
+  [x] Client<->Admin messaging endpoints
+
+ADMIN HUB
+  [x] Dashboard stats endpoint (/admin/dashboard)
+  [x] Request queue + review actions (ACCEPT/REJECT/ASSIGN_TRACELAB/
+      ASSIGN_INVOSPACE/REASSIGN) writing Assignment rows + notifications
+  [x] User CRUD with role-gated creation rules
+  [x] Organization management incl. PENDING approval flow
+  [x] Report review queue; operations feed
+
+TRACELAB (ANALYST)
+  [x] Legacy /analyze (4 core detectors, no persistence)
+  [x] /analyze/advanced: all detectors, persists AnalysisJob,
+      AUTO-CREATES Alerts for hybrid score >= 70
+  [x] /analyze/jobs listing
+  [x] Alert lifecycle: create, triage (UNDER_REVIEW/TRIAGED/
+      FALSE_POSITIVE/DISMISSED), bulk actions, escalate-to-Admin
+      (with reason + priority), workflow sync + notifications
+  [x] Workbench aggregation API (/workbench/analyst): KPIs,
+      assigned requests, triage queue, recent jobs, risk trend
+
+INVOSPACE (INVESTIGATOR)
+  [x] Case CRUD (INVESTIGATOR-only creation; immutable once CLOSED;
+      NO delete route by design — regulator compliance)
+  [x] Convert routed alert -> case (preserves TraceLab risk score,
+      links alert/service_request/workflow, marks alert CONVERTED_TO_CASE)
+  [x] Artifacts with full CRUD: Hypotheses, Tasks, Findings
+      (GET list endpoints + POST create + PATCH update)
+  [x] Notes + case timeline (CaseEvent)
+  [x] Decision panel: POST /cases/{id}/decision (5 canonical decisions,
+      reason, investigation_risk_score reassessment) -> PENDING_REVIEW
+  [x] Case-file completeness meter (weighted: evidence 20/hyp 15/tasks 35/
+      findings 20/decision 10) with missing-items list
+  [x] Auto-generated investigation report draft (JSON + markdown)
+  [x] Evidence upload/list/download
+  [x] Workbench aggregation API (/workbench/investigator): KPIs,
+      routed alerts, my cases w/ completeness, task board, overdue tasks
+
+REPORTS & DIGITAL SEAL
+  [x] ClientReport create/edit/upload/submit-for-review
+  [x] Admin approve -> SIGN -> release pipeline
+  [x] REAL digital seal: SHA-256 over report identity + file content +
+      signer + timestamp; seal_id format TA-SEAL-{org}-{report}-{ts}
+  [x] Tamper-evidence: GET /reports/{id}/signature recomputes hash;
+      any content change invalidates the seal automatically
+  [x] Release requires attached file; notifies the owning client
+  [x] Downloads accept Bearer header (axios blob) or ?token= query param
+
+NOTIFICATIONS
+  [x] Notification model + fan-out service covering: request submitted/
+      assigned/reviewed, info requested, alert escalated/routed,
+      case created/assigned, report submitted/released
+  [x] Per-user list/read/mark-all-read endpoints
+
+DETECTION ENGINE (detectors/)
+  [x] Core: cycle (DFS rings), fan (fan-in/out), layering (shells),
+      burst (dormancy activation)
+  [x] Extended: centrality, community (Louvain), components (SCC),
+      k-core, bridges, temporal patterns, velocity, amount patterns
+      (structuring/smurfing), repeat pairs, motifs (triangles/stars/
+      chains/diamonds), account profiles, ML anomaly (IsolationForest +
+      LOF + DBSCAN), risk propagation
+  [x] Hybrid fusion engine (graph .35 / behaviour .20 / temporal .15 /
+      community .10 / ml .20)
+
+INFRASTRUCTURE
+  [x] CORS regex for localhost origins
+  [x] Alembic migrations (5 versions) + create_all fallback
+  [x] pytest suite: auth/RBAC, admin ops, tenant isolation, workflow
+  [x] Synthetic dataset generator + sample-generator endpoint
+  [x] CSV upload size limit (500 MB) enforced
+
+================================================================
+2. WHAT EXISTS — FRONTEND (React 19 + Vite + React-Bootstrap)
+================================================================
+
+ROUTING & ACCESS CONTROL
+  [x] RoleRoute guards per workspace; Sidebar filtered by role
+  [x] Admin workspace selector (TraceLab vs InvoSpace contexts)
+  [x] Role-aware shortcut redirects (/overview, /cases, etc.)
+
+API LAYER (services/api.js)
+  [x] Env-based API base URL (VITE_API_URL) with localhost fallback
+  [x] Bearer token interceptor
+  [x] Complete bindings: auth, audit, workbench, cases (incl. artifacts,
+      decision, completeness, report-draft), alerts (incl. bulk, route,
+      convert-to-case), evidence (blob download), service requests
+      (assigned_to_me filter), admin, reports (submit/approve/sign/
+      verify/release/blob download), notifications
+
+PAGES
+  [x] Landing page (hero, roles, pipeline, detection grid, architecture,
+      tech stack, about) — updated to match actual engine stats
+  [x] Login + client registration
+  [x] Client Portal: requests list, new request form, released reports
+      page WITH digital-seal badge + watermark viewer modal
+  [x] Admin: dashboard, users CRUD, orgs, request queue, report queue
+      WITH approve/seal/release actions + live seal verification badge,
+      operations feed
+  [x] TraceLab: role-aware OverviewPage (workbench KPIs, assigned
+      requests, triage queue, risk trend chart, recent jobs),
+      Dashboard analysis now on /analyze/advanced (jobs persist +
+      auto-alerts), graph viewer, communities, risk map, timeline,
+      statistics, Reports page (workflow reports: create draft ->
+      attach file -> submit-for-review; plus CSV/JSON export),
+      Alerts page (role-aware triage/escalate/route/convert, bulk bar,
+      correct "escalated to Admin" UX — no bogus case redirect)
+  [x] InvoSpace: role-aware OverviewPage (routed alerts with one-click
+      convert-to-case, cases with completeness bars, task board,
+      overdue tasks, pipeline distribution), Cases page (no delete
+      button; immutability note; mine-only filter), CaseDetail with
+      7 tabs: Overview, Evidence (blob download), Hypotheses, Tasks,
+      Findings, Decision & Report (completeness ring + decision form +
+      report draft preview), Timeline (notes + event dots)
+  [x] Sample generator, profile, settings, audit history pages
+
+================================================================
+3. WHAT DOES NOT EXIST — GAPS & FUTURE SCOPE
+================================================================
+
+DETECTION ENGINE
+  [ ] GNN classifier (DC-LCG dual-view from basepaper.pdf) — roadmap
+      item; current ML is classical (IsolationForest/LOF/DBSCAN).
+      Landing page mentions GNN as an advanced capability — treat as
+      future scope until implemented.
+  [ ] Async background task offloading for CPU-bound NetworkX runs
+      (currently runs in a thread pool; not a job queue)
+  [ ] Real-time Kafka/stream transaction ingestion
+
+SECURITY HARDENING
+  [ ] HttpOnly SameSite cookies for JWT (still localStorage)
+  [ ] Production CORS origins (regex currently localhost-only — must be
+      extended before deploy)
+  [ ] CSV payload content validation beyond size limit
+
+FRONTEND POLISH
+  [ ] PDF report generation server-side (reports require manual file
+      upload; the auto-generated draft is markdown/JSON only)
+  [ ] Code splitting — main JS bundle is ~1.8 MB (build warning);
+      needs dynamic imports/manualChunks
+  [ ] Notification bell UI in navbar (notifications API is wired but
+      no dedicated bell component yet)
+  [ ] Messages UI page (messaging endpoints exist; frontend page absent)
+
+OPS / DEVEX
+  [ ] Docker Compose for backend + frontend
+  [ ] CI pipeline running the pytest suite
+  [ ] Detector-level integration tests (pytest covers auth/workflow,
+      not individual detectors)
+
+DATA MODEL NOTES (known drift, non-blocking)
+  - Alert status vocabulary unified on: NEW | UNDER_REVIEW | TRIAGED |
+    FALSE_POSITIVE | ESCALATED | CONVERTED_TO_CASE | DISMISSED | CLOSED
+    (model docstring lists an older set — docstring only)
+  - Case decision vocabulary unified on: NO_SUSPICION |
+    SUSPICIOUS_ACTIVITY | ESCALATE | INSUFFICIENT_INFORMATION |
+    INCONCLUSIVE (model docstring differs — docstring only)
+  - ServiceRequest has both legacy assigned_to_id and new
+    assigned_analyst_id / assigned_invospace_id columns; admin review
+    writes assigned_to_id (workbench queries check all three)
+
+================================================================
+4. VERIFICATION PERFORMED THIS SESSION
+================================================================
+  [x] Backend Python syntax check passed on all touched files
+  [x] Frontend production build passed: 3518 modules transformed,
+      built in ~65s, zero errors
+  [x] Workbench router registered in main.py (was missing — would
+      have caused 404s on /workbench/* from the new overview pages)
+
+================================================================

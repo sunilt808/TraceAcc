@@ -628,3 +628,94 @@
   .hero-stats-row { grid-template-columns: repeat(2, 1fr); }
   .landing-hero { padding-top: 130px; }
 }
+/* Add to landing.css */
+
+/* Scroll Progress */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: var(--grad-main);
+  z-index: 1000;
+  transition: width 0.2s ease;
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.5);
+}
+
+/* Comparison Table */
+.comparison-table {
+  max-width: 800px;
+  margin: 0 auto;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.comparison-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.comparison-table th {
+  background: rgba(34, 211, 238, 0.1);
+  color: var(--txt-hi);
+  padding: 16px 20px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.comparison-table td {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  color: var(--txt-mid);
+}
+
+.comparison-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Testimonials */
+.testimonials-section {
+  padding: 80px 24px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.01);
+  border-top: 1px solid var(--line);
+}
+
+.testimonial-quote {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--txt-hi);
+  max-width: 700px;
+  margin: 0 auto 20px;
+  line-height: 1.6;
+}
+
+.testimonial-author {
+  color: var(--cyan);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.testimonial-dots {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.testimonial-dots .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.testimonial-dots .dot.active {
+  background: var(--cyan);
+  border-color: var(--cyan);
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
+}
