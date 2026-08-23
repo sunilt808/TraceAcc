@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, Request, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
 import json
+import os
 import time
 
 from api.deps import get_current_user, get_current_workspace, RoleChecker
@@ -44,6 +45,9 @@ from detectors.ml_anomaly      import detect_ml_anomalies
 from detectors.hybrid_engine   import compute_hybrid_scores
 from detectors.risk_propagation import propagate_risk
 
+# DC-LCG dual-view GNN (basepaper integration)
+from detectors.dclcg import get_latest_artifact, load_artifact, predict_graph
+
 
 router = APIRouter(prefix="/analyze", tags=["analysis"])
 
@@ -57,6 +61,7 @@ async def analyze_advanced(
     request: Request,
     file: UploadFile = File(...),
     service_request_id: Optional[int] = Form(None),
+    use_dclcg: bool = Form(True),
     current_user: User = Depends(RoleChecker([Role.TRACE_LAB_ANALYST.value, Role.INVESTIGATOR.value, Role.ADMIN.value])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
@@ -152,6 +157,44 @@ async def analyze_advanced(
         ml              = detect_ml_anomalies(graph)
         propagation     = propagate_risk(graph, base_scores)
 
+        # ── DC-LCG dual-view GNN dimension (basepaper) ──────────
+        # Runs whenever a trained artifact exists in the registry and
+        # the caller did not opt out. Failure is non-fatal: analysis
+        # degrades gracefully to the 5-dimension hybrid.
+        dclcg_block: dict = {"available": False}
+        dclcg_scores: Optional[dict] = None
+        if use_dclcg:
+            try:
+                artifact_path = get_latest_artifact()
+                if artifact_path:
+                    bundle = load_artifact(artifact_path)
+                    dclcg_out = predict_graph(graph, bundle)
+                    dclcg_scores = dclcg_out["probs"]
+                    flagged = {
+                        a: p for a, p in dclcg_scores.items() if p >= 0.5
+                    }
+                    top = sorted(
+                        dclcg_scores.items(), key=lambda kv: kv[1], reverse=True
+                    )[:20]
+                    model_name = os.path.basename(artifact_path)[len("dclcg_"):-3]
+                    dclcg_block = {
+                        "available": True,
+                        "model": model_name,
+                        "n_scored": len(dclcg_scores),
+                        "flagged_count": len(flagged),
+                        "top_accounts": [
+                            {
+                                "account_id": a,
+                                "illicit_prob": p,
+                                "disguise_score": dclcg_out["disguise"].get(a, 0.0),
+                                "top_paths": dclcg_out["top_paths"].get(a, []),
+                            }
+                            for a, p in top
+                        ],
+                    }
+            except Exception as dclcg_err:  # noqa: BLE001
+                dclcg_block = {"available": False, "error": str(dclcg_err)[:200]}
+
         # ── Hybrid scoring ─────────────────────────────────────
         hybrid_scores = compute_hybrid_scores(
             graph_scores=base_scores,
@@ -160,6 +203,7 @@ async def analyze_advanced(
             community_result=community,
             ml_result=ml,
             all_accounts=list(graph.nodes),
+            dclcg_scores=dclcg_scores,
         )
 
         processing_time = round(time.time() - start_time, 3)
@@ -186,6 +230,8 @@ async def analyze_advanced(
                     "night_actors": temporal["summary"]["night_actor_count"],
                     "rapid_movers": temporal["summary"]["rapid_mover_count"],
                     "ml_flagged":   ml["summary"].get("total_ml_flagged", 0),
+                    "dclcg_flagged": dclcg_block.get("flagged_count", 0)
+                    if dclcg_block.get("available") else 0,
                 },
             },
             # Existing fields (backward compatible)
@@ -219,6 +265,7 @@ async def analyze_advanced(
                     key=lambda x: x["score"], reverse=True
                 )[:50],
             },
+            "dclcg": dclcg_block,
         }
 
         # --------------------------------------------------------

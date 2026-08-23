@@ -12,7 +12,7 @@ Combines signals from five dimensions into one final score (0-100):
 Each dimension is independently explainable.
 Final score = weighted sum, capped at 100.
 """
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 # ── Dimension weights (must sum to 1.0) ───────────────────────
 WEIGHTS = {
@@ -21,6 +21,18 @@ WEIGHTS = {
     "temporal":   0.15,
     "community":  0.10,
     "ml":         0.20,
+}
+
+# Weight set used when a DC-LCG supervised score is available:
+# the dual-view GNN becomes a 6th dimension and the heuristic
+# weights are re-balanced accordingly.
+WEIGHTS_WITH_DCLCG = {
+    "graph":      0.30,
+    "behaviour":  0.17,
+    "temporal":   0.12,
+    "community":  0.08,
+    "ml":         0.13,
+    "dclcg":      0.20,
 }
 
 
@@ -32,6 +44,7 @@ def compute_hybrid_scores(
     community_result: Dict[str, Any],
     ml_result:        Dict[str, Any],
     all_accounts:     List[str],
+    dclcg_scores:     Optional[Dict[str, float]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Produce a hybrid risk score for every account.
@@ -69,6 +82,10 @@ def compute_hybrid_scores(
     # ── ML combined map ────────────────────────────────────────
     ml_combined: Dict[str, Dict] = ml_result.get("combined", {})
 
+    # ── DC-LCG supervised dimension (optional 6th signal) ──────
+    use_dclcg = bool(dclcg_scores)
+    weights = WEIGHTS_WITH_DCLCG if use_dclcg else WEIGHTS
+
     results: List[Dict[str, Any]] = []
 
     for acc in all_accounts:
@@ -105,14 +122,21 @@ def compute_hybrid_scores(
         ml_entry = ml_combined.get(acc, {})
         m_score  = ml_entry.get("ml_score", 0.0)
 
+        # ── 6. DC-LCG supervised score (0-100) ─────────────────
+        d_score = 0.0
+        if use_dclcg:
+            d_score = min(float(dclcg_scores.get(acc, 0.0)) * 100.0, 100.0)
+
         # ── Weighted final score ───────────────────────────────
         final = (
-            g_score * WEIGHTS["graph"] +
-            b_score * WEIGHTS["behaviour"] +
-            t_score * WEIGHTS["temporal"] +
-            c_score * WEIGHTS["community"] +
-            m_score * WEIGHTS["ml"]
+            g_score * weights["graph"] +
+            b_score * weights["behaviour"] +
+            t_score * weights["temporal"] +
+            c_score * weights["community"] +
+            m_score * weights["ml"]
         )
+        if use_dclcg:
+            final += d_score * weights["dclcg"]
         final = round(min(final, 100), 2)
 
         # ── Risk tier ─────────────────────────────────────────
@@ -135,6 +159,7 @@ def compute_hybrid_scores(
                 "temporal_score":  round(t_score, 2),
                 "community_score": round(c_score, 2),
                 "ml_score":        round(m_score, 2),
+                **({"dclcg_score":   round(d_score, 2)} if use_dclcg else {}),
             },
             "temporal_flags":  temporal_flags,
             "ml_flags":        ml_entry.get("ml_flags", []),
