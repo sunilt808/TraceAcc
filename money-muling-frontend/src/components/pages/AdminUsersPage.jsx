@@ -56,9 +56,9 @@ function AdminUsersPage() {
 
   useEffect(() => {
     fetchUsers();
-    // SUPER_ADMIN must pick an organization when provisioning
-    // operational users; load the approved org list for the form.
-    if (currentUser?.role === 'SUPER_ADMIN') {
+    // Admin provisions operational users into approved organizations;
+    // load the org list so the form can offer a target.
+    if (currentUser?.role === 'ADMIN') {
       adminAPI
         .listOrganizations()
         .then((data) => {
@@ -133,11 +133,12 @@ function AdminUsersPage() {
 
     try {
       const payload = { ...newUser };
-      // Plain admins are scoped to their own org server-side.
-      if (currentUser?.role !== 'SUPER_ADMIN' || !payload.organization_id) {
-        delete payload.organization_id;
-      } else {
+      // Organization is optional: when omitted the backend scopes the new
+      // user to the admin's own organization.
+      if (payload.organization_id) {
         payload.organization_id = parseInt(payload.organization_id, 10);
+      } else {
+        delete payload.organization_id;
       }
 
       await adminAPI.createUser(payload);
@@ -180,8 +181,7 @@ function AdminUsersPage() {
     (user) =>
       user.role === 'ADMIN' ||
       user.role === 'TRACE_LAB_ANALYST' ||
-      user.role === 'INVESTIGATOR' ||
-      user.role === 'SUPER_ADMIN'
+      user.role === 'INVESTIGATOR'
   ).length;
 
   const darkCardStyle = {
@@ -475,12 +475,6 @@ function AdminUsersPage() {
                             Admin
                           </option>
 
-                          {currentUser?.role === 'SUPER_ADMIN' && (
-                            <option value="SUPER_ADMIN" style={{ backgroundColor: '#010409', color: '#c9d1d9' }}>
-                              Super Admin
-                            </option>
-                          )}
-
                         </Form.Select>
 
                       </td>
@@ -715,53 +709,51 @@ function AdminUsersPage() {
 
               </Form.Group>
 
-              {/* Organization (SUPER_ADMIN only) */}
-              {currentUser?.role === 'SUPER_ADMIN' &&
-                newUser.role !== 'SUPER_ADMIN' && (
-                  <Form.Group className="mb-3">
+              {/* Organization (optional — defaults to admin's own org) */}
+              {currentUser?.role === 'ADMIN' && (
+                <Form.Group className="mb-3">
 
-                    <Form.Label className="text-light fw-semibold">
-                      Organization *
-                    </Form.Label>
+                  <Form.Label className="text-light fw-semibold">
+                    Organization
+                  </Form.Label>
 
-                    <Form.Select
-                      required
-                      value={newUser.organization_id}
-                      onChange={(e) =>
-                        setNewUser({
-                          ...newUser,
-                          organization_id: e.target.value,
-                        })
-                      }
-                      style={{
-                        backgroundColor: '#010409',
-                        color: '#c9d1d9',
-                        borderColor: '#30363d',
-                      }}
-                    >
+                  <Form.Select
+                    value={newUser.organization_id}
+                    onChange={(e) =>
+                      setNewUser({
+                        ...newUser,
+                        organization_id: e.target.value,
+                      })
+                    }
+                    style={{
+                      backgroundColor: '#010409',
+                      color: '#c9d1d9',
+                      borderColor: '#30363d',
+                    }}
+                  >
 
-                      <option value="" style={{ backgroundColor: '#010409' }}>
-                        Select approved organization...
+                    <option value="" style={{ backgroundColor: '#010409' }}>
+                      Default to my organization
+                    </option>
+
+                    {orgs.map((org) => (
+                      <option
+                        key={org.id}
+                        value={org.id}
+                        style={{ backgroundColor: '#010409', color: '#c9d1d9' }}
+                      >
+                        {org.name} (#{org.id})
                       </option>
+                    ))}
 
-                      {orgs.map((org) => (
-                        <option
-                          key={org.id}
-                          value={org.id}
-                          style={{ backgroundColor: '#010409', color: '#c9d1d9' }}
-                        >
-                          {org.name} (#{org.id})
-                        </option>
-                      ))}
+                  </Form.Select>
 
-                    </Form.Select>
+                  <div className="text-secondary small mt-1">
+                    Optional. If left empty, the user joins your own organization.
+                  </div>
 
-                    <div className="text-secondary small mt-1">
-                      Operational users must belong to an approved organization.
-                    </div>
-
-                  </Form.Group>
-                )}
+                </Form.Group>
+              )}
 
               {/* Role */}
               <Form.Group className="mb-3">

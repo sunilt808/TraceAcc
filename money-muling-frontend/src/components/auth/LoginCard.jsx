@@ -116,7 +116,6 @@ function LoginCard() {
         return '/client-dashboard';
 
       case 'ADMIN':
-      case 'SUPER_ADMIN':
         return '/workspace-selector';
 
       case 'TRACE_LAB_ANALYST':

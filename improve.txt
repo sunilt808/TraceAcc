@@ -1,0 +1,549 @@
+================================================================================
+ TRACEACC PRO — MAJOR PROJECT UPGRADE PLAN (improve.txt)
+ Date: 2026-08-23
+ Grounded in : basepaper.pdf -> "Exposing Disguises and Tracing Illicit Flows:
+               Dual-View Graph Representation Learning for Money Laundering
+               Detection" (DC-LCG), IEEE TCSS Vol.13 No.2, Apr 2026
+               arch.png (system architecture diagram)
+               Actual codebase: D:\rift\backend + money-muling-frontend
+================================================================================
+
+--------------------------------------------------------------------------------
+0. HOW TO READ THIS FILE
+--------------------------------------------------------------------------------
+ Sec 1 : CURRENT STATUS        - where the project stands TODAY (verified).
+ Sec 2 : EXISTING              - complete inventory WITH EXACT COUNTS.
+ Sec 3 : BASEPAPER INTEGRATION - DC-LCG mapped module-by-module onto YOUR
+                                 architecture (this is the academic core that
+                                 makes this a major project).
+ Sec 4 : NEEDS UPDATE          - existing components to upgrade (numbered U#).
+ Sec 5 : NEW FEATURES          - proposed additions (numbered N#).
+ Sec 6 : WORKFLOW EXAMPLES     - 2 COMPLETE end-to-end workflows, step by step,
+                                 endpoint-by-endpoint.
+ Sec 7 : NUMBERS DASHBOARD     - EVERYTHING totaled in quantity.
+ Sec 8 : PHASED ROADMAP        - week-by-week execution plan.
+ Sec 9 : RISKS & MITIGATIONS.
+ Sec 10: ONE-PAGE SUMMARY      - quick wins vs big rocks.
+
+Priority legend : [P1] = must-have for major project evaluation
+                  [P2] = strong value, do if time permits
+                  [P3]  = stretch / nice-to-have
+Effort legend   : S = <=1 day, M = 2-4 days, L = 5-10 days, XL = >10 days
+
+--------------------------------------------------------------------------------
+1. CURRENT STATUS (VERIFIED TODAY)
+--------------------------------------------------------------------------------
+ WORKING AND TESTED END-TO-END:
+  [x] 4-role system: ADMIN, TRACE_LAB_ANALYST, INVESTIGATOR, CLIENT_USER
+      (SUPER_ADMIN fully removed; legacy rows self-heal to ADMIN).
+  [x] Admin user provisioning (all 4 roles create -> 201) with optional org
+      picker defaulting to admin's own organization.
+  [x] Client journey: register -> submit request -> upload CSV dataset.
+  [x] Admin routing: ASSIGN_TRACELAB / REASSIGN across organizations.
+  [x] Analyst workbench: assigned-request list, authenticated dataset
+      download, linked advanced analysis, persisted results (result_stored),
+      reloadable job results, assignment lifecycle (ACTIVE->COMPLETED).
+  [x] Investigator workbench: routed alerts -> convert to case -> tasks /
+      findings / hypotheses / evidence -> decisions.
+  [x] Notifications (per-user + read-all), audit logging, activity timeline.
+  [x] CRITICAL BUG FIXED: analysis pipeline used to crash with 500
+      {'detail': "'score'"} on EVERY run (hybrid_engine emits "final_score",
+      alert loop read entry["score"]). Analyses now complete, persist and
+      generate alerts.
+  [x] Frontend builds clean (npm run build OK).
+  [x] Backend pytest: 6 passing; 5 failures are PRE-EXISTING on the baseline
+      commit (unrelated to current work).
+
+ KNOWN GAPS (why this plan exists):
+  [ ] Detection engine = heuristics + UNSUPERVISED ML only (no supervised
+      graph learning, nothing from the basepaper yet).
+  [ ] Single-user SQLite, synchronous request handling, background jobs run
+      inline.
+  [ ] No model registry / retraining loop / benchmark metrics.
+  [ ] Frontend bundle = 1.92 MB single chunk (no code splitting).
+  [ ] Test coverage thin: 5 backend test files only.
+
+--------------------------------------------------------------------------------
+2. EXISTING INVENTORY (EXACT COUNTS FROM THE REPO)
+--------------------------------------------------------------------------------
+ BACKEND (Python/FastAPI, ~12,250 LOC):
+  - 16 router modules, 89 REST endpoints:
+      admin.py 13 | cases.py 19 | reports.py 10 | alerts.py 8 | auth.py 6
+      service_requests.py 6 | audit.py 5 | notifications.py 4 | analysis.py 3
+      workflow.py 3 | evidence.py 3 | assignments.py 2 | datasets.py 2
+      messages.py 2 | workbench.py 2 | graph.py 1
+  - 20 detector modules (detectors/):
+      cycle, fan, layering, burst, velocity, amount_patterns, repeat, motifs,
+      temporal, community (Louvain), components, kcore, bridges, centrality,
+      paths, account_profile, ml_anomaly (IsolationForest+LOF+DBSCAN),
+      score, risk_propagation, hybrid_engine (weighted fusion, 5 dimensions)
+  - 25 database models (models/):
+      organization, user, role, service_request, dataset, transaction,
+      analysis_job, alert, case, assignment, evidence,
+      investigation_task/finding/hypothesis/note/report, client_report,
+      technical_report, report_version, workflow_instance, case_event,
+      activity_timeline, audit_log, notification, message, schemas
+  - Workflow engine: stage-gated instances (SUBMITTED -> UNDER_REVIEW ->
+      APPROVED -> ANALYSIS/INVESTIGATION IN_PROGRESS -> REPORT_SUBMITTED ->
+      RELEASED/CLOSED) + ActivityTimeline events.
+  - AuthN/Z: JWT bearer, role matrix (core/permissions.py), account lockout.
+  - Tests: 5 test files (auth_rbac, admin_operations, workflow_foundation,
+      + conftest).
+
+ FRONTEND (React 18 + Vite + Bootstrap, 46 source files):
+  - 21 pages: Landing, Login, ClientPortal, ClientRequestForm,
+      ClientReportsPage, AdminDashboard, AdminUsersPage, AdminOrgsPage,
+      AdminRequestsPage, AdminReportsPage, AdminOperationsPage, OverviewPage
+      (analyst+investigator workbenches), GraphViewer, RiskMapPage,
+      CommunitiesPage, TimelinePage, StatisticsPage, ReportsPage, AlertsPage,
+      CasesPage, CaseDetail (+WorkspaceSelector).
+  - 8 dashboard components: Navbar, GraphPanel (cytoscape), FraudRingTable,
+      UploadCard, MetricsBar, SampleGenerator, ...
+  - Contexts: AuthContext (JWT + role normalize), AnalysisContext (run/load/
+      clear analysis, sessionStorage cache).
+
+ ARCHITECTURE MAP (aligns with arch.png blocks):
+   arch.png block            ->  code location today
+   ---------------------------------------------------------------
+   Ingestion / CSV upload    ->  service_requests.uploadDataset,
+                                 utils/csv_parser.py
+   Rule/heuristic engines    ->  detectors/*.py (14 heuristic modules)
+   ML anomaly engine         ->  detectors/ml_anomaly.py (3 algos)
+   Fusion / scoring          ->  detectors/hybrid_engine.py (weights .35/.20/
+                                 .15/.10/.20), score.py, risk_propagation.py
+   Alerting                  ->  api/routes/analysis.py auto-alert block +
+                                 models/alert.py
+   Case management           ->  models/case.py + cases.py (19 endpoints)
+   Reporting                 ->  reports.py (10 endpoints), 3 report types
+   Workflow                  ->  workflow.py + workflow_instance.py
+   Portal/RBAC               ->  auth.py, deps.py, permissions.py
+   Visualization             ->  GraphPanel, RiskMap, Communities, Timeline
+
+--------------------------------------------------------------------------------
+3. BASEPAPER INTEGRATION - DC-LCG ONTO TRACEACC  [THE ACADEMIC CORE]
+--------------------------------------------------------------------------------
+ WHY: Your current ML stack (IsolationForest/LOF/DBSCAN) is unsupervised and
+ ignores LABELS. The basepaper's DC-LCG is a SUPERVISED dual-view graph neural
+ network that beats SOTA by 2%-10% (F1/AUC/AP) on Elliptic, RD, T-Finance.
+ Integrating it gives you: (a) a defensible research contribution, (b) real
+ benchmark numbers for your report/viva, (c) a genuine detection upgrade -
+ it specifically targets the two things your heuristics MISS:
+   Challenge 1: DISGUISED nodes (launderers connecting to many licit accounts
+                break homophily assumptions)  -> solved by LOCAL VIEW.
+   Challenge 2: MULTIHOP flows (>70% of illicit nodes propagate >=2 hops,
+                invisible to 1-hop GNNs)        -> solved by CONTEXTUAL VIEW.
+
+ PAPER-MODULE -> CODE MAP (6 deliverables):
+
+ D1. Dynamic Value Field Encoder                        [P1][M]
+     Paper Sec IV-A. Discretize transaction amounts into value fields and
+     enrich raw features before the network.
+     NEW FILE: backend/detectors/dclcg/value_encoder.py
+     Hook: called inside the DC-LCG trainer/inference wrapper; also exposed
+     standalone so hybrid_engine can use enriched features later.
+     Unit target: given N nodes x S raw features -> N x S' (S'=166 for
+     Elliptic-compatible runs).
+
+ D2. LOCAL VIEW - Soft-Label-Guided Dynamic Grouping GNN [P1][L]
+     Paper Sec IV-B, Eqs (2)-(9): split each node's neighbors into illicit-
+     like vs licit-like groups using a soft-label buffer; probability-weighted
+     intragroup aggregation + hybrid attention intergroup aggregation.
+     NEW FILES: backend/detectors/dclcg/local_view.py
+                backend/detectors/dclcg/soft_label_buffer.py
+     Key params (from paper): GNN layers Lg (default 2-3), hidden dim 256,
+     epochs Eepoch (default 100), soft-label buffer refreshed every epoch.
+     Kills Challenge 1 (camouflage/heterophily).
+
+ D3. CONTEXTUAL VIEW - Path Pruning + Transformer Fusion [P1][L]
+     Paper Sec IV-C, Eqs (10)-(15): random-walk candidate paths -> prune with
+     soft labels -> transformer encoder fuses multipath semantics into node
+     embeddings.
+     NEW FILES: backend/detectors/dclcg/path_sampler.py (random walks,
+                 walk length L=8-16, R walks/node)
+                backend/detectors/dclcg/contextual_view.py (Ltm=2 transformer
+                 layers, d_model=256, 4 heads)
+     Kills Challenge 2 (long-range multihop flows). Complements your existing
+     paths.py/cycle.py which are bounded-depth only.
+
+ D4. MUTUAL ATTENTION FUSION HEAD                        [P1][M]
+     Paper Sec IV-D, Eqs (16)-(17): bidirectional attention between local
+     embeddings C_lv and contextual embeddings C_hv -> fused representation C
+     -> classifier. Loss = classification CE + auxiliary consistency
+     (Eqs 18-19).
+     NEW FILE: backend/detectors/dclcg/fusion.py
+
+ D5. TRAINING + EVALUATION PIPELINE (benchmark proof)     [P1][XL]
+     NEW FILES: backend/detectors/dclcg/train.py
+                backend/detectors/dclcg/evaluate.py
+                backend/datasets_loaders/elliptic_loader.py
+                backend/datasets_loaders/tfinance_loader.py
+     DATASETS (paper Table I):
+       - Elliptic : 203,769 nodes / 234,355 edges / 166 features / 49 time
+                    steps / 4.5% illicit  (public download)
+       - RD       : Elliptic + 19 deanonymization features, use 20% missing
+       - T-Finance: anomalous-account graph (fraud/laundering/gambling)
+     METRICS TO REPORT (paper Sec V): AUC, binary F1, AP - per class + macro.
+     BASELINES TO INCLUDE IN COMPARISON TABLE (paper uses these families):
+       GCN, GAT, GraphSAGE, plus >=2 AML-specific GNNs cited in Sec II.C.
+     TARGET: reproduce within +/-3 points of paper numbers on Elliptic;
+     document deviations honestly in the project report.
+     OUTPUT: results/benchmarks.csv + matplotlib charts auto-generated for
+     the final report (F1/AUC bar chart, ablation chart).
+
+ D6. INFERENCE SERVICE + MODEL REGISTRY (production hook) [P1][L]
+     - NEW: models/registered_model.py (id, name=dclcg, version, artifact
+       path, metrics_f1/auc/ap, trained_at, status=staged|active|retired).
+     - NEW: api/routes/models.py (>=4 endpoints):
+         GET  /models                     list versions + metrics
+         POST /models/{id}/activate       switch active inference model
+         GET  /models/{id}/metrics        F1/AUC/AP + confusion matrix
+         POST /models/{id}/feedback       push analyst labels for retrain
+     - INTEGRATION: analysis.py gains form field model_version (default
+       "latest-active"). When a DC-LCG model is active, its illicit
+       probability becomes a 6th dimension in hybrid_engine.WEIGHTS
+       (proposal: graph .30, behaviour .15, temporal .10, community .05,
+        ml_unsup .10, dclcg_supervised .30) - weights become DB-configurable
+       (see U1).
+     - EXPLAINABILITY BRIDGE: expose mutual-attention weights per node ->
+       top contributing neighbors/paths written into Alert.detection_reason
+       ("why this account": local-view disguise score + top-3 suspicious
+       paths). This turns the paper's black box into auditor-friendly output
+       and is a differentiator for your viva demo.
+
+ EFFORT TOTAL FOR SECTION 3: 6 deliverables, ~22-30 dev-days.
+
+--------------------------------------------------------------------------------
+4. NEEDS UPDATE - UPGRADE EXISTING COMPONENTS  (23 items)
+--------------------------------------------------------------------------------
+ U1  hybrid_engine weights -> DB table scoring_weights(org_id, dimension,
+     weight, updated_by) + admin UI sliders. Today weights are hardcoded
+     constants in detectors/hybrid_engine.py:18-24.            [P1][M]
+ U2  Score calibration: Platt/isotonic calibration on validation set; derive
+     alert thresholds (70/90 today) from ROC operating point instead of
+     magic numbers.                                            [P1][M]
+ U3  ml_anomaly.py: add 4th algo (autoencoder reconstruction error) + persist
+     per-account feature vectors so DC-LCG can reuse them.     [P2][M]
+ U4  cycle.py: replace DFS enumeration w/ Johnson's algorithm + hard budget
+     (max_cycles=200 exists; add max_nodes guard for 200k-node graphs).
+                                                               [P1][S]
+ U5  risk_propagation.py: swap fixed PPR for learned propagation scores when
+     DC-LCG active (keep PPR as fallback).                     [P2][M]
+ U6  Alert correlation: group alerts sharing >=60% accounts within one job
+     window into a single "ring alert" (today each account >=70 makes an
+     independent alert -> noise at scale).                     [P1][M]
+ U7  Analysis jobs -> background queue (arq/RQ + Redis, or FastAPI
+     BackgroundTasks interim) so 200k-node Elliptic uploads don't block HTTP
+     workers; add progress field + SSE/WebSocket progress push.[P1][L]
+ U8  Database: SQLite -> PostgreSQL via existing alembic/ setup; keep SQLite
+     for demos.                                                [P2][M]
+ U9  Auth: add refresh tokens (15-min access), TOTP MFA optional per user,
+     password breach check; lockout exists already.            [P2][M]
+ U10 Audit log tamper-evidence: hash-chain each audit_log row
+     (prev_hash + payload_hash); verifier script.              [P2][S]
+ U11 Pagination/async sweep: ensure every list endpoint has limit/offset
+     (admin users/orgs partially missing) + async SQLAlchemy on hot paths.
+                                                               [P2][M]
+ U12 Tests: 5 files -> target 25 files / ~300 cases; add pytest-cov gate
+     >=70% on services+detectores; GitHub Actions CI (lint+tests+build).
+                                                               [P1][L]
+ U13 Frontend bundle: React.lazy route-level code splitting (1.92 MB single
+     chunk -> ~5 chunks <600 KB initial), vite manualChunks for
+     cytoscape/react-bootstrap vendors.                        [P1][S]
+ U14 Frontend data layer: react-query for cache/invalidate (replaces ad-hoc
+     useEffect fetching in 21 pages).                          [P2][M]
+ U15 GraphPanel: WebGL renderer (cytoscape-canvas/fcose) + virtualization for
+     10k+ node graphs; LOD clustering by community.            [P2][M]
+ U16 Reports: server-side PDF generation (weasyprint/reportlab) embedding
+     summary charts + fraud-ring tables; today reports are metadata-only.
+                                                               [P1][M]
+ U17 Dataset management: dataset versioning UI + schema validator with
+     column-mapping wizard (sender/receiver/amount/timestamp autodetect +
+     user override).                                           [P2][M]
+ U18 Notifications: WebSocket push (currently poll-based list endpoint).
+                                                               [P3][M]
+ U19 Security hardening pass: rate limiting (slowapi) on auth + upload,
+     file-type sniffing (python-magic) not just extension, CSV formula
+     injection guard on exports.                               [P1][M]
+ U20 Observability: structlog JSON logs + /metrics Prometheus endpoint +
+     request-id middleware.                                    [P2][S]
+ U21 Docker: multi-stage compose (api, worker, postgres, redis, frontend)
+     + seed command -> one-command demo for evaluators.        [P1][M]
+ U22 API docs: extend OpenAPI examples/schemas (schemas/ dir exists but
+     responses are untyped dicts on several routes).           [P3][M]
+ U23 i18n + accessibility sweep on 21 pages (aria labels, contrast).
+                                                               [P3][M]
+
+--------------------------------------------------------------------------------
+5. NEW FEATURES  (28 items in 7 groups)
+--------------------------------------------------------------------------------
+ GROUP A - DETECTION & MODEL OPS (basepaper-driven)
+ N1  DC-LCG end-to-end (deliverables D1-D6 above) ................[P1]
+ N2  Benchmark suite runner: one CLI -> trains DC-LCG + GCN/GAT/SAGE
+     baselines, writes comparison table + charts .................[P1][M]
+ N3  Ablation mode: --no-local / --no-context / --no-fusion flags to
+     reproduce paper Table III ablations .........................[P2][S]
+ N4  Temporal snapshots: run detection per Elliptic time-step (49 steps)
+     and animate risk evolution on TimelinePage ..................[P2][L]
+ N5  Active-learning loop: analyst label buttons (illicit/licit) on
+     suspicious_accounts rows -> stored -> feeds /models/{id}/feedback ->
+     scheduled fine-tune .........................................[P1][M]
+
+ GROUP B - ALERTS & TRIAGE
+ N6  Alert inbox upgrades: saved filters, bulk actions, snooze, assignment
+     to investigator with due date (SLA) .........................[P1][M]
+ N7  False-positive reason tags (dropdown) on dismiss -> analytics feed.
+                                                                 [P2][S]
+
+ GROUP C - INVESTIGATION
+ N8  Case templates per request_type (money-muling checklist preloads 8-12
+     InvestigationTasks automatically) ...........................[P1][S]
+ N9  Flow-tracing canvas: click an account -> highlight ALL incoming/outgoing
+     multihop fund paths up to depth k using DC-LCG contextual paths
+     (visual "follow the money") .................................[P1][L]
+ N10 Watchlists: named account lists; any future upload auto-checks members;
+     hits raise priority. ........................................[P2][M]
+ N11 Evidence chain-of-custody: every evidence action appends signed timeline
+     entry (SHA-256 of file already possible) ....................[P2][S]
+
+ GROUP D - REPORTING & EXPORT
+ N12 One-click SAR-style regulator pack: PDF report + flagged-accounts CSV +
+     audit trail extract + model card (which model version produced it).
+                                                                 [P1][M]
+ N13 Scheduled recurring scans: cron-like monitor on uploaded datasets
+     (weekly re-run, delta alerts only) ..........................[P2][L]
+
+ GROUP E - PLATFORM
+ N14 Public API keys + scoped machine tokens for bank-system ingestion
+     (POST /ingest/transactions). ............................... [P3][L]
+ N15 Org-level settings page (scoring weights override, thresholds, retention)
+     reusing U1. .................................................[P2][S]
+ N16 Global search (accounts, requests, cases, alerts) with keyboard palette.
+                                                                 [P3][M]
+
+ GROUP F - FRONTEND UX
+ N17 Analyst "Run Model" dialog: pick model version + threshold + dimensions,
+     show estimated runtime; job progress bar (needs U7). .......[P1][M]
+ N18 Model card page: metrics charts from D5, version history, activate
+     button (admin-only). .......................................[P1][M]
+ N19 Explainability drawer: per-account panel showing DC-LCG attention
+     highlights + top suspicious paths (pairs with D6). ..........[P1][L]
+ N20 Empty/error state polish + skeletons on 21 pages. ..........[P3][S]
+
+ GROUP G - DATA GENERATION FOR DEMOS
+ N21 Upgraded SampleGenerator: presets for fan-in/fan-out, layered shell,
+     cycle, burst AND "camouflaged mule" preset that mixes illicit nodes
+     with licit neighbors (to DEMO DC-LCG beating heuristics live).
+                                                                 [P1][M]
+ N22 Scenario library: 10 canned datasets w/ known ground truth -> repeatable
+     demo + regression checks. ...................................[P2][M]
+
+ COUNTS: Group A 5, B 2, C 4, D 2, E 3, F 4, G 2  => 28 items total.
+   P1: 13 items | P2: 11 items | P3: 4 items.
+
+--------------------------------------------------------------------------------
+6. TWO COMPLETE END-TO-END WORKFLOW EXAMPLES
+--------------------------------------------------------------------------------
+ WORKFLOW 1 - "CAMOUFLAGED MULE CASE" (client -> release, human + DC-LCG)
+ Purpose: demo-ready showcase hitting every subsystem incl. the paper model.
+ Actors  : client(C), admin(A), analyst(T), investigator(I).
+ Pre     : DC-LCG model v1 trained on Elliptic and ACTIVE (D6/N18);
+           scenario dataset #7 loaded (N22).
+
+ Step 01 C  Login -> /client-dashboard -> New Request
+ Step 02 C  POST /service-requests {title:"Mule ring in payouts",
+            request_type:"TRANSACTION_ANALYSIS"}            -> 201 id=#101
+ Step 03 C  Upload camouflaged-mule CSV (N21 generator, 5k txns,
+            800 accounts, ground truth: 37 illicit)
+            POST /service-requests/101/upload               -> 200
+            Status: SUBMITTED, workflow instance created.
+ Step 04 A  /admin/requests shows #101 -> review
+            PATCH /admin/service-requests/101/review
+              {action:"APPROVE", note:"approved"}          -> APPROVED
+ Step 05 A  Same endpoint {action:"ASSIGN_TRACELAB",
+            assignee_id:<analyst>}                          -> assigned
+            Analyst gets Notification; SR -> IN_PROGRESS.
+ Step 06 T  /tracelab/overview -> My Assigned Requests row #101 ->
+            click ANALYZE (OverviewPage.jsx new button)
+            Frontend: blob-download dataset -> POST /analyze/advanced
+              multipart{file, service_request_id:101,
+                         model_version:"dclcg-v1.2", threshold:65}
+ Step 07 SYS Background job (U7): parse_csv -> value_encoder(D1) ->
+            local_view(D2) + contextual_view(D3) -> fusion(D4) -> hybrid
+            6-dim scores(U1 weights) -> calibrate(U2) -> correlate(U6) ->
+            persist meta._result + auto-alerts.
+ Step 08 SYS Result: 41 accounts >= threshold -> clustered into 3 ring
+            alerts; each Alert.detection_reason contains DC-LCG attention
+            explanation + top-3 pruned paths (D6).
+ Step 09 T  GraphViewer: risk-colored graph; opens explainability drawer
+            (N19) on acct "ACC-2210": disguise-score 0.81 (connected to 14
+            licit), path ACC-2210->...->ACC-7711 kept by pruning.
+            Labels 37/41 accounts illicit/licit via N5 buttons -> feedback
+            queued.
+ Step 10 T  Marks assignment COMPLETED
+            PATCH /assignments/{id}/status {status:"COMPLETED"}
+            -> admins notified, SR -> REPORT_SUBMITTED-pending state.
+ Step 11 A  Escalates top alert -> routes to investigator
+            PATCH /alerts/{id} {route_to:investigator}
+ Step 12 I  /invospace/overview -> Convert alert -> Case #55
+            POST /alerts/{id}/convert-to-case
+            Template N8 preloads 10 tasks (verify source of funds, KYC gap
+            check, ...).
+ Step 13 I  Works case: uploads 3 evidence files (hashed), records 2
+            findings, sets hypothesis "smurfing via payout mules",
+            completes 8/10 tasks -> completeness 85%.
+ Step 14 I  Submits investigation_report for review
+            POST /reports/{rid}/submit-for-review
+ Step 15 A  /admin/reports -> review -> approve -> sign -> RELEASE
+            POST /reports/{rid}/approve ; /sign ; /release
+            Hash-chained audit entries logged at every hop (U10).
+ Step 16 C  Client portal shows released report + flagged accounts;
+            downloads SAR pack (N12: PDF+CSV+model-card v1.2).
+ RESULT  : 16 steps, 4 roles, 1 analysis, 3 alerts -> 1 case -> 1 released
+           report; ground-truth recall demo: 35-37/37 illicit caught.
+
+ WORKFLOW 2 - "MODEL FACTORY" (benchmark -> deploy -> retrain, MLOps loop)
+ Purpose: prove the basepaper claim + keep model fresh (viva ammunition).
+ Frequency: once at start; then monthly / on 500 new labels.
+
+ Phase A - BENCHMARK (offline, D5)
+  A1  python -m datasets_loaders.elliptic_loader --snapshots 49
+      (203,769 nodes / 234,355 edges cached locally)
+  A2  python -m detectors.dclcg.evaluate --full
+      Trains: DC-LCG + baselines GCN, GAT, GraphSAGE (same splits).
+      Emits results/benchmarks.csv:
+        model     F1     AUC    AP
+        GCN      0.8xx  0.9xx  0.7xx
+        GAT      0.8xx  0.9xx  0.8xx
+        GraphSAGE0.8xx  0.9xx  0.8xx
+        DC-LCG   0.9xx  0.9xx  0.9xx   <- target: beat best baseline
+      + ablation rows (N3): w/o local view, w/o contextual, w/o fusion.
+  A3  Charts auto-written for the project report (bar + ablation).
+
+ Phase B - REGISTER & DEPLOY
+  B1  Trainer registers artifact -> registered_models row v1.2
+      {f1, auc, ap, trained_on:"Elliptic-49", status:"staged"}
+  B2  Admin opens Model Card page (N18) -> compares v1.1 vs v1.2 ->
+      POST /models/{id}/activate -> status ACTIVE.
+  B3  All subsequent /analyze/advanced runs default to v1.2 (Step 07 of
+      Workflow 1 uses it); every AnalysisJob stores model_version used.
+
+ Phase C - MONITOR & RETRAIN (continuous)
+  C1  Weekly job aggregates: precision@50 on analyst-labeled rows,
+      alert->case conversion rate, FP-tag distribution (N7).
+  C2  When labeled-feedback pool (N5) grows +500 OR precision drops >5pts:
+      trigger fine-tune from checkpoint -> candidate v1.3 -> back to B1.
+  C3  Drift check: compare feature distributions of newest uploads vs
+      training snapshot; warn on dashboard if PSI > 0.2.
+ LOOP CLOSED: labels from real investigations (Workflow 1 Step 09) become
+ next quarter's training signal - the two workflows interlock.
+
+--------------------------------------------------------------------------------
+7. NUMBERS DASHBOARD (EVERYTHING IN QUANTITY)
+--------------------------------------------------------------------------------
+ EXISTING TODAY (counted from repo):
+   Backend routers .................... 16
+   REST endpoints ..................... 89
+   Detector modules ................... 20  (14 heuristic + 3 unsup ML +
+                                          score + hybrid_engine + risk_prop)
+   DB models .......................... 25
+   User roles ......................... 4
+   Backend Python LOC .............. ~12,250
+   Backend test files .................. 5   (6 passing / 5 pre-existing fail)
+   Frontend source files .............. 46
+   Frontend pages ..................... 21
+   Dashboard components ................ 8
+   Report types ....................... 3   (client/technical/investigation)
+   ML algorithms (unsupervised) ........ 3   (IsolationForest, LOF, DBSCAN)
+
+ NEEDS UPDATE (Section 4): 23 items
+   P1: 8  (U1,U2,U4,U6,U7,U12,U13,U16,U19*,U21*)  *counts merged below
+   Breakdown by size: S=4, M=12, L=3, XL=1 (U12 test expansion)
+   Estimated effort: ~45-60 dev-days
+
+ NEW FEATURES (Section 5): 28 items
+   P1: 13 | P2: 11 | P3: 4
+   By size: S=5, M=13, L=7, XL=3
+   Estimated effort: ~75-95 dev-days
+
+ BASEPAPER DELIVERABLES (Section 3): 6 items (D1-D6)
+   P1: 6 | Sizes: M=3, L=2, XL=1
+   Estimated effort: ~22-30 dev-days
+
+ GRAND TOTAL ACTIONABLE ITEMS: 57
+   Must-do P1 total: 27 items
+   Total estimated effort: ~142-185 dev-days solo; ~10-12 weeks at 2 devs.
+
+ POST-UPGRADE TARGET INVENTORY (delta):
+   Endpoints: 89 -> ~103  (+14: models 4, ingest/watchlist/schedule/search
+                            approximations)
+   Detectors: 20 -> 26   (+value_encoder, local_view, contextual_view,
+                           fusion, autoencoder, alert-correlator)
+   DB models: 25 -> 29   (+registered_model, scoring_weights, watchlist,
+                           feedback_label)
+   Test files: 5 -> ~25  (target ~300 cases, coverage >=70%)
+   Frontend pages: 21 -> 24 (+ModelCard, ExplainabilityDrawer, Settings)
+   Initial JS bundle: 1.92 MB -> <600 KB
+   ML: 3 unsup algorithms -> +1 supervised SOTA GNN family (DC-LCG dual-view)
+   Benchmark datasets supported: 3 (Elliptic, RD, T-Finance)
+   Demo scenarios: 1 ad-hoc -> 10 scripted (N22)
+
+--------------------------------------------------------------------------------
+8. PHASED ROADMAP (10 WEEKS, 2 DEVELOPERS)
+--------------------------------------------------------------------------------
+ W1  D1 value encoder + elliptic_loader + repo hygiene (U13 lazy loading,
+     U21 docker skeleton).                      -> demo: data loads.
+ W2  D2 local view + unit tests.                -> first training curve.
+ W3  D3 contextual view + path sampler tests.   -> embeddings trainable.
+ W4  D4 fusion + train.py end-to-end on Elliptic (first F1/AUC numbers).
+ W5  D5 evaluate.py + baselines + benchmarks.csv/charts; D6 registry +
+     /models routes; U1 weights table.          -> Workflow 2 Phase A/B done.
+ W6  Integrate DC-LCG into analyze flow (model_version param, U7 background
+     jobs, U2 calibration); N17 Run-Model dialog; N21 generator preset.
+                                                -> Workflow 1 Steps 01-10 live.
+ W7  D6 explainability + N19 drawer + N9 flow-tracing canvas; U6 alert
+     correlator; N8 case templates.             -> Workflow 1 Steps 11-16 live.
+ W8  U16 PDF reports + N12 SAR pack; N5 labeling loop + feedback endpoint;
+     U12 test expansion sprint #1.
+ W9  Polish: U19 security pass, U10 audit chain, U15 graph perf, N6 triage
+     upgrades; second benchmark run incl. RD/T-Finance subsets.
+ W10 Freeze + docs: project report chapter from Sec 3/7/8 numbers, demo
+     script rehearsing Workflows 1&2, viva Q&A from ablation table.
+ BUFFER: P2/P3 items (N10,N13,N14,N16,N18 done early if slack).
+
+--------------------------------------------------------------------------------
+9. RISKS & MITIGATIONS
+--------------------------------------------------------------------------------
+ R1 DC-LCG reproduction gap (paper hardware/tuning unknown)
+    -> budget +/-3 pts tolerance; ship ablation study even if absolute
+       numbers differ; report honestly (examiners reward rigor, not luck).
+ R2 203k-node graphs overwhelm SQLite/sync handlers
+    -> Postgres switch (U8) + background worker (U7) BEFORE W4 training.
+ R3 Scope creep on 28 new features
+    -> P1 discipline: only 13 P1 features are commitment; rest are backlog.
+ R4 Team bandwidth (2 devs)
+    -> split tracks: Dev-A = model (Sec 3), Dev-B = platform (Sec 4/5);
+       merge points W4/W7/W10.
+ R5 PyTorch dependency size in deployment image
+    -> CPU-only torch wheels, separate training image vs slim inference img.
+ R6 Demo-day failure risk
+    -> N22 scenario library + recorded backup video of both workflows.
+
+--------------------------------------------------------------------------------
+10. ONE-PAGE SUMMARY
+--------------------------------------------------------------------------------
+ KEEP  : 4-role RBAC, workflow engine, assignment-based access, persisted
+         analyses, audit trail - all verified working.
+ FIX   : 23 upgrade items - biggest: background jobs, Postgres, alert
+         correlation, PDF reports, tests, bundle size.
+ BUILD : DC-LCG dual-view GNN (6 deliverables) = the academic heart; wire it
+         into hybrid_engine as a calibrated supervised dimension with
+         attention-based explanations.
+ PROVE : Benchmarks on Elliptic (203,769 nodes) vs GCN/GAT/GraphSAGE +
+         ablations = report-grade evidence.
+ SHOW  : Two rehearsed workflows - "Camouflaged Mule Case" (business loop)
+         and "Model Factory" (research loop).
+ TOTAL : 57 actionable items | 27 P1 | ~142-185 dev-days | 10-week plan.
+
+================================================================================
+ END OF IMPROVE.TXT
+================================================================================

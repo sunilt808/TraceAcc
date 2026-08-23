@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AppLayout from '../layout/AppLayout';
-import { workbenchAPI, alertsAPI } from '../../services/api';
+import { workbenchAPI, alertsAPI, serviceRequestsAPI } from '../../services/api';
+import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useAnalysis } from '../../context/AnalysisContext';
 
 // ============================================================
 // SMALL PRESENTATIONAL HELPERS
@@ -80,9 +82,12 @@ const MiniBar = ({ value, max = 100, color = '#1f6feb' }) => (
 
 function AnalystOverview() {
   const navigate = useNavigate();
+  const { runAnalysis, isAnalyzing } = useAnalysis();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionMsg, setActionMsg] = useState('');
+  const [busyRequest, setBusyRequest] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -97,6 +102,40 @@ function AnalystOverview() {
     };
     load();
   }, []);
+
+  const handleDownloadDataset = async (r) => {
+    setBusyRequest(r.id);
+    setActionMsg('');
+    try {
+      await serviceRequestsAPI.downloadDataset(r.id);
+    } catch (err) {
+      setActionMsg(err.response?.data?.detail || `Could not download dataset for request #${r.id}`);
+    } finally {
+      setBusyRequest(null);
+    }
+  };
+
+  // Pull the server-side dataset and run the advanced analysis against it,
+  // linking the job to the request so the result is stored for the team.
+  const handleAnalyzeDataset = async (r) => {
+    if (!r.has_dataset) return;
+    setBusyRequest(r.id);
+    setActionMsg('');
+    try {
+      const res = await api.get(`/service-requests/${r.id}/dataset/download`, {
+        responseType: 'blob',
+      });
+      const file = new File([res.data], r.dataset_filename || `request_${r.id}.csv`, {
+        type: 'text/csv',
+      });
+      await runAnalysis(file, { serviceRequestId: r.id });
+      navigate('/tracelab/graph-viewer');
+    } catch (err) {
+      setActionMsg(err.message || err.response?.data?.detail || `Analysis failed for request #${r.id}`);
+    } finally {
+      setBusyRequest(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -129,6 +168,12 @@ function AnalystOverview() {
         <StatCard label="Jobs Run" value={kpis.jobs_run} sub="recent analyses" accent="success" />
       </div>
 
+      {actionMsg && (
+        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(248,81,73,0.1)', border: '1px solid #f8514955', color: '#f85149', fontSize: 13, marginBottom: 16 }}>
+          {actionMsg}
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         {/* Assigned service requests */}
         <div className="panel">
@@ -155,7 +200,7 @@ function AnalystOverview() {
                     <th>Request</th>
                     <th>Type</th>
                     <th>Status</th>
-                    <th>Stage</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -164,8 +209,27 @@ function AnalystOverview() {
                       <td style={{ color: '#f0f6fc', fontWeight: 500 }}>#{r.id} {r.title}</td>
                       <td style={{ fontSize: 12 }}>{r.request_type}</td>
                       <td><StatusPill value={r.status} /></td>
-                      <td style={{ fontSize: 12, color: '#8b949e' }}>
-                        {(r.current_stage || '—').replace(/_/g, ' ')}
+                      <td>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            className="btn-secondary"
+                            style={{ fontSize: 11, padding: '4px 10px' }}
+                            disabled={!r.has_dataset || busyRequest === r.id}
+                            title={r.has_dataset ? 'Download the attached dataset' : 'No dataset uploaded yet'}
+                            onClick={() => handleDownloadDataset(r)}
+                          >
+                            Download
+                          </button>
+                          <button
+                            className="btn-primary"
+                            style={{ fontSize: 11, padding: '4px 10px' }}
+                            disabled={!r.has_dataset || busyRequest === r.id || isAnalyzing}
+                            title={r.has_dataset ? 'Run advanced analysis on this dataset' : 'No dataset uploaded yet'}
+                            onClick={() => handleAnalyzeDataset(r)}
+                          >
+                            {busyRequest === r.id ? '…' : 'Analyze'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -550,7 +614,7 @@ function OverviewPage() {
   const location = useLocation();
 
   // Admin picks the view from the workspace path.
-  if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
+  if (role === 'ADMIN') {
     return location.pathname.startsWith('/invospace') ? (
       <AppLayout title="InvoSpace Overview" subtitle="Investigation workbench">
         <InvestigatorOverview />

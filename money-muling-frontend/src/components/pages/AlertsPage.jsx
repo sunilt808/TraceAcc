@@ -60,9 +60,9 @@ function AlertsPage() {
   const [routeTarget, setRouteTarget] = useState(null);
   const [routeAssignee, setRouteAssignee] = useState('');
 
-  const isAnalyst = role === 'TRACE_LAB_ANALYST' || role === 'ADMIN' || role === 'SUPER_ADMIN';
-  const isInvestigator = role === 'INVESTIGATOR' || role === 'ADMIN' || role === 'SUPER_ADMIN';
-  const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const isAnalyst = role === 'TRACE_LAB_ANALYST' || role === 'ADMIN';
+  const isInvestigator = role === 'INVESTIGATOR' || role === 'ADMIN';
+  const isAdmin = role === 'ADMIN';
 
   const loadAlerts = useCallback(async () => {
     setLoading(true);

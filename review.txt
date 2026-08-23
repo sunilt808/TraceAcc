@@ -1,0 +1,203 @@
+=============================================================================
+ TRACEACC PRO — FIX SUMMARY & REVIEW
+ Date: 2026-08-23
+=============================================================================
+
+Three reported issues were fixed across the FastAPI backend (backend/) and
+the React/Vite frontend (money-muling-frontend/). All changes were verified
+against a running server with an end-to-end script and via pytest.
+
+-----------------------------------------------------------------------------
+ISSUE 1 — Only 4 roles: admin, analyst, invospace, client (no super admin)
+-----------------------------------------------------------------------------
+
+Problem
+  The system carried a fifth SUPER_ADMIN role. The seeded "admin" account was
+  actually stored as SUPER_ADMIN in the database while the frontend displayed
+  it as ADMIN, so role-gated UI never matched reality and admins could not do
+  administrative work.
+
+Backend changes
+  - models/role.py
+      * Removed SUPER_ADMIN from the Role enum. The four canonical roles are
+        CLIENT_USER, ADMIN, TRACE_LAB_ANALYST, INVESTIGATOR (stored strings
+        unchanged). Added LEGACY_SUPER_ADMIN constant for migration support.
+  - api/deps.py
+      * get_current_user now self-heals legacy rows: any user still stored
+        with role=SUPER_ADMIN is transparently treated/updated as ADMIN.
+      * ADMIN is allowed to exist without an organization and can operate
+        platform-wide; workspace resolution accepts an optional
+        X-Organization-Id header for admins.
+      * RoleChecker no longer injects SUPER_ADMIN into permission checks.
+  - core/permissions.py
+      * Permission matrix rebuilt around 4 roles. ADMIN inherits every org-
+        management permission (create/approve organizations, users, request
+        review, report review) previously reserved for SUPER_ADMIN.
+  - api/routes/admin.py
+      * All endpoints platform-wide for ADMIN: user/org management, request
+        queue, report queue, operations queue, dashboard.
+      * Role changes validated against the 4-role set; assigning SUPER_ADMIN
+        now returns 400.
+  - api/routes/{workflow,workbench,cases,evidence,service_requests}.py,
+    services/notification_service.py
+      * Every SUPER_ADMIN reference removed or mapped to ADMIN.
+  - api/routes/auth.py, seed_admin.py, scripts/seed_admin.py
+      * Bootstrap registration and seeds create ADMIN accounts.
+  - scripts/migrate_single_admin.py (NEW)
+      * Idempotent data migration: rewrites any SUPER_ADMIN rows to ADMIN
+        and attaches organization-less users to the first approved org.
+        Already executed on backend/app.db (and the root copy): the seeded
+        admin is now ADMIN; users siri/rajesh were assigned to TraceAcc Corp.
+
+Frontend changes
+  - src/components/pages/AdminUsersPage.jsx
+      * Role dropdowns no longer offer Super Admin; internal-user counters
+        updated.
+  - src/components/pages/OverviewPage.jsx, AlertsPage.jsx,
+    src/components/auth/LoginCard.jsx
+      * Dead `role === 'SUPER_ADMIN'` branches removed (AuthContext keeps a
+        harmless legacy normalizer so old sessions keep working).
+
+Verification
+  - POST /admin/users with role SUPER_ADMIN -> 400 (rejected).
+  - Admin creates CLIENT_USER / TRACE_LAB_ANALYST / INVESTIGATOR / ADMIN ->
+    all 201.
+
+-----------------------------------------------------------------------------
+ISSUE 2 — Admin could not create users ("error")
+-----------------------------------------------------------------------------
+
+Root cause
+  The frontend only rendered the organization picker when the current user's
+  raw role was SUPER_ADMIN. Because the real admin row was stored as that
+  legacy value but surfaced to React as ADMIN, the picker never appeared and
+  organization_id was silently stripped. The backend then rejected the
+  request with 400 "Operational users must belong to an approved
+  organization".
+
+Changes
+  - api/routes/admin.py — create-user endpoint rewritten:
+      * If an explicit organization_id is supplied it must reference an
+        APPROVED organization (otherwise 400).
+      * If omitted, the new user joins the creating admin's own
+        organization; if the admin has none, a clear 400 explains it.
+      * Duplicate username/email produce friendly 400s.
+  - src/components/pages/AdminUsersPage.jsx
+      * Organization selector now renders for role === 'ADMIN', lists all
+        approved organizations, defaults to "Default to my organization",
+        and sends organization_id only when explicitly chosen.
+      * Server error details (err.response.data.detail) are surfaced in the
+        form so failures are never silent again.
+
+Verification
+  - Created one user of each of the four roles through the live API -> 201.
+
+-----------------------------------------------------------------------------
+ISSUE 3 — Assigned data not stored / not accessible for analysis
+-----------------------------------------------------------------------------
+
+Root causes (all fixed)
+  a) Staff users (analyst/investigator) had organization_id = NULL, so every
+     org-scoped query returned 403. Access control is now assignment-based
+     for staff: being assigned to a request grants access regardless of
+     which client organization owns it. Admins are platform-wide.
+  b) No endpoint existed to download a request's dataset.
+  c) Analyses were never linked to service requests and results were only
+     cached in browser sessionStorage — nothing durable, nothing shareable.
+  d) A latent crash: the alert auto-generation loop read entry["score"],
+     but compute_hybrid_scores() emits "final_score", so EVERY advanced
+     analysis died with 500 {"detail":"'score'"} before returning. This is
+     why analyses appeared to never store anything.
+
+Backend changes
+  - api/routes/service_requests.py
+      * GET /service-requests/{id}/dataset/download (NEW): authenticated
+        FileResponse download. Clients download their own requests' data;
+        staff only when the request is assigned to them; admin always.
+      * List/get scoping reworked: clients strictly own-org + own-request;
+        staff can pass ?assigned_to_me=true to see cross-org assignments;
+        admins see everything.
+  - api/routes/assignments.py (NEW ROUTER)
+      * GET  /assignments                — my assignments (staff) or all
+                                            (?mine_only=false, admin).
+      * PATCH /assignments/{id}/status   — ACTIVE / COMPLETED / CANCELLED
+                                            lifecycle with audit timeline
+                                            events and admin notification on
+                                            completion.
+      * Registered in main.py.
+  - api/routes/evidence.py
+      * Analysts may now upload/list/download case evidence alongside
+        investigators.
+  - api/routes/analysis.py
+      * POST /analyze/advanced accepts an optional service_request_id form
+        field. It validates the caller has access (assignment-aware) and
+        links the job to the request.
+      * The full result payload is persisted inside AnalysisJob.meta under
+        "_result" (capped at 4 MB) with a result_stored flag — no schema
+        migration needed.
+      * GET /analyze/jobs now returns service_request_id, result_stored and
+        error_message per job.
+      * GET /analyze/jobs/{job_id}/result (NEW): reloads a stored result.
+      * FIXED the KeyError('score') crash by reading final_score
+        (with fallback), letting analyses complete and alerts generate.
+  - api/routes/workbench.py
+      * Analyst workbench assigned_requests are assignment-based (cross-org)
+        and include has_dataset/dataset_filename for UI actions.
+  - api/routes/admin.py
+      * Assignment actions (ASSIGN_TRACELAB / REASSIGN) allow routing client
+        requests to internal staff even though staff sit in a different
+        organization.
+
+Frontend changes
+  - src/services/api.js
+      * Exported API_URL; added serviceRequestsAPI.downloadDataset(),
+        assignmentsAPI (list/updateStatus), analysisAPI.listJobs/getJobResult.
+  - src/context/AnalysisContext.jsx
+      * Uses API_URL instead of a hardcoded localhost URL; runAnalysis()
+        accepts { serviceRequestId } to link jobs; new loadStoredResult()
+        restores persisted results from the server.
+  - src/components/pages/OverviewPage.jsx (analyst workbench)
+      * "My Assigned Requests" table now has Download and Analyze buttons
+        per request. Analyze fetches the dataset blob, runs the linked
+        analysis, stores it server-side and opens the graph viewer.
+  - src/components/dashboard/Dashboard.jsx
+      * Unchanged (already uses the axios instance).
+
+Verification (live end-to-end)
+  - Client submits request + uploads CSV dataset.
+  - Admin assigns to analyst (and later reassigns to invospace).
+  - Analyst sees the request in the workbench, downloads the dataset,
+    runs a linked analysis -> 200 with job_id; job shows
+    result_stored=true and service_request_id set; stored result reloads
+    via GET /analyze/jobs/{id}/result; analyst marks the assignment
+    COMPLETED; notifications mark-all-read works.
+  - Reassigned invospace sees the request in their workbench and downloads
+    the dataset successfully (analyst correctly loses access after
+    reassignment).
+
+-----------------------------------------------------------------------------
+ TESTS & BUILD
+-----------------------------------------------------------------------------
+
+  - Backend pytest: 6 passed. The 5 remaining failures
+    (test_admin_report_review_and_release_actions, test_failed_login_lockout,
+    test_rbac_register, 2x test_workflow_foundation) fail identically on the
+    unmodified baseline commit and are pre-existing issues unrelated to this
+    work. One previously failing test
+    (test_admin_request_queue_and_assignment_actions) now passes.
+  - Frontend `npm run build`: succeeds (pre-existing chunk-size warning
+    only).
+
+-----------------------------------------------------------------------------
+ OPERATIONAL NOTES
+-----------------------------------------------------------------------------
+
+  - Run scripts/migrate_single_admin.py once per environment after deploying
+    this change to convert any legacy SUPER_ADMIN rows and attach orphaned
+    staff users to an approved organization.
+  - Seeded logins remain: admin / analyst / investigator / client with the
+    shared demo password Password123! (change before any real deployment).
+  - Stored analysis results live inside AnalysisJob.meta["_result"]; the
+    4 MB cap protects SQLite from oversized payloads — very large graphs
+    still return their full response to the caller, they just are not
+    re-downloadable afterwards (result_stored=false).

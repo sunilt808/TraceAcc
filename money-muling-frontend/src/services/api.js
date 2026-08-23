@@ -1,11 +1,11 @@
 import axios from 'axios';
 
 // Resolve API base from env (Vite) with a localhost dev fallback.
-const API_BASE =
+export const API_URL =
   import.meta.env?.VITE_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
 
 const api = axios.create({
-  baseURL: API_BASE,
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -422,6 +422,51 @@ export const serviceRequestsAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
 
+    return res.data;
+  },
+
+  // Authenticated blob download of the attached dataset CSV.
+  downloadDataset: async (id) => {
+    const res = await api.get(`/service-requests/${id}/dataset/download`, {
+      responseType: 'blob',
+    });
+
+    triggerBlobDownload(res, `request_${id}_dataset.csv`);
+  },
+};
+
+// ============================================================
+// ASSIGNMENTS API (employee workbench)
+// ============================================================
+
+export const assignmentsAPI = {
+  list: async (mineOnly = true) => {
+    const res = await api.get('/assignments', {
+      params: mineOnly ? {} : { mine_only: false },
+    });
+    return res.data;
+  },
+
+  updateStatus: async (assignmentId, status) => {
+    const res = await api.patch(`/assignments/${assignmentId}/status`, {
+      status,
+    });
+    return res.data;
+  },
+};
+
+// ============================================================
+// ANALYSIS API
+// ============================================================
+
+export const analysisAPI = {
+  listJobs: async () => {
+    const res = await api.get('/analyze/jobs');
+    return res.data;
+  },
+
+  getJobResult: async (jobId) => {
+    const res = await api.get(`/analyze/jobs/${jobId}/result`);
     return res.data;
   },
 };
