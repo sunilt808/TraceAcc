@@ -34,6 +34,17 @@ backend/evidence_storage/
 evidence_storage/
 backend/*.sqlite
 backend/*.db
+backend/uploads/
+
+# ML model artifacts
+backend/models_artifacts/
+models_artifacts/
+*.pt
+*.pth
+*.onnx
+
+# Runtime scratch scripts
+backend/scripts/e2e_build_phase.py
 
 # Logs
 *.log

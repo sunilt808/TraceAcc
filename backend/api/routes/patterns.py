@@ -154,7 +154,9 @@ async def run_pattern_suite(
         source_label = f"upload:{file.filename}"
     else:
         path = _dataset_path_for_job(db, org_id, int(job_id))
-        graph = parse_csv(path)
+        # parse_csv expects CSV *content*, not a path
+        with open(path, "r", encoding="utf-8-sig", errors="replace") as fh:
+            graph = parse_csv(fh.read())
         source_label = f"job:{job_id}"
 
     if len(graph.nodes) > MAX_PATTERN_NODES:

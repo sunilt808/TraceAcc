@@ -23,6 +23,107 @@ The detection stack combines graph heuristics, behavioural/temporal signals, uns
 
 ---
 
+## 🏗️ System Architecture
+
+### High-Level Layers
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  FRONTEND — React 18 + Vite (role-routed SPA)                          │
+│  Landing · Client Portal · Admin Hub · TraceLab · InvoSpace            │
+│  Cytoscape.js graph viewer · Patterns page · Intel Hub                 │
+└───────────────▲───────────────────────────────▲────────────────────────┘
+                │ JWT (Axios)                   │ REST
+┌───────────────▼───────────────────────────────▼────────────────────────┐
+│  API LAYER — FastAPI (api/routes/*)                                    │
+│  auth · service_requests · workflow · admin · assignments              │
+│  analysis · patterns · dclcg · intel · alerts · cases · reports        │
+│  audit · datasets · messages · workbench                               │
+│  RBAC via RoleChecker + workspace scoping (get_current_workspace)      │
+└───────────────▲───────────────────────────────▲────────────────────────┘
+                │                               │
+┌───────────────▼───────────────┐   ┌───────────▼────────────────────────┐
+│  DETECTION CORE (detectors/*) │   │  PERSISTENCE                        │
+│  Graph heuristics (4)         │   │  SQLAlchemy ORM → SQLite/PostgreSQL │
+│  Behavioural · Temporal       │   │  (alembic migrations)               │
+│  Community · Centrality …     │   │  evidence_storage/ (datasets, docs) │
+│  ML anomalies (IF/LOF/DBSCAN) │   │  models_artifacts/ (.pt DC-LCG)     │
+│  Pattern suite (15)           │   └─────────────────────────────────────┘
+│  Hybrid engine (0–100 fuse)   │
+│  DC-LCG GNN (PyTorch)         │
+└───────────────────────────────┘
+```
+
+### Governed Workflow (Request Lifecycle)
+
+```
+ CLIENT                    ADMIN                      TRACELAB                  INVOSPACE
+   │  submit request         │                          │                         │
+   │  + dataset upload       │ accept / reject          │                         │
+   ├────────────────────────►│ assign to workspace      │                         │
+   │                         ├─────────────────────────►│ validate dataset        │
+   │                         │                          │ run /analyze/advanced   │
+   │                         │                          │  → hybrid + DC-LCG      │
+   │                         │                          │  → 15-pattern suite     │
+   │                         │                          │  → auto-stored DRAFT    │
+   │                         │                          │    technical report     │
+   │                         │                          │ escalate alerts ───────►│ convert to case
+   │                         │                          │                         │ evidence · notes
+   │                         │◄─────────────────────────┼─────────────────────────┤ hypotheses · findings
+   │                         │ review report            │                         │ investigation report
+   │                         │ approve + SHA-256 seal   │                         │
+   │◄────────────────────────┤ release final report     │                         │
+   │  download sealed PDF    │                          │                         │
+```
+
+Every transition is appended to `activity_timeline` and `audit_logs`; only sealed reports are client-visible.
+
+### Analysis Pipeline Data Flow
+
+```
+CSV/XLSX upload
+   │
+   ▼
+parse_csv() ──► TransactionGraph (NetworkX DiGraph)
+   │
+   ▼
+┌────────────────────────── detectors ──────────────────────────┐
+│ cycle · fan · layering · burst          (topology signals)    │
+│ account_profile · temporal · velocity   (behavioural/time)    │
+│ community · centrality · motifs · kcore (structure)           │
+│ ml_anomaly: IF / LOF / DBSCAN           (unsupervised)        │
+│ dclcg inference (optional artifact)     (supervised GNN prob) │
+└──────────────────────────────┬────────────────────────────────┘
+                               ▼
+                     HYBRID ENGINE (weighted 0–100)
+                     base 5-dim  OR  6-dim with DC-LCG
+                               ▼
+        result = {summary, hybrid_scores[], breakdowns, rings,
+                  patterns?, dclcg?}  ── stored on AnalysisJob.meta["_result"]
+                               ▼
+        ┌──────────────────────┼───────────────────────┐
+        ▼                      ▼                       ▼
+  auto-stored DRAFT     alerts (risk ≥ 70)     frontend panels
+  TechnicalReport                              (graph / patterns / intel)
+```
+
+### DC-LCG Train ↔ Score Loop
+
+```
+labeled CSV ──► POST /dclcg/train ──► train.py (dual-view forward,
+                                      BCE loss, AdamW)
+                                        │ save versioned .pt
+                                        ▼
+                                models_artifacts/<name>_v<n>.pt
+                                        │ registry.py load
+                                        ▼
+POST /analyze/advanced (use_dclcg=true) ──► inference.py
+    per-account illicit_prob · disguise score · pruned paths
+    ──► fused as 6th hybrid dimension + analyst explanations
+```
+
+---
+
 ## 📁 Repository Structure
 
 ```
@@ -211,14 +312,20 @@ Reference results on the synthetic benchmark: F1 = AUC = AP = 1.0 (epochs ≥ 25
 ## 🗄️ Workflow Schema
 
 ```sql
-- service_requests track client submissions and status
-- workflow_instances track the lifecycle across admin, TraceLab, InvoSpace, and report release
-- activity_timeline records every workflow transition and handoff
-- assignments track ownership changes and due dates
-- client_reports track draft, review, approval, and release states
+- organizations / roles / users          — tenancy and RBAC
+- service_requests                       — client submissions, status, dataset_path
+- workflow_instances                     — lifecycle across admin/TraceLab/InvoSpace/release
+- activity_timeline + audit_logs         — every transition, handoff and access
+- assignments                            — ownership changes and due dates
+- analysis_jobs                          — per-run status, filename, meta (stored result, SR link)
+- alerts                                 — analyst escalations with risk scores
+- cases                                  — investigator workspace (from alerts)
+- case_events · evidence · investigation_notes/hypotheses/tasks/findings/reports
+- technical_reports (+ report_version)   — auto-stored drafts → review → seal → release
+- messages · notifications               — cross-workspace communication
 ```
 
-> **Note:** The workflow foundation now persists service requests, workflow instances, alerts, cases, reports, assignments, and timeline events. The detection layer still remains stateless per uploaded dataset.
+> **Note:** The workflow foundation persists service requests, workflow instances, alerts, cases, reports (technical + investigation), assignments, and timeline events. Analysis results are additionally persisted on each `AnalysisJob` (`meta["_result"]`) so the Intel Hub can serve dossiers, similar accounts and money paths without re-analysis.
 
 ---
 
@@ -362,11 +469,12 @@ ACC_003,ACC_001,1480.00,2024-01-15 11:30:00
 
 ## 🗺️ Roadmap (v3 Production)
 
+- [x] **GNN classifier** — ✅ Shipped as the DC-LCG dual-view graph neural network (trainable via `/dclcg/train`, fused into `/analyze/advanced`)
 - [ ] **Celery + Redis** — Offload graph analysis to background workers
 - [ ] **WebSocket progress** — Real-time analysis progress streaming to UI
 - [ ] **Transaction persistence** — Store accounts, transactions, rings in PostgreSQL
 - [ ] **Neo4j integration** — Replace in-memory NetworkX with a production graph database
-- [ ] **GNN classifier** — Graph Neural Network for probability-based mule prediction
+- [ ] **GNN scaling (GraphSAGE / GCN)** — Extend DC-LCG with neighbour-sampling variants and GPU training for larger graphs
 - [ ] **Docker Compose** — One-command local setup
 - [ ] **API versioning** — `/api/v1/` prefix
 - [ ] **Kafka ingestion** — Real-time transaction stream processing

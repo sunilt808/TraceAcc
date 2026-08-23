@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -129,10 +130,12 @@ def _load_dataset_graph(db: Session, org_id: int, job: AnalysisJob):
             ServiceRequest.organization_id == org_id,
         ).first()
         dataset_path = sr.dataset_path if sr else None
-    if not dataset_path:
+    if not dataset_path or not os.path.exists(dataset_path):
         return None
     try:
-        return parse_csv(dataset_path)
+        # parse_csv expects CSV *content*, not a path
+        with open(dataset_path, "r", encoding="utf-8-sig", errors="replace") as fh:
+            return parse_csv(fh.read())
     except Exception:  # noqa: BLE001
         return None
 
