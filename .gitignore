@@ -1,6 +1,7 @@
 # Python cache
 __pycache__/
 *.py[cod]
+*.pyc
 *$py.class
 .pytest_cache/
 .coverage
@@ -9,6 +10,7 @@ coverage.xml
 # SQLite
 *.db
 *.sqlite3
+*.sqlite
 
 # Virtual env
 venv/
@@ -26,15 +28,13 @@ temp/
 # Node.js
 node_modules/
 dist/
-dist-ssr/
 *.local
 
 # Project artifacts
 backend/evidence_storage/
 evidence_storage/
-backend/*.sqlite
-backend/*.db
 backend/uploads/
+backend/error_traceback.txt
 
 # ML model artifacts
 backend/models_artifacts/
@@ -47,11 +47,15 @@ models_artifacts/
 backend/scripts/e2e_build_phase.py
 
 # Logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Deploy
+.vercel
 
 # IDE
 .vscode/
