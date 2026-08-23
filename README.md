@@ -483,7 +483,8 @@ ACC_003,ACC_001,1480.00,2024-01-15 11:30:00
 
 ## 👨‍💻 Author
 
-**Sunil** — Final Year CSE Student  
+**Sunil**
+
 Project: RIFT 2026 — Graph Theory & Financial Fraud Detection Track  
 Stack: FastAPI · React · NetworkX · Cytoscape.js · scikit-learn · PostgreSQL
 
