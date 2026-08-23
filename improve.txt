@@ -4,7 +4,11 @@
  Grounded in : basepaper.pdf -> "Exposing Disguises and Tracing Illicit Flows:
                Dual-View Graph Representation Learning for Money Laundering
                Detection" (DC-LCG), IEEE TCSS Vol.13 No.2, Apr 2026
-               arch.png (system architecture diagram)
+               arch.png (full flowchart now parsed: Client -> Dataset Mgmt ->
+               Admin WS#1 -> TraceLab / InvoSpace branch -> "Serious Trigger
+               Found?" decision -> Technical/Investigation Reports -> Admin
+               WS#2 review+DIGITAL SIGNATURE -> Final Report to Client;
+               plus the "TRACE LAB EXTENDED ACTIVITIES" sidebox)
                Actual codebase: D:\rift\backend + money-muling-frontend
 ================================================================================
 
@@ -102,22 +106,76 @@ Effort legend   : S = <=1 day, M = 2-4 days, L = 5-10 days, XL = >10 days
   - Contexts: AuthContext (JWT + role normalize), AnalysisContext (run/load/
       clear analysis, sessionStorage cache).
 
- ARCHITECTURE MAP (aligns with arch.png blocks):
-   arch.png block            ->  code location today
-   ---------------------------------------------------------------
-   Ingestion / CSV upload    ->  service_requests.uploadDataset,
-                                 utils/csv_parser.py
-   Rule/heuristic engines    ->  detectors/*.py (14 heuristic modules)
-   ML anomaly engine         ->  detectors/ml_anomaly.py (3 algos)
-   Fusion / scoring          ->  detectors/hybrid_engine.py (weights .35/.20/
-                                 .15/.10/.20), score.py, risk_propagation.py
-   Alerting                  ->  api/routes/analysis.py auto-alert block +
-                                 models/alert.py
-   Case management           ->  models/case.py + cases.py (19 endpoints)
-   Reporting                 ->  reports.py (10 endpoints), 3 report types
-   Workflow                  ->  workflow.py + workflow_instance.py
-   Portal/RBAC               ->  auth.py, deps.py, permissions.py
-   Visualization             ->  GraphPanel, RiskMap, Communities, Timeline
+ ARCHITECTURE MAP (node-by-node against YOUR arch.png flowchart):
+   Diagram node / sidebox              -> status today / planned feature IDs
+   ---------------------------------------------------------------------------
+   *START* -> CLIENT SUBMITS           -> EXISTS (ClientRequestForm,
+       REQUEST (CSV/Excel + Details)      POST /service-requests + /upload)
+   [DATASET MANAGEMENT: CSV Upload,    -> PARTIAL (datasets.py, 2 endpoints);
+       Validation, Quality Check,         quality-check gate + history
+       History Tracking]                  tracking -> U17
+   ADMIN WORKSPACE #1 (Review          -> EXISTS (AdminRequestsPage: review/
+       Request, Validate, Decide          approve/ASSIGN_TRACELAB/REASSIGN);
+       Assignment by priority or          PRIORITY-BASED auto-routing is
+       impt)                              missing -> folds into INV6 rules
+   TRACE LAB (Validate Dataset,        -> EXISTS core (analysis pipeline +
+       Transaction Analysis, Pattern      20 detectors); DC-LCG -> D1-D6;
+       Detection, Graph Analysis,         role upgrades -> ANL1-ANL10
+       ML + Risk Scoring)
+   sidebox: Transaction Analysis       -> EXISTS (account_profile, velocity,
+       (Features, Behaviour, Money        amount_patterns; GraphPanel viz,
+       Flow) / Graph Analysis             RiskMap, Communities pages)
+       (Network Visualization,
+       Connected Accounts)
+   INVOSPACE (Create                   -> PARTIAL today (cases.py 19
+       Investigation, Assign               endpoints, evidence, timeline
+       Investigator, Collect Evidence,    events); per YOUR note InvoSpace
+       Timeline, Investigation)           must be the POWERFUL workspace ->
+                                          new high-power track INV1-INV14
+   left-top sidebox: Alert             -> EXISTS (alerts.py 8 endpoints,
+       Management: Queue, Review,         convert-to-case); upgrades N6+U6;
+       Convert to Case                    arch's "pre-case classification" ->
+       / Evidence Management:             ANL8 triage support
+       Document, Attachment, Tracking  -> EXISTS (evidence.py); custody hard.:
+                                          N11
+   left-mid sidebox: ENTITY            -> MISSING in code -> INV1 Entity 360
+       Investigation (Persons,            Dossier (biggest gap vs diagram)
+       Accounts, Orgs, Entities)
+     INVESTIGATION TIMELINE            -> EXISTS partial (TimelinePage +
+       (Events, Actions, Findings)        ActivityTimeline) -> INV12 feed
+     RELATIONSHIP INTELLIGENCE:        -> MISSING -> INV3 link canvas +
+       Link Analysis, Similar             INV4/INV5 similarity intel
+       Investigations
+     INVESTIGATION REPORTING:          -> EXISTS (investigation_report
+       Summary, Decision, Final           model; submit/approve/sign/release)
+       Report
+   DECISION DIAMOND: "Serious          -> AD-HOC today (manual escalation
+       Trigger Found?" Yes->deep          only); FORMALIZE as rule engine ->
+       investigation | No->technical      INV6 (thresholds on ring size,
+       report                             hybrid score, DC-LCG prob,
+                                          watchlist hit)
+   Generate Technical Report           -> MODEL+ROUTES EXIST (technical_
+                                          report.py); auto-brief generation
+                                          from analysis results -> INV7
+   Generate Investigation Report       -> EXISTS (full lifecycle wired)
+   ADMIN WORKSPACE #2 (Collect         -> EXISTS incl. DIGITAL SIGNATURE /
+       Reports, Review, Approve,          SEAL: POST /reports/{id}/sign +
+       Apply Digital Signature/Seal)      GET /reports/{id}/signature already
+                                          shipped - diagram fully covered
+   SEND FINAL REPORT TO CLIENT         -> EXISTS (release flow +
+                                          ClientReportsPage); regulator
+                                          export pack -> N12/INV13
+   [TRACE LAB EXTENDED ACTIVITIES box] -> mapped one-to-one:
+     DATA FUSION                       -> PLANNED ANL7 fusion workspace
+     NETWORK INTELLIGENCE              -> PLANNED INV14 proactive monitor
+                                          + N13 scheduled scans
+     BEHAVIOR PROFILING                -> PARTIAL (account_profile.py) ->
+                                          INV10 risk trajectories + ANL1
+     ALERT TRIAGE SUPPORT              -> PLANNED ANL8 pre-case classifier
+     METHODOLOGY R&D                   -> PLANNED ANL10 method library +
+                                          D5/D6 benchmark + model registry
+     INVESTIGATION READINESS           -> PLANNED INV7 auto technical briefs
+                                          that streamline InvoSpace cases
 
 --------------------------------------------------------------------------------
 3. BASEPAPER INTEGRATION - DC-LCG ONTO TRACEACC  [THE ACADEMIC CORE]
@@ -210,6 +268,15 @@ Effort legend   : S = <=1 day, M = 2-4 days, L = 5-10 days, XL = >10 days
        paths). This turns the paper's black box into auditor-friendly output
        and is a differentiator for your viva demo.
 
+ DC-LCG ROLE SPLIT (who touches what - matches your arch branch):
+   TRACE LAB (analyst) OWNS  : D1 encoder, D2 local view, D3 contextual view,
+                               D4 fusion, D5 training/benchmarks, D6 registry,
+                               model activation, thresholds, explanations.
+   INVOSPACE (investigator)  : consumes DC-LCG OUTPUTS, never trains: pruned
+       CONSUMES                illicit paths (INV2), embeddings for similar-
+                               account search (INV4), illicit probability in
+                               dossiers (INV1), attention evidence inside
+                               cases and reports.
  EFFORT TOTAL FOR SECTION 3: 6 deliverables, ~22-30 dev-days.
 
 --------------------------------------------------------------------------------
@@ -274,7 +341,7 @@ Effort legend   : S = <=1 day, M = 2-4 days, L = 5-10 days, XL = >10 days
                                                                [P3][M]
 
 --------------------------------------------------------------------------------
-5. NEW FEATURES  (28 items in 7 groups)
+5. NEW FEATURES  (52 items in 9 groups - incl. role tracks H & I)
 --------------------------------------------------------------------------------
  GROUP A - DETECTION & MODEL OPS (basepaper-driven)
  N1  DC-LCG end-to-end (deliverables D1-D6 above) ................[P1]
@@ -337,8 +404,95 @@ Effort legend   : S = <=1 day, M = 2-4 days, L = 5-10 days, XL = >10 days
  N22 Scenario library: 10 canned datasets w/ known ground truth -> repeatable
      demo + regression checks. ...................................[P2][M]
 
- COUNTS: Group A 5, B 2, C 4, D 2, E 3, F 4, G 2  => 28 items total.
-   P1: 13 items | P2: 11 items | P3: 4 items.
+ GROUP H - ANALYST / TRACELAB ROLE FEATURES (DC-LCG-powered) [10 items]
+ ANL1 Disguise Radar: per-account HOMOPHILY score (paper Fig.1a metric) -
+      low homophily + high degree = camouflaged mule; new detector
+      detectors/dclcg/homophily.py + TraceLab panel column + filter.
+      Directly operationalizes the basepaper's core insight. ...[P1][M]
+ ANL2 Model Runner dialog: pick model version + threshold + dimensions,
+      runtime estimate, progress bar (pairs D6 + U7; supersedes N17).[P1][M]
+ ANL3 Model Card & Registry UI: metrics charts (F1/AUC/AP), version
+      history, one-click activate, trained-on stamp (supersedes N18).
+                                                                 [P1][M]
+ ANL4 Explainability Drawer: per-account mutual-attention highlights,
+      top-3 pruned illicit paths, disguise breakdown; export as PNG for
+      reports (supersedes N19). ...................................[P1][L]
+ ANL5 Benchmark Console UI: trigger evaluate.py runs, browse
+      benchmarks.csv, side-by-side model comparison charts ........[P2][M]
+ ANL6 Ablation Experiment Panel: run --no-local/--no-context/--no-fusion
+      variants and view delta table (paper Table III in-product) ..[P2][S]
+ ANL7 Data Fusion Workspace: merge 2+ uploaded datasets into one
+      analysis session with source tagging (arch EXTENDED ACTIVITY
+      "DATA FUSION") ..............................................[P2][L]
+ ANL8 Alert Triage Support Classifier: ML-lite severity/verdict predictor
+      (NEW / REVIEW / ESCALATE) pre-routing to admin+InvoSpace (arch
+      EXTENDED ACTIVITY "ALERT TRIAGE SUPPORT") ...................[P1][M]
+ ANL9 Threshold Tuner: slider with live preview of how many accounts/
+      alerts fire at each cutoff on the last job ..................[P2][S]
+ ANL10 Method Library ("Methodology R&D"): save detector configs +
+      weights + model version as named reusable METHODS; rerun or
+      share with one click (arch EXTENDED ACTIVITY) ...............[P2][M]
+
+ GROUP I - INVESTIGATOR / INVOSPACE HIGH-POWER FEATURES [14 items]
+ (Per your architecture note: InvoSpace must be the DEEPER, more powerful
+  workspace. These give investigators first-class analytical superpowers,
+  not just case paperwork.)
+ INV1 ENTITY 360 DOSSIER: unified profile page per account/entity -
+      every appearance across ALL jobs/datasets, risk-score history,
+      linked alerts/cases/evidence mentions, behaviour profile
+      (account_profile.py), DC-LGC embedding neighbours, watchlist
+      status. Backend: entities router + entity resolution from CSVs.
+      THE single biggest gap vs your diagram's "Entity Investigation:
+      Persons, Accounts, Orgs, Entities". .......................[P1][XL]
+ INV2 FOLLOW-THE-MONEY PATH EXPLORER: pick an account -> depth k ->
+      interactive walk of top-N suspicious multihop paths using DC-LCG
+      contextual-view pruned paths + paths.py; per-hop amount/timestamp;
+      EXPORT path snapshot as case evidence. .....................[P1][L]
+ INV3 LINK ANALYSIS CANVAS: investigator-grade graph workbench -
+      pin/hide nodes, cluster-by-community expand/collapse, shortest-
+      path between any two accounts, common-neighbour query, free-form
+      annotation pins saved per case. ............................[P1][L]
+ INV4 SIMILAR-ACCOUNT FINDER: store DC-LCG embeddings per account per
+      job; cosine search across the WHOLE org history -> "who else
+      behaves like ACC-2210?" cross-dataset memory. ..............[P1][M]
+ INV5 SIMILAR-CASE INTELLIGENCE: TF-IDF/vector match over findings +
+      hypotheses text -> surface past investigations of the same
+      pattern with their outcomes and evidence lists. ............[P2][M]
+ INV6 ESCALATION RULE ENGINE: formalizes your arch decision diamond
+      "Serious Trigger Found?": rules like ring_size>=4 AND hybrid>=80
+      OR dclcg_prob>=0.9 OR watchlist_hit -> auto-ESCALATE alert to
+      InvoSpace with severity + SLA + pre-filled technical brief;
+      admin-manageable rules table. ..............................[P1][L]
+ INV7 TECHNICAL BRIEF AUTO-GENERATOR (arch: INVESTIGATION READINESS):
+      one click -> PDF brief (dataset stats, detected patterns, top
+      rings, DC-LCG attention explanations, recommended checklist)
+      attached automatically to the converted case. ..............[P1][M]
+ INV8 PATTERN PLAYBOOKS: case templates keyed by detection signature
+      (cycle / fan-in-out / layered shell / burst / DC-LCG ring) that
+      preload tailored task checklists (extends N8) ..............[P1][S]
+ INV9 HYPOTHESIS BOARD v2: kanban linking hypotheses <-> supporting /
+      contradicting evidence records; auto-completeness scoring ...[P2][M]
+ INV10 RISK TRAJECTORY CHARTS: account risk-over-time stitched across
+      every historical job (behaviour profiling made longitudinal;
+      arch EXTENDED ACTIVITY) ....................................[P1][M]
+ INV11 WATCHLISTS: named account/entity lists; every NEW analysis
+      auto-checks members; hits boost alert priority + notify
+      subscribers ................................................[P2][M]
+ INV12 CASE COLLABORATION UPGRADE: @mentions in notes/messages ->
+      notifications, live activity feed on case page, assignee
+      presence ...................................................[P2][M]
+ INV13 INVESTIGATOR SAR PACK: regulator-ready export from a case:
+      signed report PDF + flagged-account CSV + chain-of-custody log
+      + model card (pairs N12, uses U10 audit chain) .............[P1][M]
+ INV14 PROACTIVE NETWORK MONITOR (arch: NETWORK INTELLIGENCE):
+      scheduled re-scans of watched account neighbourhoods on newly
+      uploaded datasets; delta alerts only; weekly digest ........[P3][L]
+
+ COUNTS: Group A 5, B 2, C 4, D 2, E 3, F 4, G 2, H 10, I 14 => 52 items.
+   P1: 27 items | P2: 20 items | P3: 5 items.
+   By size: S=9, M=26, L=13, XL=4.
+   Role split: TraceLab-facing ~17 items | InvoSpace-facing ~21 items |
+   shared/platform ~14 items.
 
 --------------------------------------------------------------------------------
 6. TWO COMPLETE END-TO-END WORKFLOW EXAMPLES
@@ -382,15 +536,22 @@ Effort legend   : S = <=1 day, M = 2-4 days, L = 5-10 days, XL = >10 days
  Step 10 T  Marks assignment COMPLETED
             PATCH /assignments/{id}/status {status:"COMPLETED"}
             -> admins notified, SR -> REPORT_SUBMITTED-pending state.
- Step 11 A  Escalates top alert -> routes to investigator
-            PATCH /alerts/{id} {route_to:investigator}
+ Step 11 A  Escalation: INV6 rule fires automatically ("ring_size>=3 AND
+            dclcg_prob>=0.85 -> ESCALATE") on the top ring alert ->
+            alert routed to investigator with SLA + technical brief
+            (INV7) pre-attached; admin just confirms routing.
  Step 12 I  /invospace/overview -> Convert alert -> Case #55
             POST /alerts/{id}/convert-to-case
-            Template N8 preloads 10 tasks (verify source of funds, KYC gap
-            check, ...).
- Step 13 I  Works case: uploads 3 evidence files (hashed), records 2
-            findings, sets hypothesis "smurfing via payout mules",
-            completes 8/10 tasks -> completeness 85%.
+            Playbook N8/INV8 preloads pattern tasks; brief PDF is already
+            in the case file.
+ Step 13 I  Deep-dive with power tools: opens ENTITY 360 DOSSIER (INV1)
+            on ACC-2210 -> risk trajectory across past jobs (INV10);
+            FOLLOW-THE-MONEY explorer (INV2) traces the pruned path to
+            off-ramp ACC-7711; SIMILAR-ACCOUNT finder (INV4) surfaces
+            4 lookalike accounts from an older dataset -> adds them to
+            watchlist (INV11). Works case: uploads 3 evidence files
+            (hashed), records 2 findings, hypothesis "smurfing via
+            payout mules", completes 8/10 tasks -> completeness 85%.
  Step 14 I  Submits investigation_report for review
             POST /reports/{rid}/submit-for-review
  Step 15 A  /admin/reports -> review -> approve -> sign -> RELEASE
@@ -460,55 +621,81 @@ Effort legend   : S = <=1 day, M = 2-4 days, L = 5-10 days, XL = >10 days
    Breakdown by size: S=4, M=12, L=3, XL=1 (U12 test expansion)
    Estimated effort: ~45-60 dev-days
 
- NEW FEATURES (Section 5): 28 items
-   P1: 13 | P2: 11 | P3: 4
-   By size: S=5, M=13, L=7, XL=3
-   Estimated effort: ~75-95 dev-days
+ NEW FEATURES (Section 5): 52 items  (Groups A-I, incl. role tracks)
+   P1: 27 | P2: 20 | P3: 5
+   By size: S=9, M=26, L=13, XL=4
+   Estimated effort: ~135-165 dev-days
+     of which Analyst/TraceLab track (Groups A,H + ANL parts): ~45-55 days
+     of which Investigator/InvoSpace track (INV1-14 + case items): ~55-70 days
 
  BASEPAPER DELIVERABLES (Section 3): 6 items (D1-D6)
    P1: 6 | Sizes: M=3, L=2, XL=1
    Estimated effort: ~22-30 dev-days
 
- GRAND TOTAL ACTIONABLE ITEMS: 57
-   Must-do P1 total: 27 items
-   Total estimated effort: ~142-185 dev-days solo; ~10-12 weeks at 2 devs.
+ GRAND TOTAL ACTIONABLE ITEMS: 81
+   (23 updates + 52 new features + 6 basepaper deliverables)
+   Must-do P1 total: 41 items
+   Total estimated effort: ~200-255 dev-days solo; ~12 weeks at 2 devs.
 
  POST-UPGRADE TARGET INVENTORY (delta):
-   Endpoints: 89 -> ~103  (+14: models 4, ingest/watchlist/schedule/search
-                            approximations)
-   Detectors: 20 -> 26   (+value_encoder, local_view, contextual_view,
-                           fusion, autoencoder, alert-correlator)
-   DB models: 25 -> 29   (+registered_model, scoring_weights, watchlist,
-                           feedback_label)
+   Endpoints: 89 -> ~120  (+models 4, entities ~6, escalation-rules ~4,
+                            watchlists ~3, briefs/packs ~3, search/misc)
+   Detectors: 20 -> 29   (+value_encoder, local_view, contextual_view,
+                           fusion, homophily, autoencoder, alert-correlator,
+                           entity_resolver, triage_classifier)
+   DB models: 25 -> 33   (+registered_model, scoring_weights, watchlist,
+                           feedback_label, entity, escalation_rule, method,
+                           brief/monitor configs)
    Test files: 5 -> ~25  (target ~300 cases, coverage >=70%)
-   Frontend pages: 21 -> 24 (+ModelCard, ExplainabilityDrawer, Settings)
+   Frontend pages: 21 -> 28 (+EntityDossier, ModelCard, BenchmarkConsole,
+                             MethodLibrary, Settings; drawers inside
+                             GraphViewer/CaseDetail)
    Initial JS bundle: 1.92 MB -> <600 KB
    ML: 3 unsup algorithms -> +1 supervised SOTA GNN family (DC-LCG dual-view)
+       + triage classifier + embedding similarity search
    Benchmark datasets supported: 3 (Elliptic, RD, T-Finance)
    Demo scenarios: 1 ad-hoc -> 10 scripted (N22)
+   Investigator power surface: 6 case-crud pages today -> +8 analytical
+       tools (dossier, paths, link canvas, similar accounts/cases,
+       trajectories, watchlists, playbooks, SAR pack)
 
 --------------------------------------------------------------------------------
-8. PHASED ROADMAP (10 WEEKS, 2 DEVELOPERS)
+8. PHASED ROADMAP (12 WEEKS, 2 DEVELOPERS)
+   Track split: Dev-A = MODEL track (paper), Dev-B = PLATFORM/ROLE track
 --------------------------------------------------------------------------------
- W1  D1 value encoder + elliptic_loader + repo hygiene (U13 lazy loading,
-     U21 docker skeleton).                      -> demo: data loads.
- W2  D2 local view + unit tests.                -> first training curve.
- W3  D3 contextual view + path sampler tests.   -> embeddings trainable.
- W4  D4 fusion + train.py end-to-end on Elliptic (first F1/AUC numbers).
- W5  D5 evaluate.py + baselines + benchmarks.csv/charts; D6 registry +
-     /models routes; U1 weights table.          -> Workflow 2 Phase A/B done.
- W6  Integrate DC-LCG into analyze flow (model_version param, U7 background
-     jobs, U2 calibration); N17 Run-Model dialog; N21 generator preset.
-                                                -> Workflow 1 Steps 01-10 live.
- W7  D6 explainability + N19 drawer + N9 flow-tracing canvas; U6 alert
-     correlator; N8 case templates.             -> Workflow 1 Steps 11-16 live.
- W8  U16 PDF reports + N12 SAR pack; N5 labeling loop + feedback endpoint;
-     U12 test expansion sprint #1.
- W9  Polish: U19 security pass, U10 audit chain, U15 graph perf, N6 triage
-     upgrades; second benchmark run incl. RD/T-Finance subsets.
- W10 Freeze + docs: project report chapter from Sec 3/7/8 numbers, demo
-     script rehearsing Workflows 1&2, viva Q&A from ablation table.
- BUFFER: P2/P3 items (N10,N13,N14,N16,N18 done early if slack).
+ W1  A: D1 value encoder + elliptic_loader.
+     B: repo hygiene - U13 lazy loading, U21 docker skeleton.
+                                                 -> demo: data loads.
+ W2  A: D2 local view + unit tests.             -> first training curve.
+     B: ANL1 disguise radar + ANL9 threshold tuner (quick analyst wins).
+ W3  A: D3 contextual view + path sampler tests -> embeddings trainable.
+     B: INV1 Entity 360 dossier BACKEND (entities router + resolution).
+ W4  A: D4 fusion + train.py end-to-end on Elliptic (first F1/AUC numbers).
+     B: INV10 risk-trajectory charts + INV4 similar-account finder.
+ W5  A: D5 evaluate.py + baselines + benchmarks.csv/charts; D6 registry +
+        /models routes; U1 weights table.       -> Workflow 2 Phases A/B done.
+     B: ANL2 model runner dialog + ANL3 model card page.
+ W6  A+B MERGE: DC-LCG into analyze flow (model_version param, U7 background
+     jobs, U2 calibration); N21 camouflaged-mule generator preset.
+                                                 -> Workflow 1 Steps 01-10 live.
+ W7  B: INV2 follow-the-money explorer + INV3 link canvas; A: attention
+        export API for INV2/INV4 + N3 ablation flags.
+                                                 -> first deep-dive demo.
+ W8  B: INV6 escalation rule engine (arch decision diamond) + INV8
+        playbooks + U6 alert correlator.        -> Workflow 1 Steps 11-16 live.
+     A: ANL4 explainability drawer (consumes A's attention API).
+ W9  B: INV7 technical briefs + INV13/N12 SAR pack + U16 PDF engine;
+     A: ANL5 benchmark console + ANL6 ablation panel + ANL10 method library.
+ W10 B: INV5 similar-case intel + INV9 hypothesis board + INV11 watchlists +
+        INV12 collab upgrade; A: ANL7 data fusion workspace + ANL8 triage
+        classifier.                             -> role tracks feature-complete.
+ W11 Hardening sprint: U12 tests (#1 of 2), U19 security pass, U10 audit
+     chain, U15 graph perf, N22 scenario library; benchmark re-run incl.
+     RD / T-Finance subsets.
+ W12 Freeze + docs: project-report chapter generated from Sec 3/7 numbers,
+     demo script rehearsing Workflows 1 & 2 end-to-end, viva Q&A sheet from
+     the ablation table, recorded backup demos.
+ BUFFER: P2/P3 slack items (N13,N14,N16,N18,INV14) fill any early gaps.
 
 --------------------------------------------------------------------------------
 9. RISKS & MITIGATIONS
@@ -538,11 +725,23 @@ Effort legend   : S = <=1 day, M = 2-4 days, L = 5-10 days, XL = >10 days
  BUILD : DC-LCG dual-view GNN (6 deliverables) = the academic heart; wire it
          into hybrid_engine as a calibrated supervised dimension with
          attention-based explanations.
+ SPLIT BY ROLE (per your architecture):
+   TRACE LAB analyst gets  : model runner, model cards, benchmarks, ablations,
+                             disguise radar, threshold tuner, data fusion,
+                             triage classifier, method library, explainability.
+   INVOSPACE investigator  : Entity 360 dossier, follow-the-money path
+       GETS THE POWER        explorer, link analysis canvas, similar-account/
+                             case intelligence, escalation rule engine (your
+                             "Serious Trigger?" diamond), auto technical
+                             briefs, pattern playbooks, risk trajectories,
+                             watchlists, SAR packs. InvoSpace becomes the
+                             deepest workspace, exactly as arch.png intends.
  PROVE : Benchmarks on Elliptic (203,769 nodes) vs GCN/GAT/GraphSAGE +
-         ablations = report-grade evidence.
+         ablations = report-grade evidence; homophily metric ties your UI
+         directly to the paper's Fig.1 analysis.
  SHOW  : Two rehearsed workflows - "Camouflaged Mule Case" (business loop)
          and "Model Factory" (research loop).
- TOTAL : 57 actionable items | 27 P1 | ~142-185 dev-days | 10-week plan.
+ TOTAL : 81 actionable items | 41 P1 | ~200-255 dev-days | 12-week plan.
 
 ================================================================================
  END OF IMPROVE.TXT
