@@ -17,11 +17,8 @@ Operational roles:
     TRACE_LAB_ANALYST
     INVESTIGATOR
 
-Legacy:
-    SUPER_ADMIN
-
-SUPER_ADMIN has platform-wide administrative access.
-ADMIN is the normal Operations / Communication Hub role.
+ADMIN is the top-level administrative role and can perform
+every admin operation across the platform.
 """
 
 from datetime import datetime, timezone
@@ -69,20 +66,19 @@ router = APIRouter(
 
 ADMIN_ROLES = [
     Role.ADMIN.value,
-    Role.SUPER_ADMIN.value,
 ]
 
 
-def _is_super_admin(user: User) -> bool:
-    return user.role == Role.SUPER_ADMIN.value
+VALID_ROLES = {
+    Role.CLIENT.value,
+    Role.ADMIN.value,
+    Role.ANALYST.value,
+    Role.INVOSPACE.value,
+}
 
 
 def _is_admin(user: User) -> bool:
     return user.role == Role.ADMIN.value
-
-
-def _is_admin_or_super_admin(user: User) -> bool:
-    return user.role in ADMIN_ROLES
 
 
 def _validate_password_strength(password: str) -> None:
@@ -112,30 +108,15 @@ def _can_manage_role(
     target_role: str,
 ) -> bool:
     """
-    SUPER_ADMIN:
-        Can provision every role.
-
-    ADMIN:
-        Can provision:
-            CLIENT_USER
-            TRACE_LAB_ANALYST
-            INVESTIGATOR
-
-        Cannot provision:
-            ADMIN
-            SUPER_ADMIN
+    ADMIN is the top-level role and can provision
+    every operational role:
+        CLIENT_USER
+        ADMIN
+        TRACE_LAB_ANALYST
+        INVESTIGATOR
     """
 
-    if _is_super_admin(current_user):
-        return True
-
-    if target_role in {
-        Role.ADMIN.value,
-        Role.SUPER_ADMIN.value,
-    }:
-        return False
-
-    return True
+    return target_role in VALID_ROLES
 
 
 # ============================================================
@@ -261,15 +242,12 @@ def _get_user_in_scope(
     current_user: User,
     user_id: int,
 ):
+    """
+    ADMIN is a platform-wide role: it can manage any user.
+    """
     query = db.query(User).filter(
         User.id == user_id
     )
-
-    if not _is_super_admin(current_user):
-        query = query.filter(
-            User.organization_id
-            == current_user.organization_id
-        )
 
     return query.first()
 
@@ -284,18 +262,12 @@ def _get_org_in_scope(
     org_id: int,
 ):
     """
-    SUPER_ADMIN:
-        Can access every organization.
-
     ADMIN:
-        Can access own organization.
+        Can access every organization (platform-wide
+        administration).
 
-    Exception:
-        ADMIN can access PENDING organizations for
-        registration/approval review.
-
-    This is necessary because a newly registered client
-    does not yet belong to an approved operational tenant.
+    Other roles (defensive — routes are admin-gated):
+        Own organization only.
     """
 
     org = (
@@ -309,23 +281,12 @@ def _get_org_in_scope(
     if not org:
         return None
 
-    # SUPER_ADMIN = platform-wide
-    if _is_super_admin(current_user):
+    # ADMIN = platform-wide
+    if _is_admin(current_user):
         return org
 
     # Own organization
     if org.id == current_user.organization_id:
-        return org
-
-    # --------------------------------------------------------
-    # IMPORTANT:
-    # ADMIN may inspect pending registrations.
-    # --------------------------------------------------------
-
-    if (
-        _is_admin(current_user)
-        and org.status == "PENDING"
-    ):
         return org
 
     raise HTTPException(
@@ -358,20 +319,11 @@ def list_users(
     db: Session = Depends(get_db),
 ):
     """
-    SUPER_ADMIN:
-        All users.
-
     ADMIN:
-        Users in own organization.
+        All users (platform-wide).
     """
 
     query = db.query(User)
-
-    if not _is_super_admin(current_user):
-        query = query.filter(
-            User.organization_id
-            == current_user.organization_id
-        )
 
     total = query.count()
 
@@ -446,13 +398,7 @@ def update_user(
 
     if body.role is not None:
 
-        valid_roles = {
-            Role.CLIENT.value,
-            Role.ADMIN.value,
-            Role.ANALYST.value,
-            Role.INVOSPACE.value,
-            Role.SUPER_ADMIN.value,
-        }
+        valid_roles = VALID_ROLES
 
         if body.role not in valid_roles:
             raise HTTPException(
@@ -460,18 +406,6 @@ def update_user(
                 detail=(
                     "Invalid role. Allowed roles: "
                     f"{sorted(valid_roles)}"
-                ),
-            )
-
-        if not _can_manage_role(
-            current_user,
-            body.role,
-        ):
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "ADMIN cannot assign "
-                    "ADMIN or SUPER_ADMIN."
                 ),
             )
 
@@ -489,15 +423,6 @@ def update_user(
     # --------------------------------------------------------
 
     if body.organization_id is not None:
-
-        if not _is_super_admin(current_user):
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "Only SUPER_ADMIN can move "
-                    "users between organizations."
-                ),
-            )
 
         target_org = (
             db.query(Organization)
@@ -593,20 +518,12 @@ def create_admin_user(
 
     _validate_password_strength(body.password)
 
-    valid_roles = {
-        Role.CLIENT.value,
-        Role.ADMIN.value,
-        Role.ANALYST.value,
-        Role.INVOSPACE.value,
-        Role.SUPER_ADMIN.value,
-    }
-
-    if body.role not in valid_roles:
+    if body.role not in VALID_ROLES:
         raise HTTPException(
             status_code=400,
             detail=(
                 "Invalid role. Allowed roles: "
-                f"{sorted(valid_roles)}"
+                f"{sorted(VALID_ROLES)}"
             ),
         )
 
@@ -617,101 +534,59 @@ def create_admin_user(
         raise HTTPException(
             status_code=403,
             detail=(
-                "ADMIN cannot create "
-                "ADMIN or SUPER_ADMIN users."
+                "Invalid role for provisioning."
             ),
         )
 
     # --------------------------------------------------------
-    # SUPER ADMIN
+    # ORGANIZATION RESOLUTION
+    #
+    # ADMIN (platform-wide):
+    #   - organization_id omitted → new user joins the
+    #     admin's own organization (when the admin has one).
+    #   - organization_id provided → must be an APPROVED
+    #     organization.
     # --------------------------------------------------------
 
-    if _is_super_admin(current_user):
+    if body.organization_id is not None:
 
-        if body.organization_id is None:
-
-            # Only platform-level SUPER_ADMIN may be
-            # organization-less.
-            if body.role != Role.SUPER_ADMIN.value:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        "Operational users must belong "
-                        "to an approved organization."
-                    ),
-                )
-
-            org_id = None
-
-        else:
-
-            target_org = (
-                db.query(Organization)
-                .filter(
-                    Organization.id
-                    == body.organization_id
-                )
-                .first()
-            )
-
-            if not target_org:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Organization not found.",
-                )
-
-            if target_org.status != "APPROVED":
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        "Users can only be created "
-                        "inside approved organizations."
-                    ),
-                )
-
-            org_id = target_org.id
-
-    # --------------------------------------------------------
-    # NORMAL ADMIN
-    # --------------------------------------------------------
-
-    else:
-
-        if not current_user.organization_id:
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "ADMIN does not belong "
-                    "to an organization."
-                ),
-            )
-
-        org_id = current_user.organization_id
-
-        if body.organization_id is not None:
-            if body.organization_id != org_id:
-                raise HTTPException(
-                    status_code=403,
-                    detail=(
-                        "Cannot create users "
-                        "for another organization."
-                    ),
-                )
-
-        org = (
+        target_org = (
             db.query(Organization)
             .filter(
-                Organization.id == org_id
+                Organization.id
+                == body.organization_id
             )
             .first()
         )
 
-        if not org or org.status != "APPROVED":
+        if not target_org:
             raise HTTPException(
-                status_code=403,
+                status_code=404,
+                detail="Organization not found.",
+            )
+
+        if target_org.status != "APPROVED":
+            raise HTTPException(
+                status_code=400,
                 detail=(
-                    "Users cannot be created "
-                    "inside a non-approved organization."
+                    "Users can only be created "
+                    "inside approved organizations."
+                ),
+            )
+
+        org_id = target_org.id
+
+    else:
+
+        org_id = current_user.organization_id
+
+        if org_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "organization_id is required when "
+                    "the admin account does not belong "
+                    "to an organization."
                 ),
             )
 
@@ -773,21 +648,6 @@ def delete_user(
             detail="Cannot delete your own account.",
         )
 
-    if (
-        not _is_super_admin(current_user)
-        and user.role in {
-            Role.ADMIN.value,
-            Role.SUPER_ADMIN.value,
-        }
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "ADMIN cannot delete "
-                "ADMIN or SUPER_ADMIN."
-            ),
-        )
-
     db.delete(user)
     db.commit()
 
@@ -806,46 +666,18 @@ def list_organizations(
     db: Session = Depends(get_db),
 ):
     """
-    SUPER_ADMIN:
-        All organizations.
-
     ADMIN:
-        Own organization + pending registrations.
-
-    This allows the Admin Workspace to function as
-    the client-intake/approval hub.
+        All organizations (platform-wide administration,
+        including pending registrations for approval).
     """
 
-    if _is_super_admin(current_user):
-
-        orgs = (
-            db.query(Organization)
-            .order_by(
-                Organization.created_at.desc()
-            )
-            .all()
+    orgs = (
+        db.query(Organization)
+        .order_by(
+            Organization.created_at.desc()
         )
-
-    else:
-
-        orgs = (
-            db.query(Organization)
-            .filter(
-                (
-                    Organization.id
-                    == current_user.organization_id
-                )
-                |
-                (
-                    Organization.status
-                    == "PENDING"
-                )
-            )
-            .order_by(
-                Organization.created_at.desc()
-            )
-            .all()
-        )
+        .all()
+    )
 
     result = []
 
@@ -886,19 +718,11 @@ def create_organization(
     db: Session = Depends(get_db),
 ):
     """
-    Direct organization creation is platform-level.
+    Direct organization creation is an ADMIN
+    (platform-level) operation.
 
     Normal client registration creates PENDING organizations.
     """
-
-    if not _is_super_admin(current_user):
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "Only SUPER_ADMIN can create "
-                "organizations directly."
-            ),
-        )
 
     existing = (
         db.query(Organization)
@@ -960,12 +784,8 @@ def update_organization(
     Organization governance.
 
     ADMIN:
-        - Can approve/reject PENDING registrations.
-        - Can update own organization.
-        - Cannot modify another approved organization.
-
-    SUPER_ADMIN:
-        - Full organization governance.
+        - Full organization governance
+          (approve/reject/update any organization).
     """
 
     org = _get_org_in_scope(
@@ -1004,35 +824,6 @@ def update_organization(
             )
 
         # ----------------------------------------------------
-        # NORMAL ADMIN
-        # ----------------------------------------------------
-
-        if not _is_super_admin(current_user):
-
-            # ADMIN may approve/reject only PENDING
-            # organizations.
-            if org.status != "PENDING":
-                raise HTTPException(
-                    status_code=403,
-                    detail=(
-                        "ADMIN can only approve or reject "
-                        "pending organizations."
-                    ),
-                )
-
-            if new_status not in {
-                "APPROVED",
-                "REJECTED",
-            }:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        "A pending organization can only "
-                        "be APPROVED or REJECTED."
-                    ),
-                )
-
-        # ----------------------------------------------------
         # APPLY STATUS
         # ----------------------------------------------------
 
@@ -1062,37 +853,7 @@ def update_organization(
     # ORGANIZATION DETAILS
     # ========================================================
 
-    # A normal ADMIN may edit only their own organization.
-    # Pending organizations are approval-only for ADMIN.
-
-    if not _is_super_admin(current_user):
-
-        editing_details = any([
-            body.name is not None,
-            body.org_type is not None,
-            body.registration_number is not None,
-            body.country is not None,
-            body.state is not None,
-            body.city is not None,
-            body.address is not None,
-            body.website is not None,
-            body.phone is not None,
-            body.email is not None,
-            body.contact_person is not None,
-        ])
-
-        if editing_details:
-            if (
-                org.id
-                != current_user.organization_id
-            ):
-                raise HTTPException(
-                    status_code=403,
-                    detail=(
-                        "ADMIN cannot edit another "
-                        "organization's details."
-                    ),
-                )
+    # ADMIN has full organization governance.
 
     # ========================================================
     # APPLY DETAILS
@@ -1322,15 +1083,11 @@ def _service_request_scope_query(
     db: Session,
     current_user: User,
 ):
-    query = db.query(ServiceRequest)
-
-    if not _is_super_admin(current_user):
-        query = query.filter(
-            ServiceRequest.organization_id
-            == current_user.organization_id
-        )
-
-    return query
+    """
+    ADMIN is platform-wide: sees service requests of
+    every organization.
+    """
+    return db.query(ServiceRequest)
 
 
 def _service_request_for_review(
@@ -1338,20 +1095,13 @@ def _service_request_for_review(
     current_user: User,
     request_id: int,
 ):
-    query = (
+    return (
         db.query(ServiceRequest)
         .filter(
             ServiceRequest.id == request_id
         )
+        .first()
     )
-
-    if not _is_super_admin(current_user):
-        query = query.filter(
-            ServiceRequest.organization_id
-            == current_user.organization_id
-        )
-
-    return query.first()
 
 
 # ============================================================
@@ -1557,7 +1307,6 @@ def review_service_request(
             db.query(User)
             .filter(
                 User.id == body.assignee_id,
-                User.organization_id == org_id,
                 User.is_active.is_(True),
             )
             .first()
@@ -1567,10 +1316,17 @@ def review_service_request(
             raise HTTPException(
                 status_code=404,
                 detail=(
-                    "Assignee not found in "
-                    "this organization."
+                    "Assignee not found "
+                    "(or account is inactive)."
                 ),
             )
+
+        # ----------------------------------------------------
+        # Staff (analyst / invospace) may live in an internal
+        # organization while the request belongs to a client
+        # organization. ADMIN is platform-wide, so assignment
+        # across organizations is intentional and allowed.
+        # ----------------------------------------------------
 
         if action == "ASSIGN_TRACELAB":
 
@@ -1741,12 +1497,6 @@ def report_queue(
 
     q = db.query(ClientReport)
 
-    if not _is_super_admin(current_user):
-        q = q.filter(
-            ClientReport.organization_id
-            == current_user.organization_id
-        )
-
     if status:
         q = q.filter(
             ClientReport.status
@@ -1811,13 +1561,6 @@ def review_report(
             ClientReport.id == report_id
         )
     )
-
-    if not _is_super_admin(current_user):
-
-        query = query.filter(
-            ClientReport.organization_id
-            == current_user.organization_id
-        )
 
     report = query.first()
 
@@ -2008,12 +1751,6 @@ def operations_queue(
 
     query = db.query(WorkflowInstance)
 
-    if not _is_super_admin(current_user):
-        query = query.filter(
-            WorkflowInstance.organization_id
-            == current_user.organization_id
-        )
-
     workflows = (
         query
         .order_by(
@@ -2101,28 +1838,11 @@ def admin_dashboard(
     db: Session = Depends(get_db),
 ):
     """
-    Dashboard statistics.
-
-    SUPER_ADMIN:
-        Platform-wide.
-
-    ADMIN:
-        Own operational organization.
-
-    Pending organization registrations are also
-    visible to ADMIN because they belong to the
-    Admin intake/approval workflow.
+    Dashboard statistics (platform-wide for ADMIN).
     """
 
-    is_super = _is_super_admin(
-        current_user
-    )
-
-    org_id = (
-        None
-        if is_super
-        else current_user.organization_id
-    )
+    # ADMIN sees platform-wide statistics.
+    org_id = None
 
     user_query = db.query(User)
     case_query = db.query(Case)

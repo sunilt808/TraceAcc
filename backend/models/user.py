@@ -1,15 +1,13 @@
 """
 user.py — User model for TraceAcc Pro.
 
-Users belong to an organization/workspace unless they are
-platform-level SUPER_ADMIN users.
+Users belong to an organization/workspace.
 
-Roles:
+Roles (exactly four):
     CLIENT_USER
     ADMIN
     TRACE_LAB_ANALYST
     INVESTIGATOR
-    SUPER_ADMIN
 """
 
 from sqlalchemy import (

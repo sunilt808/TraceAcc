@@ -9,7 +9,7 @@ def test_login_and_rbac(setup_db, client):
     response = client.get("/auth/me", headers=headers)
     assert response.status_code == 200
     assert response.json()["username"] == "admin"
-    assert response.json()["role"] == "SUPER_ADMIN"
+    assert response.json()["role"] == "ADMIN"
     
 def test_failed_login_lockout(setup_db, client):
     # Try logging in with wrong password 5 times
@@ -44,7 +44,7 @@ def test_rbac_register(setup_db, client):
     response = client.post("/auth/register", json=payload, headers=headers)
     assert response.status_code == 403
     
-    # admin (SUPER_ADMIN) tries to register a new user
+    # admin (ADMIN) tries to register a new user
     login_resp_admin = client.post("/auth/login", data={"username": "admin", "password": "admin123"})
     token_admin = login_resp_admin.json()["access_token"]
     headers_admin = {"Authorization": f"Bearer {token_admin}"}

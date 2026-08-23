@@ -1,17 +1,13 @@
 """
 role.py — Role definitions for TraceAcc Pro.
 
-Operational roles:
-    CLIENT_USER
-    ADMIN
-    TRACE_LAB_ANALYST
-    INVESTIGATOR
+There are exactly FOUR roles in the platform:
 
-Platform role:
-    SUPER_ADMIN
-
-SUPER_ADMIN is a platform-level administrator and inherits
-ADMIN permissions wherever ADMIN access is allowed.
+    CLIENT_USER        → Client portal users
+    ADMIN              → Full administrative access (user/org management,
+                         request review, assignment, report approval, audit)
+    TRACE_LAB_ANALYST  → TraceLab analyst workspace
+    INVESTIGATOR       → InvoSpace investigator workspace
 
 Database values MUST NOT be renamed because existing records
 and authorization logic depend on them.
@@ -22,20 +18,10 @@ import enum
 
 class Role(str, enum.Enum):
 
-    # ========================================================
-    # OPERATIONAL ROLES
-    # ========================================================
-
     CLIENT = "CLIENT_USER"
     ADMIN = "ADMIN"
     ANALYST = "TRACE_LAB_ANALYST"
     INVOSPACE = "INVESTIGATOR"
-
-    # ========================================================
-    # PLATFORM ROLE
-    # ========================================================
-
-    SUPER_ADMIN = "SUPER_ADMIN"
 
     # ========================================================
     # BACKWARD-COMPATIBILITY ALIASES
@@ -44,3 +30,9 @@ class Role(str, enum.Enum):
     CLIENT_USER = "CLIENT_USER"
     TRACE_LAB_ANALYST = "TRACE_LAB_ANALYST"
     INVESTIGATOR = "INVESTIGATOR"
+
+
+# Legacy DB value that may still exist in old databases.
+# It is treated as ADMIN everywhere (see api/deps.py) and
+# migrated to ADMIN by scripts/migrate_single_admin.py.
+LEGACY_SUPER_ADMIN = "SUPER_ADMIN"

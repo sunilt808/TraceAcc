@@ -5,8 +5,7 @@ Canonical role mapping (DB value → operational role):
   CLIENT_USER       → CLIENT
   TRACE_LAB_ANALYST → ANALYST
   INVESTIGATOR      → INVOSPACE
-  ADMIN             → ADMIN
-  SUPER_ADMIN       → treated as ADMIN (legacy/platform)
+  ADMIN             → ADMIN (top-level role, full admin access)
 
 Do NOT scatter role checks throughout route files.
 Use require_permission() or has_permission() here.
@@ -23,10 +22,12 @@ ROLE_CLIENT   = "CLIENT_USER"
 ROLE_ADMIN    = "ADMIN"
 ROLE_ANALYST  = "TRACE_LAB_ANALYST"
 ROLE_INVOSPACE = "INVESTIGATOR"
-ROLE_SUPER    = "SUPER_ADMIN"   # Legacy/platform admin — treated as ADMIN
+
+# Legacy value from old databases — treated as ADMIN.
+ROLE_SUPER_LEGACY = "SUPER_ADMIN"
 
 # Roles that should be treated as ADMIN for permission checks
-ADMIN_ROLES: Set[str] = {ROLE_ADMIN, ROLE_SUPER}
+ADMIN_ROLES: Set[str] = {ROLE_ADMIN}
 
 # ---------------------------------------------------------------------------
 # Full permission matrix
@@ -71,6 +72,10 @@ _PERMISSIONS: dict[str, Set[str]] = {
         "user.create",
         "user.update",
         "user.disable",
+        # Organization management
+        "organization.view",
+        "organization.create",
+        "organization.update",
         # Communication
         "message.view",
         "message.create",
@@ -101,6 +106,10 @@ _PERMISSIONS: dict[str, Set[str]] = {
         # Technical reporting
         "technical_report.create",
         "technical_report.submit",
+        # Evidence artifacts for assigned analysis work
+        "evidence.create",
+        "evidence.view",
+        "evidence.download",
     },
     ROLE_INVOSPACE: {
         # Assigned access
@@ -139,17 +148,13 @@ _PERMISSIONS: dict[str, Set[str]] = {
     },
 }
 
-# SUPER_ADMIN inherits all ADMIN permissions
-_PERMISSIONS[ROLE_SUPER] = set(_PERMISSIONS[ROLE_ADMIN])
-
-
 # ---------------------------------------------------------------------------
 # Permission helpers
 # ---------------------------------------------------------------------------
 
 def _effective_role(role: str) -> str:
-    """Normalize SUPER_ADMIN → ADMIN for permission lookups."""
-    if role == ROLE_SUPER:
+    """Normalize legacy SUPER_ADMIN → ADMIN for permission lookups."""
+    if role == ROLE_SUPER_LEGACY:
         return ROLE_ADMIN
     return role
 
@@ -196,11 +201,11 @@ def require_any_permission(*permissions: str):
 def require_role(*roles: str):
     """
     Dependency that checks role membership directly.
-    SUPER_ADMIN is automatically treated as ADMIN.
+    Legacy SUPER_ADMIN is automatically treated as ADMIN.
     """
     expanded = set(roles)
     if ROLE_ADMIN in expanded:
-        expanded.add(ROLE_SUPER)
+        expanded.add(ROLE_SUPER_LEGACY)
 
     def _check(user: User = Depends(get_current_user)) -> User:
         if user.role not in expanded:

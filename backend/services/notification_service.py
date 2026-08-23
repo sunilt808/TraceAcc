@@ -50,7 +50,7 @@ def _org_admin_ids(db: Session, org_id: int) -> Iterable[int]:
         db.query(User.id)
         .filter(
             User.organization_id == org_id,
-            User.role.in_([Role.ADMIN.value, Role.SUPER_ADMIN.value]),
+            User.role.in_([Role.ADMIN.value]),
             User.is_active.is_(True),
         )
         .all()

@@ -8,17 +8,14 @@ Responsibilities:
     4. Resolve active organization/workspace
     5. Enforce role-based access control
 
-Operational roles:
+Roles (exactly four):
     CLIENT_USER
     ADMIN
     TRACE_LAB_ANALYST
     INVESTIGATOR
 
-Legacy platform role:
-    SUPER_ADMIN
-
-SUPER_ADMIN inherits ADMIN permissions wherever ADMIN
-access is explicitly allowed.
+ADMIN is the top-level role and can perform every admin
+operation across the platform.
 """
 
 from typing import List, Optional
@@ -37,7 +34,7 @@ from sqlalchemy.orm import Session
 
 from db.database import get_db
 from models.user import User
-from models.role import Role
+from models.role import Role, LEGACY_SUPER_ADMIN
 from models.organization import Organization
 
 from services.auth_service import (
@@ -145,40 +142,48 @@ def get_current_user(
         )
 
     # --------------------------------------------------------
-    # ORGANIZATION VALIDATION
+    # LEGACY ROLE NORMALIZATION (self-healing)
     #
-    # Client/internal organization users must still belong
-    # to a valid organization.
-    #
-    # SUPER_ADMIN may be platform-level and therefore may
-    # have organization_id = NULL.
+    # Old databases may still contain rows with the retired
+    # SUPER_ADMIN role. ADMIN is now the top-level role, so
+    # normalize those rows transparently on first access.
     # --------------------------------------------------------
 
-    if user.role != Role.SUPER_ADMIN.value:
+    if user.role == LEGACY_SUPER_ADMIN:
+        user.role = Role.ADMIN.value
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
-        if user.organization_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    "User does not belong to any "
-                    "organization/workspace"
-                ),
-            )
+    # --------------------------------------------------------
+    # ORGANIZATION VALIDATION
+    #
+    # Every user must belong to a valid organization.
+    # --------------------------------------------------------
 
-        organization = (
-            db.query(Organization)
-            .filter(
-                Organization.id
-                == user.organization_id
-            )
-            .first()
+    if user.organization_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "User does not belong to any "
+                "organization/workspace"
+            ),
         )
 
-        if not organization:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User organization was not found",
-            )
+    organization = (
+        db.query(Organization)
+        .filter(
+            Organization.id
+            == user.organization_id
+        )
+        .first()
+    )
+
+    if not organization:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User organization was not found",
+        )
 
     return user
 
@@ -202,41 +207,36 @@ def get_current_workspace(
         Own organization only.
 
     ADMIN:
-        Own organization only.
+        Top-level role — defaults to own organization,
+        but may operate on ANY organization by passing
+        X-Organization-Id (needed for user provisioning,
+        org approval, cross-org administration).
 
     TRACE_LAB_ANALYST:
         Assigned organization only.
 
     INVESTIGATOR:
         Assigned organization only.
-
-    SUPER_ADMIN:
-        Can select another organization using
-        X-Organization-Id.
     """
 
     # --------------------------------------------------------
-    # SUPER ADMIN
+    # ADMIN — full platform administration
     # --------------------------------------------------------
 
-    if user.role == Role.SUPER_ADMIN.value:
+    if user.role == Role.ADMIN.value:
 
-        if x_organization_id is None:
-
-            if user.organization_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=(
-                        "SUPER_ADMIN must provide "
-                        "X-Organization-Id for "
-                        "organization-scoped operations"
-                    ),
-                )
-
-            organization_id = user.organization_id
-
-        else:
+        if x_organization_id is not None:
             organization_id = x_organization_id
+        elif user.organization_id is not None:
+            organization_id = user.organization_id
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "ADMIN must provide X-Organization-Id "
+                    "for organization-scoped operations"
+                ),
+            )
 
         organization = (
             db.query(Organization)
@@ -309,8 +309,7 @@ class RoleChecker:
     """
     Role-Based Access Control dependency.
 
-    SUPER_ADMIN inherits ADMIN access when ADMIN is included
-    in the allowed roles.
+    Checks the user's role against the allowed list.
     """
 
     def __init__(
@@ -336,12 +335,6 @@ class RoleChecker:
         effective_allowed = set(
             self.allowed_roles
         )
-
-        # SUPER_ADMIN inherits ADMIN permissions.
-        if Role.ADMIN.value in effective_allowed:
-            effective_allowed.add(
-                Role.SUPER_ADMIN.value
-            )
 
         if user.role not in effective_allowed:
             raise HTTPException(
@@ -376,10 +369,7 @@ def require_admin(
     user: User = Depends(get_current_user),
 ) -> User:
 
-    if user.role not in {
-        Role.ADMIN.value,
-        Role.SUPER_ADMIN.value,
-    }:
+    if user.role != Role.ADMIN.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
@@ -424,7 +414,6 @@ def require_internal_user(
 
     internal_roles = {
         Role.ADMIN.value,
-        Role.SUPER_ADMIN.value,
         Role.TRACE_LAB_ANALYST.value,
         Role.INVESTIGATOR.value,
     }

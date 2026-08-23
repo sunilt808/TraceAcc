@@ -44,7 +44,7 @@ def _workflow_to_dict(instance: WorkflowInstance) -> dict:
 
 def _get_workflow_instance(db: Session, current_user: User, org_id: int, workflow_id: int):
     query = db.query(WorkflowInstance).filter(WorkflowInstance.id == workflow_id)
-    if current_user.role != Role.SUPER_ADMIN.value:
+    if current_user.role != Role.ADMIN.value:
         query = query.filter(WorkflowInstance.organization_id == org_id)
     return query.first()
 
@@ -53,7 +53,7 @@ def _get_workflow_instance(db: Session, current_user: User, org_id: int, workflo
 def transition_workflow(
     workflow_id: int,
     body: WorkflowTransition,
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value, Role.TRACE_LAB_ANALYST.value, Role.INVESTIGATOR.value])),
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.TRACE_LAB_ANALYST.value, Role.INVESTIGATOR.value])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):
@@ -87,7 +87,7 @@ def transition_workflow(
 def assign_workflow(
     workflow_id: int,
     body: WorkflowAssign,
-    current_user: User = Depends(RoleChecker([Role.ADMIN.value, Role.SUPER_ADMIN.value])),
+    current_user: User = Depends(RoleChecker([Role.ADMIN.value])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
 ):

@@ -3,7 +3,7 @@ auth.py — Authentication API for TraceAcc Pro.
 
 Endpoints:
     POST /auth/login            OAuth2 password form login (username OR email)
-    POST /auth/register         Bootstrap registration (first user becomes SUPER_ADMIN)
+    POST /auth/register         Bootstrap registration (first user becomes ADMIN)
     POST /auth/client-register  Public client self-registration (org + CLIENT_USER)
     GET  /auth/me               Current user profile (+ org context)
     POST /auth/change-password  Change own password
@@ -242,7 +242,8 @@ def register(
     Open bootstrap registration.
 
     Behaviour:
-      - If NO users exist yet, the first registrant becomes SUPER_ADMIN.
+      - If NO users exist yet, the first registrant becomes
+        ADMIN (the top-level platform role).
       - Once any user exists, open registration is disabled — all further
         accounts are provisioned by an Admin via /admin/users.
     """
@@ -272,7 +273,7 @@ def register(
         username=username,
         password=password,
         email=email,
-        role=Role.SUPER_ADMIN,
+        role=Role.ADMIN,
         organization_id=None,
     )
 

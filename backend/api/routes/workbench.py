@@ -144,14 +144,17 @@ def analyst_workbench(
 ):
     """Everything the TraceLab overview needs, in one response."""
 
-    is_admin = current_user.role in (Role.ADMIN.value, Role.SUPER_ADMIN.value)
+    is_admin = current_user.role == Role.ADMIN.value
 
     # ---- Assigned requests ---------------------------------
-    req_q = db.query(ServiceRequest).filter(
-        ServiceRequest.organization_id == org_id
-    )
-    if not is_admin:
-        req_q = req_q.filter(
+    if is_admin:
+        req_q = db.query(ServiceRequest).filter(
+            ServiceRequest.organization_id == org_id
+        )
+    else:
+        # Staff work queue is assignment-based: internal staff
+        # can be assigned requests from client organizations.
+        req_q = db.query(ServiceRequest).filter(
             (ServiceRequest.assigned_to_id == current_user.id)
             | (ServiceRequest.assigned_analyst_id == current_user.id)
         )
@@ -267,7 +270,7 @@ def investigator_workbench(
 ):
     """Everything the InvoSpace overview needs, in one response."""
 
-    is_admin = current_user.role in (Role.ADMIN.value, Role.SUPER_ADMIN.value)
+    is_admin = current_user.role == Role.ADMIN.value
 
     # ---- Routed alerts awaiting conversion ------------------
     routed_q = db.query(Alert).filter(
@@ -286,11 +289,14 @@ def investigator_workbench(
     )
 
     # ---- Assigned service requests -------------------------
-    req_q = db.query(ServiceRequest).filter(
-        ServiceRequest.organization_id == org_id
-    )
-    if not is_admin:
-        req_q = req_q.filter(
+    if is_admin:
+        req_q = db.query(ServiceRequest).filter(
+            ServiceRequest.organization_id == org_id
+        )
+    else:
+        # Staff work queue is assignment-based: internal staff
+        # can be assigned requests from client organizations.
+        req_q = db.query(ServiceRequest).filter(
             (ServiceRequest.assigned_to_id == current_user.id)
             | (ServiceRequest.assigned_analyst_id == current_user.id)
             | (ServiceRequest.assigned_invospace_id == current_user.id)

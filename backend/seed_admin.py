@@ -10,7 +10,7 @@ from models.user import User
 from models.organization import Organization
 from models.role import Role
 
-def seed_super_admin():
+def seed_admin():
     init_db()
     db = SessionLocal()
     try:
@@ -33,7 +33,7 @@ def seed_super_admin():
             db.commit()
 
         test_users = [
-            {"username": "admin", "role": Role.SUPER_ADMIN},
+            {"username": "admin", "role": Role.ADMIN},
             {"username": "client", "role": Role.CLIENT_USER},
             {"username": "analyst", "role": Role.TRACE_LAB_ANALYST},
             {"username": "investigator", "role": Role.INVESTIGATOR},
@@ -56,7 +56,7 @@ def seed_super_admin():
 
         print("\nAll test users seeded successfully!")
         print("Login credentials for all users: Password123!")
-        print("  admin      → SUPER_ADMIN (Admin dashboard)")
+        print("  admin      → ADMIN (Admin dashboard)")
         print("  client     → CLIENT_USER (Client portal)")
         print("  analyst    → TRACE_LAB_ANALYST (TraceLab)")
         print("  investigator → INVESTIGATOR (InvoSpace)")
@@ -68,4 +68,4 @@ def seed_super_admin():
         db.close()
 
 if __name__ == "__main__":
-    seed_super_admin()
+    seed_admin()

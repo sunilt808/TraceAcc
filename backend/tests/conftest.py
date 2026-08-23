@@ -51,7 +51,7 @@ def setup_db(db):
     db.refresh(internal)
     
     # Create users
-    create_user(db, "admin", "admin123", "admin@internal.io", role=Role.SUPER_ADMIN, organization_id=internal.id)
+    create_user(db, "admin", "admin123", "admin@internal.io", role=Role.ADMIN, organization_id=internal.id)
     create_user(db, "analyst", "analyst123", "analyst@internal.io", role=Role.TRACE_LAB_ANALYST, organization_id=internal.id)
     create_user(db, "client1", "client123", "c1@org1.io", role=Role.CLIENT_USER, organization_id=org1.id)
     create_user(db, "client2", "client123", "c2@org2.io", role=Role.CLIENT_USER, organization_id=org2.id)

@@ -263,7 +263,7 @@ def list_cases(
     """List cases for the organization, with optional filters."""
     q = _query_cases_for_user(db, current_user, org_id)
 
-    is_admin = current_user.role in (Role.ADMIN.value, Role.SUPER_ADMIN.value)
+    is_admin = current_user.role == Role.ADMIN.value
     if mine_only and not is_admin:
         q = q.filter(
             (Case.assigned_investigator_id == current_user.id)
@@ -393,7 +393,7 @@ def assign_case(
     )
     if not assignee:
         raise HTTPException(status_code=404, detail="Assignee not found in this organization.")
-    if assignee.role != Role.INVESTIGATOR.value and current_user.role not in (Role.ADMIN.value, Role.SUPER_ADMIN.value):
+    if assignee.role != Role.INVESTIGATOR.value and current_user.role != Role.ADMIN.value:
         raise HTTPException(status_code=400, detail="Cases can only be assigned to an INVESTIGATOR.")
 
     case.assigned_investigator_id = assignee.id

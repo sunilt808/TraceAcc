@@ -22,7 +22,7 @@ def upload_evidence(
     case_id: int,
     file: UploadFile = File(...),
     current_user: User = Depends(RoleChecker([
-        Role.INVESTIGATOR.value, Role.ADMIN.value
+        Role.INVESTIGATOR.value, Role.TRACE_LAB_ANALYST.value, Role.ADMIN.value
     ])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
@@ -58,7 +58,7 @@ def upload_evidence(
 def list_evidence(
     case_id: int,
     current_user: User = Depends(RoleChecker([
-        Role.INVESTIGATOR.value, Role.ADMIN.value
+        Role.INVESTIGATOR.value, Role.TRACE_LAB_ANALYST.value, Role.ADMIN.value
     ])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
@@ -82,7 +82,7 @@ def download_evidence(
     case_id: int,
     evidence_id: int,
     current_user: User = Depends(RoleChecker([
-        Role.INVESTIGATOR.value, Role.ADMIN.value
+        Role.INVESTIGATOR.value, Role.TRACE_LAB_ANALYST.value, Role.ADMIN.value
     ])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),

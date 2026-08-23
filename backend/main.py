@@ -27,6 +27,7 @@ from api.routes.datasets import router as datasets_router
 from api.routes.messages import router as messages_router
 from api.routes.notifications import router as notifications_router
 from api.routes.workbench import router as workbench_router
+from api.routes.assignments import router as assignments_router
 from db.database import get_db, init_db
 from models.user import User
 from utils.csv_parser import parse_csv
@@ -74,6 +75,7 @@ app.include_router(datasets_router)
 app.include_router(messages_router)
 app.include_router(notifications_router)
 app.include_router(workbench_router)
+app.include_router(assignments_router)
 
 @app.get("/")
 async def root() -> Dict:

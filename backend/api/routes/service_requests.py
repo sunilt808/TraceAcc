@@ -5,6 +5,7 @@ Allows client users to submit service requests, upload datasets,
 and allows admins to review, assign, and manage requests.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel
@@ -74,7 +75,7 @@ def _sr_to_dict(db: Session, sr: ServiceRequest) -> dict:
 def create_service_request(
     body: ServiceRequestCreate,
     current_user: User = Depends(RoleChecker([
-        Role.CLIENT_USER.value, Role.ADMIN.value, Role.SUPER_ADMIN.value
+        Role.CLIENT_USER.value, Role.ADMIN.value
     ])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
@@ -148,21 +149,29 @@ def list_service_requests(
 ):
     """
     List service requests.
-    - CLIENT_USER sees only their own requests.
-    - ADMIN/SUPER_ADMIN sees all requests in the organization.
-    - Analyst/Investigator can pass ?assigned_to_me=true to see only
-      requests routed to them (TraceLab / InvoSpace work queues).
+    - CLIENT_USER sees only their own requests (own organization).
+    - ADMIN sees all requests in scope.
+    - Analyst/Investigator with ?assigned_to_me=true get their
+      work queue — assignments may cross organizations because
+      internal staff are assigned client-organization requests.
     """
-    q = db.query(ServiceRequest).filter(ServiceRequest.organization_id == org_id)
 
-    # Client users see only their own requests
     if current_user.role == Role.CLIENT_USER.value:
-        q = q.filter(ServiceRequest.created_by_id == current_user.id)
+        # Clients are strictly tenant-scoped to their own requests
+        q = db.query(ServiceRequest).filter(
+            ServiceRequest.organization_id == org_id,
+            ServiceRequest.created_by_id == current_user.id,
+        )
     elif assigned_to_me:
-        q = q.filter(
+        # Staff work queue — assignment-based, cross-org aware
+        q = db.query(ServiceRequest).filter(
             (ServiceRequest.assigned_to_id == current_user.id)
             | (ServiceRequest.assigned_analyst_id == current_user.id)
             | (ServiceRequest.assigned_invospace_id == current_user.id)
+        )
+    else:
+        q = db.query(ServiceRequest).filter(
+            ServiceRequest.organization_id == org_id
         )
 
     if status:
@@ -183,14 +192,25 @@ def get_service_request(
     """Get a single service request."""
     sr = db.query(ServiceRequest).filter(
         ServiceRequest.id == request_id,
-        ServiceRequest.organization_id == org_id,
     ).first()
+
     if not sr:
         raise HTTPException(status_code=404, detail="Service request not found.")
 
-    # Client users can only see their own requests
-    if current_user.role == Role.CLIENT_USER.value and sr.created_by_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied.")
+    role = current_user.role
+    is_assignee = current_user.id in (
+        sr.assigned_to_id,
+        sr.assigned_analyst_id,
+        sr.assigned_invospace_id,
+    )
+
+    if sr.organization_id == org_id:
+        # Same-organization access: clients see own requests only
+        if current_user.role == Role.CLIENT_USER.value and sr.created_by_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied.")
+    elif not is_assignee and current_user.role != Role.ADMIN.value:
+        # Cross-organization access only for assigned staff or ADMIN
+        raise HTTPException(status_code=404, detail="Service request not found.")
 
     return _sr_to_dict(db, sr)
 
@@ -200,7 +220,7 @@ def update_service_request(
     request_id: int,
     body: ServiceRequestUpdate,
     current_user: User = Depends(RoleChecker([
-        Role.ADMIN.value, Role.SUPER_ADMIN.value
+        Role.ADMIN.value
     ])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
@@ -234,7 +254,7 @@ def upload_dataset(
     request_id: int,
     file: UploadFile = File(...),
     current_user: User = Depends(RoleChecker([
-        Role.CLIENT_USER.value, Role.ADMIN.value, Role.SUPER_ADMIN.value
+        Role.CLIENT_USER.value, Role.ADMIN.value
     ])),
     org_id: int = Depends(get_current_workspace),
     db: Session = Depends(get_db),
@@ -256,3 +276,65 @@ def upload_dataset(
     db.commit()
     db.refresh(sr)
     return {"message": "Dataset uploaded successfully", "filename": file.filename, "service_request": _sr_to_dict(db, sr)}
+
+
+@router.get("/{request_id}/dataset/download")
+def download_dataset(
+    request_id: int,
+    current_user: User = Depends(get_current_user),
+    org_id: int = Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    """
+    Download the dataset attached to a service request.
+
+    Access:
+      - ADMIN: any request in scope.
+      - CLIENT_USER: only own requests.
+      - TRACE_LAB_ANALYST / INVESTIGATOR: requests assigned
+        to them (this is how assigned data reaches the
+        analyst / invospace workspace for analysis).
+    """
+    sr = db.query(ServiceRequest).filter(
+        ServiceRequest.id == request_id,
+    ).first()
+    if not sr:
+        raise HTTPException(status_code=404, detail="Service request not found.")
+
+    role = current_user.role
+
+    is_assignee = current_user.id in (
+        sr.assigned_to_id,
+        sr.assigned_analyst_id,
+        sr.assigned_invospace_id,
+    )
+
+    if role == Role.CLIENT_USER.value:
+        if (
+            sr.created_by_id != current_user.id
+            or sr.organization_id != org_id
+        ):
+            raise HTTPException(status_code=403, detail="Access denied.")
+    elif sr.organization_id != org_id and not is_assignee and role != Role.ADMIN.value:
+        # Cross-organization download only for assigned staff
+        raise HTTPException(
+            status_code=403,
+            detail="This request is not assigned to you.",
+        )
+
+    if role in (Role.TRACE_LAB_ANALYST.value, Role.INVESTIGATOR.value) and not is_assignee:
+        raise HTTPException(
+            status_code=403,
+            detail="This request is not assigned to you.",
+        )
+
+    if not sr.dataset_path:
+        raise HTTPException(status_code=404, detail="No dataset has been uploaded for this request.")
+
+    try:
+        file_path = StorageService.get_evidence_path(sr.dataset_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Dataset file missing from storage.")
+
+    filename = sr.dataset_filename or "dataset.csv"
+    return FileResponse(path=file_path, filename=filename, media_type="text/csv")
