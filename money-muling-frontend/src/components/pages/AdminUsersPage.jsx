@@ -19,6 +19,7 @@ function AdminUsersPage() {
   const { user: currentUser } = useAuth();
 
   const [users, setUsers] = useState([]);
+  const [orgs, setOrgs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -27,7 +28,8 @@ function AdminUsersPage() {
     email: '',
     phone: '',
     password: '',
-    role: 'CLIENT',
+    role: 'CLIENT_USER',
+    organization_id: '',
   });
 
   const [createLoading, setCreateLoading] = useState(false);
@@ -54,6 +56,17 @@ function AdminUsersPage() {
 
   useEffect(() => {
     fetchUsers();
+    // SUPER_ADMIN must pick an organization when provisioning
+    // operational users; load the approved org list for the form.
+    if (currentUser?.role === 'SUPER_ADMIN') {
+      adminAPI
+        .listOrganizations()
+        .then((data) => {
+          const items = data.items || data || [];
+          setOrgs(items.filter((o) => o.status === 'APPROVED'));
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const handleRoleChange = async (userId, newRole) => {
@@ -119,7 +132,15 @@ function AdminUsersPage() {
     setError(null);
 
     try {
-      await adminAPI.createUser(newUser);
+      const payload = { ...newUser };
+      // Plain admins are scoped to their own org server-side.
+      if (currentUser?.role !== 'SUPER_ADMIN' || !payload.organization_id) {
+        delete payload.organization_id;
+      } else {
+        payload.organization_id = parseInt(payload.organization_id, 10);
+      }
+
+      await adminAPI.createUser(payload);
 
       setShowCreateModal(false);
 
@@ -128,7 +149,8 @@ function AdminUsersPage() {
         email: '',
         phone: '',
         password: '',
-        role: 'CLIENT',
+        role: 'CLIENT_USER',
+        organization_id: '',
       });
 
       await fetchUsers();
@@ -675,7 +697,8 @@ function AdminUsersPage() {
                 <Form.Control
                   type="password"
                   required
-                  placeholder="Create password"
+                  minLength={8}
+                  placeholder="Min 8 chars, 1 letter + 1 digit"
                   value={newUser.password}
                   onChange={(e) =>
                     setNewUser({
@@ -691,6 +714,54 @@ function AdminUsersPage() {
                 />
 
               </Form.Group>
+
+              {/* Organization (SUPER_ADMIN only) */}
+              {currentUser?.role === 'SUPER_ADMIN' &&
+                newUser.role !== 'SUPER_ADMIN' && (
+                  <Form.Group className="mb-3">
+
+                    <Form.Label className="text-light fw-semibold">
+                      Organization *
+                    </Form.Label>
+
+                    <Form.Select
+                      required
+                      value={newUser.organization_id}
+                      onChange={(e) =>
+                        setNewUser({
+                          ...newUser,
+                          organization_id: e.target.value,
+                        })
+                      }
+                      style={{
+                        backgroundColor: '#010409',
+                        color: '#c9d1d9',
+                        borderColor: '#30363d',
+                      }}
+                    >
+
+                      <option value="" style={{ backgroundColor: '#010409' }}>
+                        Select approved organization...
+                      </option>
+
+                      {orgs.map((org) => (
+                        <option
+                          key={org.id}
+                          value={org.id}
+                          style={{ backgroundColor: '#010409', color: '#c9d1d9' }}
+                        >
+                          {org.name} (#{org.id})
+                        </option>
+                      ))}
+
+                    </Form.Select>
+
+                    <div className="text-secondary small mt-1">
+                      Operational users must belong to an approved organization.
+                    </div>
+
+                  </Form.Group>
+                )}
 
               {/* Role */}
               <Form.Group className="mb-3">

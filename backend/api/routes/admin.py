@@ -85,6 +85,28 @@ def _is_admin_or_super_admin(user: User) -> bool:
     return user.role in ADMIN_ROLES
 
 
+def _validate_password_strength(password: str) -> None:
+    """
+    Same enterprise policy as self-registration:
+      >= 8 chars, at least one letter and one digit.
+    """
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters long.",
+        )
+    if not any(c.isalpha() for c in password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one letter.",
+        )
+    if not any(c.isdigit() for c in password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one digit.",
+        )
+
+
 def _can_manage_role(
     current_user: User,
     target_role: str,
@@ -549,6 +571,27 @@ def create_admin_user(
             status_code=400,
             detail="Username already registered.",
         )
+
+    if body.email:
+        existing_email = (
+            db.query(User)
+            .filter(
+                User.email
+                == str(body.email).lower().strip()
+            )
+            .first()
+        )
+
+        if existing_email:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Email already registered to "
+                    "another user."
+                ),
+            )
+
+    _validate_password_strength(body.password)
 
     valid_roles = {
         Role.CLIENT.value,
@@ -1580,6 +1623,16 @@ def review_service_request(
                 )
 
         request.assigned_to_id = assignee.id
+        request.assigned_by_id = current_user.id
+        request.assigned_at = datetime.now(timezone.utc)
+
+        if target_stage == "TRACE_LAB":
+            request.assigned_analyst_id = assignee.id
+            request.assigned_invospace_id = None
+        else:
+            request.assigned_invospace_id = assignee.id
+            request.assigned_analyst_id = None
+
         request.status = "IN_PROGRESS"
 
         if workflow:
@@ -1643,6 +1696,29 @@ def review_service_request(
         )
 
     db.commit()
+
+    # Notify the assignee so the task shows up in their
+    # notifications feed immediately.
+    if action in (
+        "ASSIGN_TRACELAB",
+        "ASSIGN_INVOSPACE",
+        "REASSIGN",
+    ):
+        from services.notification_service import (
+            notify_request_assigned,
+        )
+
+        notify_request_assigned(
+            db,
+            org_id=org_id,
+            assignee_id=assignee.id,
+            request_id=request.id,
+            request_title=request.title,
+            team="TraceLab"
+            if target_stage == "TRACE_LAB"
+            else "InvoSpace",
+        )
+        db.commit()
 
     return _request_queue_item(
         db,

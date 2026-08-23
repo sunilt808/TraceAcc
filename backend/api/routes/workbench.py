@@ -285,6 +285,21 @@ def investigator_workbench(
         routed_q.order_by(Alert.risk_score.desc()).limit(15).all()
     )
 
+    # ---- Assigned service requests -------------------------
+    req_q = db.query(ServiceRequest).filter(
+        ServiceRequest.organization_id == org_id
+    )
+    if not is_admin:
+        req_q = req_q.filter(
+            (ServiceRequest.assigned_to_id == current_user.id)
+            | (ServiceRequest.assigned_analyst_id == current_user.id)
+            | (ServiceRequest.assigned_invospace_id == current_user.id)
+        )
+
+    assigned_requests = (
+        req_q.order_by(ServiceRequest.updated_at.desc()).limit(25).all()
+    )
+
     # ---- My cases -------------------------------------------
     case_q = db.query(Case).filter(Case.organization_id == org_id)
     if not is_admin:
@@ -344,6 +359,7 @@ def investigator_workbench(
 
     return {
         "kpis": {
+            "assigned_requests": len(assigned_requests),
             "routed_alerts": len(routed_alerts),
             "open_cases": status_counts.get("OPEN", 0)
             + status_counts.get("ASSIGNED", 0)
@@ -355,6 +371,9 @@ def investigator_workbench(
             "decisions_made": decisions_made,
             "overdue_tasks": len(overdue_tasks),
         },
+        "assigned_requests": [
+            _serialize_assigned_request(db, r) for r in assigned_requests
+        ],
         "routed_alerts": [
             {
                 "id": a.id,

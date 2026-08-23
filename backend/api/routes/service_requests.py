@@ -37,7 +37,7 @@ class ServiceRequestUpdate(BaseModel):
 # ---------- Helpers ----------
 
 VALID_TYPES = {"ANALYSIS", "INVESTIGATION", "AUDIT"}
-VALID_STATUSES = {"PENDING", "APPROVED", "IN_PROGRESS", "COMPLETED", "REJECTED"}
+VALID_STATUSES = {"SUBMITTED", "APPROVED", "IN_PROGRESS", "COMPLETED", "REJECTED"}
 
 
 def _sr_workflow(db: Session, request_id: int, org_id: int):

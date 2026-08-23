@@ -1,845 +1,1541 @@
 // src/components/landing/LandingPage.jsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useRef, useLayoutEffect } from 'react';
 import { Link } from 'react-router-dom';
 import cytoscape from 'cytoscape';
+
 import '../../assets/landing.css';
 
-export default function LandingPage() {
-  const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState('cycle');
+
+
+const LandingPage = () => {
+  // --- REFS ---
+  const networkCanvasRef = useRef(null);
+  const engineCanvasRef = useRef(null);
+  const analyzerCanvasRef = useRef(null);
+  const graphContainerRef = useRef(null);
+  const particlesRef = useRef(null);
+  const progressRef = useRef(null);
+  const navbarRef = useRef(null);
+
+  // --- STATE ---
+  const [scrolled, setScrolled] = useState(false);
   const [activeArchStep, setActiveArchStep] = useState(0);
-  const [showFraudOnly, setShowFraudOnly] = useState(false);
-  const [graphLayout, setGraphLayout] = useState('cose');
+  const [activeDetectionTab, setActiveDetectionTab] = useState('cycle');
   const [activeFaq, setActiveFaq] = useState(null);
-  const [triageStep, setTriageStep] = useState(1);
-  const [analyzerCsv, setAnalyzerCsv] = useState(
-`sender_account,receiver_account,amount,timestamp
+  const [activeCaseStep, setActiveCaseStep] = useState(0);
+  const [activeLabStep, setActiveLabStep] = useState('ingest');
+  const [activeDclcgModule, setActiveDclcgModule] = useState(0);
+  const [truthOpen, setTruthOpen] = useState(false);
+  const [csvContent, setCsvContent] = useState(
+    `sender_account,receiver_account,amount,timestamp
 ACC_100,ACC_200,5000.00,2026-07-22T08:00:00Z
 ACC_200,ACC_300,4900.00,2026-07-22T08:05:00Z
 ACC_300,ACC_100,4800.00,2026-07-22T08:10:00Z
 ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
   );
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analyzerResults, setAnalyzerResults] = useState(null);
 
-  const cyRef = useRef(null);
-  const cyInstance = useRef(null);
-
-  // ─── Cytoscape Graph ───
-  useEffect(() => {
-    setMounted(true);
-
-    if (cyRef.current && !cyInstance.current) {
-      const cy = cytoscape({
-        container: cyRef.current,
-        elements: [
-          // Core nodes
-          { data: { id: 'core1', label: 'Main Entity', type: 'core' } },
-          { data: { id: 'core2', label: 'Processor', type: 'core' } },
-          
-          // Mule rings
-          { data: { id: 'm1', label: 'Mule A', type: 'mule' } },
-          { data: { id: 'm2', label: 'Mule B', type: 'mule' } },
-          { data: { id: 'm3', label: 'Mule C', type: 'mule' } },
-          { data: { id: 'm4', label: 'Mule D', type: 'mule' } },
-          { data: { id: 'm5', label: 'Mule E', type: 'mule' } },
-          
-          // Normal nodes
-          { data: { id: 'n1', label: 'Acc #1029', type: 'normal' } },
-          { data: { id: 'n2', label: 'Acc #4492', type: 'normal' } },
-          { data: { id: 'n3', label: 'Acc #8831', type: 'normal' } },
-          { data: { id: 'n4', label: 'Merchant X', type: 'normal' } },
-          { data: { id: 'n5', label: 'Payroll Co', type: 'normal' } },
-          
-          // Edges - Normal
-          { data: { source: 'n1', target: 'core1', amount: '$4,200' } },
-          { data: { source: 'n2', target: 'core1', amount: '$1,800' } },
-          { data: { source: 'core1', target: 'core2', amount: '$12,500' } },
-          { data: { source: 'core2', target: 'n3', amount: '$950' } },
-          
-          // Edges - Fraud Ring
-          { data: { source: 'm1', target: 'm2', isFraud: true, amount: '$9,900' } },
-          { data: { source: 'm2', target: 'm3', isFraud: true, amount: '$9,850' } },
-          { data: { source: 'm3', target: 'm4', isFraud: true, amount: '$9,800' } },
-          { data: { source: 'm4', target: 'm1', isFraud: true, amount: '$9,750' } },
-          { data: { source: 'core2', target: 'm1', isFraud: true, amount: '$10,000' } },
-          { data: { source: 'm4', target: 'n4', amount: '$150' } },
-          { data: { source: 'm5', target: 'n5', amount: '$3,400' } },
-          { data: { source: 'n5', target: 'm2', isFraud: true, amount: '$8,200' } }
-        ],
-        style: [
-          {
-            selector: 'node',
-            style: {
-              'width': 32, 'height': 32,
-              'background-color': '#ffffff',
-              'label': 'data(label)',
-              'color': '#ffffff',
-              'font-size': '11px',
-              'font-weight': '600',
-              'text-valign': 'center',
-              'text-halign': 'center',
-              'text-outline-color': '#030712',
-              'text-outline-width': '3px',
-              'font-family': 'Outfit, sans-serif'
-            }
-          },
-          {
-            selector: 'node[type="core"]',
-            style: {
-              'background-color': '#2F73FF',
-              'width': 48, 'height': 48,
-              'shadow-color': '#2F73FF', 'shadow-blur': 25, 'shadow-opacity': 1
-            }
-          },
-          {
-            selector: 'node[type="mule"]',
-            style: {
-              'background-color': '#ef4444',
-              'width': 40, 'height': 40,
-              'shadow-color': '#ef4444', 'shadow-blur': 25, 'shadow-opacity': 1
-            }
-          },
-          {
-            selector: 'node[type="normal"]',
-            style: {
-              'background-color': '#10b981',
-              'width': 28, 'height': 28,
-              'shadow-color': '#10b981', 'shadow-blur': 15, 'shadow-opacity': 1
-            }
-          },
-          {
-            selector: 'edge',
-            style: {
-              'width': 2,
-              'line-color': 'rgba(47, 115, 255, 0.4)',
-              'curve-style': 'bezier',
-              'target-arrow-shape': 'triangle',
-              'target-arrow-color': 'rgba(47, 115, 255, 0.4)'
-            }
-          },
-          {
-            selector: 'edge[isFraud]',
-            style: {
-              'width': 3,
-              'line-color': 'rgba(239, 68, 68, 0.8)',
-              'target-arrow-color': 'rgba(239, 68, 68, 0.8)',
-              'line-style': 'dashed'
-            }
-          }
-        ],
-        layout: {
-          name: 'cose',
-          idealEdgeLength: 100,
-          nodeOverlap: 20,
-          refresh: 20,
-          fit: true,
-          padding: 30,
-          randomize: false,
-          componentSpacing: 100,
-          nodeRepulsion: 400000,
-          edgeElasticity: 100,
-          nestingFactor: 5,
-          gravity: 80,
-          numIter: 1000,
-          initialTemp: 200,
-          coolingFactor: 0.95,
-          minTemp: 1.0
-        },
-        userZoomingEnabled: false,
-        userPanningEnabled: false,
-        boxSelectionEnabled: false
-      });
-      
-      cyInstance.current = cy;
-
-      let angle = 0;
-      let animId;
-      const animateNodes = () => {
-        angle += 0.02;
-        if(cyInstance.current && !cyInstance.current.destroyed()) {
-          try {
-            cyInstance.current.nodes().forEach((n, i) => {
-               if(n && n.inside()) {
-                 const pos = n.position();
-                 if (pos) {
-                   n.position({
-                      x: pos.x + Math.sin(angle + i) * 0.4,
-                      y: pos.y + Math.cos(angle + i) * 0.4
-                   });
-                 }
-               }
-            });
-            animId = requestAnimationFrame(animateNodes);
-          } catch(e) {}
-        }
-      };
-      animateNodes();
-
-      return () => {
-        if (animId) cancelAnimationFrame(animId);
-        if (cyInstance.current) {
-          try { cyInstance.current.destroy(); } catch(e) {}
-          cyInstance.current = null;
-        }
-      };
-    }
-  }, []);
-
-  // ─── Handlers ───
-  const handleToggleFraud = () => {
-    if(!cyInstance.current) return;
-    const nextState = !showFraudOnly;
-    setShowFraudOnly(nextState);
-    if(nextState) {
-      cyInstance.current.nodes('[type != "mule"]').style('opacity', 0.15);
-      cyInstance.current.edges('[!isFraud]').style('opacity', 0.1);
-    } else {
-      cyInstance.current.nodes().style('opacity', 1);
-      cyInstance.current.edges().style('opacity', 1);
-    }
-  };
-
-  const handleRelayout = (layoutName) => {
-    setGraphLayout(layoutName);
-    if(cyInstance.current) {
-      cyInstance.current.layout({ name: layoutName, fit: true, padding: 30, animate: true, animationDuration: 600 }).run();
-    }
-  };
-
-  const handleMouseMove = (e) => {
-    const card = e.currentTarget;
-    const rect = card.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-    const rotateX = ((y - centerY) / centerY) * -12;
-    const rotateY = ((x - centerX) / centerX) * 12;
-    card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(10px)`;
-  };
-
-  const handleMouseLeave = (e) => {
-    const card = e.currentTarget;
-    card.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) translateZ(0px)`;
-  };
-
-  const handleQuickAnalyze = () => {
-    setAnalyzing(true);
-    setTimeout(() => {
-      const lines = analyzerCsv.trim().split('\n').filter(l => l.trim().length > 0);
-      const rows = lines.slice(1);
-      const nodeDegrees = {};
-      const edges = [];
-      let totalVolume = 0;
-
-      rows.forEach(r => {
-        const parts = r.split(',');
-        if (parts.length >= 4) {
-          const u = parts[0].trim();
-          const v = parts[1].trim();
-          const amt = parseFloat(parts[2]) || 0;
-          totalVolume += amt;
-          nodeDegrees[u] = (nodeDegrees[u] || 0) + 1;
-          nodeDegrees[v] = (nodeDegrees[v] || 0) + 1;
-          edges.push({ u, v, amt });
-        }
-      });
-
-      let cycleFound = false;
-      edges.forEach(e1 => {
-        edges.forEach(e2 => {
-          if (e1.v === e2.u) {
-            edges.forEach(e3 => {
-              if (e2.v === e3.u && e3.v === e1.u) {
-                cycleFound = true;
-              }
-            });
-          }
-        });
-      });
-
-      setAnalyzerResults({
-        totalNodes: Object.keys(nodeDegrees).length,
-        totalTx: edges.length,
-        totalVolume: `$${totalVolume.toLocaleString()}`,
-        suspicionScore: cycleFound ? 88 : 35,
-        flaggedPattern: cycleFound ? 'Circular Mule Ring (Cycle Length 3)' : 'Normal Transaction Flow',
-        cycleDetected: cycleFound
-      });
-      setAnalyzing(false);
-    }, 600);
-  };
-
-  // ─── Data ───
-  const algorithmData = {
+  // --- STATIC DATA ---
+  const detectionData = {
     cycle: {
-      title: 'Lexicographical Cycle Detection Algorithm',
-      tag: 'Circular Fund Movement',
-      badge: 'Cycles (Length 3 to 5)',
-      description: 'Identifies circular transfers where illicit money flows through intermediate mule accounts before returning to the seed account (A → B → C → A). Uses lexicographical pruning to eliminate redundant searches and optimize path detection.',
-      complexity: 'O(V + E) per seed node',
-      formula: 'Path(v₀, v₁, ..., vₖ) where v₀ = vₖ and degree(vᵢ) > 0',
+      badge: 'Cycles (Length 3-5)',
+      title: 'Lexicographical Cycle Detection',
       weight: '40 Risk Points',
+      desc: 'Identifies circular transfers where illicit money flows through intermediate mule accounts before returning to the seed account (A → B → C → A). Uses lexicographical pruning to eliminate redundant searches and optimize path detection.',
+      complexity: 'O(V + E) per seed node',
+      formula: 'Path(v₀, v₁, ..., vₖ) where v₀ = vₖ',
       useCase: 'Detecting laundering syndicates trying to inflate account volume or pass funds back to originators.'
     },
     fan: {
-      title: 'Fan-In & Fan-Out Hub Detector',
-      tag: 'High Velocity Smurfing & Disbursement',
-      badge: 'Hub Topology Search',
-      description: 'Detects accounts exhibiting disproportionate high-frequency incoming (Fan-In: Many-to-One) or outgoing (Fan-Out: One-to-Many) transfers within narrow temporal sliding windows, filtering out verified merchant patterns.',
-      complexity: 'O(E log E) temporal sliding window',
-      formula: 'InDegree(v) ≥ T_in AND OutDegree(v) < T_out within Δt',
-      weight: '25 Risk Points',
-      useCase: 'Catching smurfing hubs collecting micro-deposits from multiple mules or central aggregators disbursing funds.'
+      badge: 'Fan / Hub Structure',
+      title: 'Hub-and-Spoke Disguise Detection',
+      weight: '35 Risk Points',
+      desc: 'Identifies hub accounts that receive funds from multiple sources and distribute to many destinations, often used to obscure the true origin of funds.',
+      complexity: 'O(V + E) per hub',
+      formula: 'Hub(v) = indegree(v) × outdegree(v)',
+      useCase: 'Detecting money mule networks and layering structures.'
     },
     layering: {
-      title: 'Multi-Hop Pass-Through Chain Detector',
-      tag: 'Layering & Shell Chains',
-      badge: 'DFS Pass-Through Analysis',
-      description: 'Executes recursive Depth-First Traversal (DFS) across low-degree intermediate accounts. Traces sequential pass-through transactions designed to obscure the ultimate beneficial ownership of funds.',
-      complexity: 'O(V * max_depth) bounded DFS',
-      formula: 'Path(v_start → ... → v_end) with degree(v_mid) ≤ MaxDegree',
-      weight: '20 Risk Points',
-      useCase: 'Exposing rapid chain transactions moving money across 5-10 intermediate shell accounts within minutes.'
+      badge: 'Multi-Hop Layering',
+      title: 'Layering Path Analysis',
+      weight: '45 Risk Points',
+      desc: 'Tracks funds across multiple hops to identify complex layering schemes where money moves through many accounts to obscure its trail.',
+      complexity: 'O(V + E) per path',
+      formula: 'Path(v₀ → v₁ → ... → vₖ)',
+      useCase: 'Detecting complex money laundering chains with multiple intermediate accounts.'
     },
     burst: {
-      title: 'Sliding-Window Temporal Burst Engine',
-      tag: 'Dormant Account Exploitation',
-      badge: 'Chronological Sliding Window',
-      description: 'Flags long-dormant accounts that suddenly display explosive, high-frequency transaction spikes. Compares historical inactivity periods (e.g., 180 days) against sudden activity bursts within hours.',
-      complexity: 'O(N log N) sorted timestamp search',
-      formula: 'Count(t_i ∈ [T, T+Δt]) ≥ Burst_Threshold AND Inactivity(T-180d) > 90%',
-      weight: '25 Risk Points',
-      useCase: 'Catching compromised sleeping mule accounts activated simultaneously for laundering operations.'
+      badge: 'Temporal Burst',
+      title: 'Transaction Burst Detection',
+      weight: '30 Risk Points',
+      desc: 'Identifies unusual spikes in transaction volume or velocity that may indicate automated laundering or structuring activity.',
+      complexity: 'O(V + E) per time window',
+      formula: 'Burst = Σ(transactions) / Δt',
+      useCase: 'Detecting structuring, smurfing, or automated transaction patterns.'
     },
     score: {
-      title: 'Unified Account & Ring Suspicion Engine',
-      tag: 'Multi-Heuristic Risk Matrix',
-      badge: 'Consolidated Score 0 - 100',
-      description: 'Combines heuristic flags with multi-ring involvement multipliers. Accounts are ranked by risk score (0-100), while financial rings receive an aggregate ring risk score computed from member nodes.',
-      complexity: 'O(N) score aggregation',
-      formula: 'Score = Min(100, ∑ Weight_i + Bonus(Ring_Count))',
-      weight: 'Unified 0 - 100 Index',
-      useCase: 'Prioritizing high-risk alerts for compliance analysts, drastically reducing manual triage workload.'
+      badge: 'ML Anomaly Score',
+      title: 'Unsupervised Anomaly Detection',
+      weight: '50 Risk Points',
+      desc: 'Combines Isolation Forest, LOF, and DBSCAN to identify accounts with anomalous transaction patterns that deviate from normal behaviour.',
+      complexity: 'O(V × log V)',
+      formula: 'Score = w₁×IF + w₂×LOF + w₃×DBSCAN',
+      useCase: 'Detecting sophisticated anomalies that evade rule-based detection.'
     }
   };
 
-  const architectureSteps = [
+  const archData = [
     {
       num: '01',
       title: 'Client Submits Request',
-      desc: 'Client uploads CSV/Excel dataset with transaction details and metadata into the admin-controlled intake queue.'
+      desc: 'Client uploads CSV/Excel dataset with transaction details and metadata into the admin-controlled intake queue.',
+      status: ['📋 CSV/Excel Upload', '✓ Validation', '✓ Quality Check', '📊 History Tracking']
     },
     {
       num: '02',
       title: 'Admin Reviews & Assigns',
-      desc: 'Admin accepts or rejects the request, then assigns it to TraceLab (for analysis) or InvoSpace (for investigation) based on priority.'
+      desc: 'Admin reviews the request, validates data quality, and assigns the work to TraceLab for analysis or InvoSpace for investigation.',
+      status: ['✓ Data Quality Check', '✓ Risk Triage', '📋 Assign to TraceLab', '📊 Queue Management']
     },
     {
       num: '03',
       title: 'TraceLab Performs Analysis',
-      desc: 'Analyst validates dataset, runs graph analysis (DFS cycle detection, fan-in/out, layering), behaviour analysis, temporal analysis, ML models, and risk scoring.'
+      desc: 'TraceLab analysts run graph analysis, pattern detection, ML scoring, and generate technical findings.',
+      status: ['🔬 Graph Construction', '📊 Pattern Detection', '🧠 ML Scoring', '📋 Findings Report']
     },
     {
       num: '04',
       title: 'Decision Point',
-      desc: 'If low/no risk → Technical Report. If suspicious activity detected → Alert is auto-generated and escalated to Admin, who routes it to InvoSpace for deep investigation.'
+      desc: 'Based on analysis results, the case either proceeds to InvoSpace for deep investigation or is closed with a technical report.',
+      status: ['✓ Risk Assessment', '⚖️ Decision: Escalate or Close', '📋 Recommendations']
     },
     {
       num: '05',
-      title: 'InvoSpace Deep Investigation',
-      desc: 'Investigator creates a case from the alert. Conducts Entity 360 analysis, multi-hop tracing, evidence collection, hypothesis testing, timeline building, and generates investigation report.'
+      title: 'InvoSpace Investigation',
+      desc: 'InvoSpace investigators conduct deep investigation with entity 360, evidence tracking, hypotheses, and timeline analysis.',
+      status: ['🔍 Entity 360 View', '📎 Evidence Management', '💡 Hypothesis Testing', '📝 Investigation Report']
     },
     {
       num: '06',
-      title: 'Admin Review, Seal & Release',
-      desc: 'Admin collects all reports, reviews them, applies digital signature/seal (TraceAcc badge watermark), and releases only approved reports to the client portal.'
+      title: 'Admin Seal & Release',
+      desc: 'Admin reviews the final report, applies SHA-256 digital seal, and releases the approved report to the client portal.',
+      status: ['✓ Final Review', '🔒 SHA-256 Seal', '📤 Release to Client', '📊 Audit Trail']
     }
   ];
 
-  const roles = [
-    { icon: '📋', title: 'Client Portal', desc: 'Submit service requests with CSV/Excel datasets. Track request status. Download only Admin-approved and digitally sealed final reports.', pill: 'CLIENT', color: '#10B981' },
-    { icon: '⚙️', title: 'Admin Operations Hub', desc: 'Accept/reject client requests. Assign work to TraceLab or InvoSpace. Review reports. Apply a tamper-evident SHA-256 digital seal. Release to client.', pill: 'ADMIN', color: '#3B82F6' },
-    { icon: '🔬', title: 'TraceLab Analysis', desc: 'Validate datasets. Run graph analysis, pattern detection, ML scoring. Generate findings & technical reports. Escalate suspicious alerts.', pill: 'ANALYST', color: '#8B5CF6' },
-    { icon: '🛡️', title: 'InvoSpace Investigation', desc: 'Convert alerts to cases. Deep investigation: Entity 360, multi-hop tracing, evidence, hypotheses, findings, timeline. Generate investigation reports.', pill: 'INVOSPACE', color: '#F59E0B' },
-  ];
-
-  const detectionModules = [
-    { title: 'DFS Cycle Detection', desc: 'Finds circular mule rings (A→B→C→A) with lexicographic pruning.', tag: 'Graph Heuristic', color: '#EF4444' },
-    { title: 'Fan-In / Fan-Out', desc: 'Identifies smurfing (many sources) and layering (many targets).', tag: 'Graph Heuristic', color: '#F59E0B' },
-    { title: 'Layering Chain', desc: 'Multi-hop DFS tracing reveals funds passing through intermediaries.', tag: 'Graph Heuristic', color: '#8B5CF6' },
-    { title: 'Burst / Dormancy', desc: 'Detects sudden activation after long dormancy — mule activation.', tag: 'Temporal Heuristic', color: '#3B82F6' },
-    { title: 'Structuring', desc: 'Identifies transactions kept under reporting thresholds.', tag: 'Behaviour Heuristic', color: '#10B981' },
-    { title: 'Rapid Pass-Through', desc: 'Flags accounts that receive and forward funds in short windows.', tag: 'Temporal Heuristic', color: '#EC4899' },
-    { title: 'Isolation Forest', desc: 'Unsupervised anomaly detection without labelled training data.', tag: 'ML Model', color: '#6366F1' },
-    { title: 'GNN Classification', desc: 'Graph Neural Networks classify suspicious nodes in transaction graph.', tag: 'Advanced ML', color: '#14B8A6' },
-    { title: 'Hybrid Risk Scoring', desc: 'Weighted aggregation of all signals into 0-100 risk score.', tag: 'Scoring Engine', color: '#F97316' },
-  ];
-
-  const investigationItems = [
-    { icon: '🔍', title: 'Entity 360 View' },
-    { icon: '🕸️', title: 'Investigation Graph' },
-    { icon: '🔗', title: 'Multi-Hop Tracing' },
-    { icon: '📎', title: 'Evidence Management' },
-    { icon: '💡', title: 'Hypothesis Testing' },
-    { icon: '📋', title: 'Task Management' },
-    { icon: '🔬', title: 'ML/GNN Analysis' },
-    { icon: '⏱️', title: 'Investigation Timeline' },
-    { icon: '📊', title: 'Risk Reassessment' },
-    { icon: '📝', title: 'Investigation Report' },
-    { icon: '🔄', title: 'Similar Investigations' },
-    { icon: '🎯', title: 'SAR Decision Support' },
-  ];
-
-  const faqs = [
+  const caseData = [
     {
-      q: 'What CSV columns are required for money muling detection?',
-      a: 'The system expects standard transaction records with headers: sender_account, receiver_account, amount, and timestamp (ISO-8601 format).'
+      title: 'Ingest the network.',
+      text: 'A transaction dataset enters TraceAcc. Accounts become nodes and transfers become directed edges, creating the structure required for network-level analysis.',
+      detailTitle: 'Directed financial graph',
+      detailText: 'The graph preserves sender → receiver relationships so patterns can be reasoned about across accounts rather than one transaction at a time.',
+      metrics: ['4', '21', '0–100'],
+      labels: ['graph roles', 'detection / analytics', 'suspicion score'],
+      risk: '72',
+      riskLabel: 'ELEVATED',
+      live: 'Transaction edges assembled · network structure ready'
     },
     {
-      q: 'How does TraceAcc differ from traditional rules-based AML systems?',
-      a: 'Rules engines inspect individual transactions in isolation. TraceAcc builds a directed graph network, tracing multi-hop layering paths, circular loops, and community structures across thousands of accounts.'
+      title: 'Detect the signal.',
+      text: 'Multiple detection modules scan the graph for cycles, fan structures, layering patterns, temporal bursts, and ML anomalies.',
+      detailTitle: 'Multi-signal detection',
+      detailText: '21 detection modules work together to surface suspicious patterns that a single rule would miss.',
+      metrics: ['4', '21', '0–100'],
+      labels: ['graph roles', 'detection / analytics', 'suspicion score'],
+      risk: '87',
+      riskLabel: 'HIGH',
+      live: 'Cycle + burst + anomaly signals converged'
     },
     {
-      q: 'What are the four roles in the TraceAcc workflow?',
-      a: 'Client (submits requests), Admin (reviews, assigns, seals), TraceLab (analyzes, detects patterns), and InvoSpace (investigates, generates reports).'
+      title: 'Trace the flow.',
+      text: 'Multi-hop tracing reveals the full path of funds across connected accounts, exposing circular and layered movement.',
+      detailTitle: 'Network intelligence',
+      detailText: 'Multi-hop relationships reveal the structure surrounding a suspicious account and expose circular or layered movement.',
+      metrics: ['4', '21', '0–100'],
+      labels: ['graph roles', 'detection / analytics', 'suspicion score'],
+      risk: '87',
+      riskLabel: 'HIGH',
+      live: '3-hop path resolved · circular flow detected'
     },
     {
-      q: 'How does the digital seal work?',
-      a: 'Admin applies a SHA-256 tamper-evident digital signature to all approved reports before release to the client portal, ensuring complete audit compliance.'
+      title: 'Investigate the case.',
+      text: 'Turn an alert into an evidence-backed investigation with entity context, evidence, hypotheses, and findings.',
+      detailTitle: 'InvoSpace investigation',
+      detailText: 'Analysts move from entity context to evidence, hypotheses, findings and an investigation timeline.',
+      metrics: ['1', '12', '06'],
+      labels: ['case', 'evidence', 'events'],
+      risk: '87',
+      riskLabel: 'HIGH',
+      live: 'Alert promoted to investigation · evidence linked'
+    },
+    {
+      title: 'Report & release.',
+      text: 'Findings become a controlled final report with SHA-256 seal, reviewed by admin and released to the client.',
+      detailTitle: 'Governed outcome',
+      detailText: 'The workflow ends with review, decision and governed release rather than an unexplained model score.',
+      metrics: ['01', 'SHA', '100%'],
+      labels: ['report', 'sealed', 'audited'],
+      risk: '72',
+      riskLabel: 'ELEVATED',
+      live: 'Report prepared · governance checkpoint reached'
     }
   ];
+
+  const labData = {
+    ingest: {
+      eyebrow: 'DATA INGESTION',
+      title: 'Transactions become investigation-ready signals.',
+      copy: 'Raw transaction records are validated and transformed into connected entities, relationships and time-aware signals.',
+      metrics: [['1,248', 'transactions'], ['86', 'accounts'], ['03', 'hops']],
+      msg: 'Schema validated · transaction graph assembled',
+      risk: '87'
+    },
+    detect: {
+      eyebrow: 'DETECTION ENGINE',
+      title: 'Multiple signals converge on one suspicious topology.',
+      copy: 'Graph patterns and anomaly signals work together instead of relying on a single rule or isolated transaction.',
+      metrics: [['21', 'detectors'], ['07', 'signals'], ['87', 'risk score']],
+      msg: 'Cycle + burst + anomaly signals converged',
+      risk: '87'
+    },
+    trace: {
+      eyebrow: 'NETWORK INTELLIGENCE',
+      title: 'Follow the money across connected accounts.',
+      copy: 'Multi-hop relationships reveal the structure surrounding a suspicious account and expose circular or layered movement.',
+      metrics: [['04', 'connected'], ['03', 'hops'], ['01', 'cycle']],
+      msg: '3-hop path resolved · circular flow detected',
+      risk: '87'
+    },
+    investigate: {
+      eyebrow: 'INVOSPACE',
+      title: 'Turn an alert into an evidence-backed case.',
+      copy: 'Analysts move from entity context to evidence, hypotheses, findings and an investigation timeline.',
+      metrics: [['01', 'case'], ['12', 'evidence'], ['06', 'events']],
+      msg: 'Alert promoted to investigation · evidence linked',
+      risk: '87'
+    },
+    report: {
+      eyebrow: 'GOVERNED OUTCOME',
+      title: 'Findings become a controlled final report.',
+      copy: 'The workflow ends with review, decision and governed release rather than an unexplained model score.',
+      metrics: [['01', 'report'], ['SHA', 'sealed'], ['100%', 'audited']],
+      msg: 'Report prepared · governance checkpoint reached',
+      risk: '72'
+    }
+  };
+
+  const dclcgData = [
+    {
+      title: '01 · DMG',
+      subtitle: 'Local neighbourhood view',
+      copy: 'DMG groups and aggregates local graph evidence so the model can reason about neighbourhood structure and disguised nodes.'
+    },
+    {
+      title: '02 · DMP',
+      subtitle: 'Long-range path context',
+      copy: 'DMP samples, prunes and fuses relevant multi-hop paths, keeping long-range context while controlling noise and compute.'
+    },
+    {
+      title: '03 · MAF',
+      subtitle: 'Cross-view fusion',
+      copy: 'MAF uses mutual attention to integrate complementary signals from the local and contextual views into richer node representations.'
+    }
+  ];
+
+  // --- HELPERS ---
+  const handleSmoothScroll = (e, targetId) => {
+    e.preventDefault();
+    const el = document.querySelector(targetId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const toggleFaq = (idx) => setActiveFaq(activeFaq === idx ? null : idx);
+
+  // --- EFFECTS ---
+  useLayoutEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.scrollY;
+      const height = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = (scrollTop / height) * 100;
+      if (progressRef.current) progressRef.current.style.width = progress + '%';
+      setScrolled(scrollTop > 50);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useLayoutEffect(() => {
+    const container = particlesRef.current;
+    if (!container) return;
+    for (let i = 0; i < 35; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.top = Math.random() * 100 + '%';
+      p.style.animationDelay = Math.random() * 6 + 's';
+      p.style.animationDuration = 4 + Math.random() * 6 + 's';
+      container.appendChild(p);
+    }
+    return () => { container.innerHTML = ''; };
+  }, []);
+
+  // Hero Network Graph
+  useLayoutEffect(() => {
+    const canvas = networkCanvasRef.current;
+    const container = graphContainerRef.current;
+    if (!canvas || !container) return;
+    const ctx = canvas.getContext('2d');
+    let width, height;
+    let highlightFraud = true;
+    let circleLayout = false;
+
+    const nodes = [
+      { x: .18, y: .30, fraud: false },
+      { x: .35, y: .18, fraud: false },
+      { x: .52, y: .28, fraud: true },
+      { x: .70, y: .18, fraud: false },
+      { x: .82, y: .36, fraud: false },
+      { x: .25, y: .55, fraud: false },
+      { x: .45, y: .48, fraud: true },
+      { x: .62, y: .55, fraud: false },
+      { x: .78, y: .62, fraud: true },
+      { x: .35, y: .78, fraud: false },
+      { x: .55, y: .78, fraud: false },
+      { x: .72, y: .82, fraud: false }
+    ];
+    const edges = [
+      [0, 1], [1, 2], [2, 3], [3, 4],
+      [0, 5], [1, 6], [2, 6], [2, 7],
+      [3, 7], [4, 8], [5, 6], [6, 7],
+      [6, 9], [7, 10], [8, 10],
+      [9, 10], [10, 11]
+    ];
+
+    const resize = () => {
+      const rect = container.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const draw = () => {
+      ctx.clearRect(0, 0, width, height);
+      const points = nodes.map((node, i) => {
+        if (circleLayout) {
+          const angle = (Math.PI * 2 * i) / nodes.length;
+          return {
+            x: width / 2 + Math.cos(angle) * Math.min(width, height) * .35,
+            y: height / 2 + Math.sin(angle) * Math.min(width, height) * .35
+          };
+        }
+        return { x: node.x * width, y: node.y * height };
+      });
+      edges.forEach(([a, b]) => {
+        const p1 = points[a], p2 = points[b];
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = (highlightFraud && (nodes[a].fraud || nodes[b].fraud)) ? 'rgba(239,68,68,.7)' : 'rgba(100,116,139,.35)';
+        ctx.stroke();
+      });
+      points.forEach((point, i) => {
+        const node = nodes[i];
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, node.fraud && highlightFraud ? 7 : 5, 0, Math.PI * 2);
+        ctx.fillStyle = node.fraud && highlightFraud ? '#ef4444' : '#38bdf8';
+        ctx.fill();
+        if (node.fraud && highlightFraud) {
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, 13, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(239,68,68,.25)';
+          ctx.stroke();
+        }
+      });
+    };
+
+    resize();
+    draw();
+    const handleResize = () => { resize(); draw(); };
+    window.addEventListener('resize', handleResize);
+
+    const fraudBtn = document.getElementById('toggleFraud');
+    const forceBtn = document.getElementById('layoutForce');
+    const circleBtn = document.getElementById('layoutCircle');
+    if (fraudBtn) fraudBtn.onclick = () => { highlightFraud = !highlightFraud; draw(); };
+    if (forceBtn) forceBtn.onclick = () => { circleLayout = false; draw(); };
+    if (circleBtn) circleBtn.onclick = () => { circleLayout = true; draw(); };
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (fraudBtn) fraudBtn.onclick = null;
+      if (forceBtn) forceBtn.onclick = null;
+      if (circleBtn) circleBtn.onclick = null;
+    };
+  }, []);
+
+  // Engine Canvas
+  useLayoutEffect(() => {
+    const canvas = engineCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let w, h, dpr = 1, raf;
+    const nodes = [], links = [], packets = [];
+    const count = 34;
+    const seed = (min, max) => Math.random() * (max - min) + min;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      w = rect.width;
+      h = rect.height;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      nodes.length = 0;
+      for (let i = 0; i < count; i++) {
+        nodes.push({
+          x: seed(25, w - 25),
+          y: seed(55, h - 70),
+          vx: seed(-.18, .18),
+          vy: seed(-.18, .18),
+          risk: Math.random() < .18,
+          r: seed(2.5, 4.5)
+        });
+      }
+      links.length = 0;
+      for (let i = 0; i < nodes.length; i++) {
+        let best = [];
+        for (let j = 0; j < nodes.length; j++) {
+          if (i !== j) {
+            const dx = nodes[i].x - nodes[j].x;
+            const dy = nodes[i].y - nodes[j].y;
+            const d = dx * dx + dy * dy;
+            best.push([d, j]);
+          }
+        }
+        best.sort((a, b) => a[0] - b[0]);
+        best.slice(0, 2).forEach(x => {
+          const key = i < x[1] ? i + '-' + x[1] : x[1] + '-' + i;
+          if (!links.some(l => l.key === key)) {
+            links.push({ a: i, b: x[1], key, risk: nodes[i].risk || nodes[x[1]].risk });
+          }
+        });
+      }
+      packets.length = 0;
+      for (let i = 0; i < 10; i++) {
+        packets.push({ l: links[i % links.length], t: Math.random(), speed: seed(.0015, .004) });
+      }
+    };
+
+    const frame = () => {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(3,9,18,.22)';
+      ctx.fillRect(0, 0, w, h);
+      for (const n of nodes) {
+        n.x += n.vx;
+        n.y += n.vy;
+        if (n.x < 20 || n.x > w - 20) n.vx *= -1;
+        if (n.y < 50 || n.y > h - 70) n.vy *= -1;
+      }
+      links.forEach(l => {
+        const a = nodes[l.a], b = nodes[l.b];
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = l.risk ? 'rgba(255,85,119,.24)' : 'rgba(79,209,255,.10)';
+        ctx.lineWidth = l.risk ? 1.25 : .7;
+        ctx.stroke();
+      });
+      packets.forEach(p => {
+        p.t += p.speed;
+        if (p.t > 1) p.t = 0;
+        const a = nodes[p.l.a], b = nodes[p.l.b];
+        const x = a.x + (b.x - a.x) * p.t;
+        const y = a.y + (b.y - a.y) * p.t;
+        ctx.beginPath();
+        ctx.arc(x, y, 2.1, 0, Math.PI * 2);
+        ctx.fillStyle = p.l.risk ? '#ff6d8a' : '#6edcff';
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+      nodes.forEach(n => {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+        ctx.fillStyle = n.risk ? '#ff5577' : '#4fd1ff';
+        ctx.shadowBlur = n.risk ? 18 : 8;
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        if (n.risk) {
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, n.r + 6 + Math.sin(performance.now() / 400) * 2, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(255,85,119,.12)';
+          ctx.stroke();
+        }
+      });
+      if (!reduced) raf = requestAnimationFrame(frame);
+    };
+
+    resize();
+    window.addEventListener('resize', resize);
+    setTimeout(() => {
+      if (!reduced) raf = requestAnimationFrame(frame);
+    }, 50);
+
+    return () => {
+      window.removeEventListener('resize', resize);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // Analyzer Canvas
+  useLayoutEffect(() => {
+    const canvas = analyzerCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let raf;
+    let pulse = 0;
+    let graph = { rows: [], metrics: null, nodes: [], edges: [] };
+    let lastW = 0, lastH = 0;
+
+    const parseCSV = (text) => {
+      const lines = text.trim().split(/\r?\n/).filter(Boolean);
+      if (lines.length < 2) throw new Error('Add at least one transaction row.');
+      const head = lines[0].split(',').map(x => x.trim().toLowerCase());
+      const required = ['sender_account', 'receiver_account', 'amount', 'timestamp'];
+      if (!required.every(k => head.includes(k))) {
+        throw new Error('Required columns: sender_account, receiver_account, amount, timestamp');
+      }
+      const ix = Object.fromEntries(required.map(k => [k, head.indexOf(k)]));
+      return lines.slice(1).map((line, i) => {
+        const c = line.split(',');
+        const amount = Number(c[ix.amount]);
+        return {
+          s: (c[ix.sender_account] || '').trim(),
+          r: (c[ix.receiver_account] || '').trim(),
+          a: Number.isFinite(amount) ? amount : 0,
+          t: (c[ix.timestamp] || '').trim(),
+          i
+        };
+      }).filter(x => x.s && x.r);
+    };
+
+    const computeMetrics = (rows) => {
+      const nodes = [...new Set(rows.flatMap(x => [x.s, x.r]))];
+      const adj = new Map(nodes.map(n => [n, []]));
+      rows.forEach(x => adj.get(x.s)?.push(x.r));
+
+      let cycles = 0;
+      const cycleNodes = new Set();
+      const dfs = (start, u, path) => {
+        if (path.length > 6) return;
+        for (const v of (adj.get(u) || [])) {
+          if (v === start && path.length >= 3) {
+            cycles++;
+            path.forEach(n => cycleNodes.add(n));
+          } else if (!path.includes(v)) {
+            dfs(start, v, [...path, v]);
+          }
+        }
+      };
+      nodes.forEach(n => dfs(n, n, [n]));
+      cycles = Math.floor(cycles / 3);
+
+      const out = new Map(nodes.map(n => [n, 0]));
+      const inc = new Map(nodes.map(n => [n, 0]));
+      rows.forEach(x => {
+        out.set(x.s, (out.get(x.s) || 0) + 1);
+        inc.set(x.r, (inc.get(x.r) || 0) + 1);
+      });
+
+      const maxAmount = rows.reduce((m, r) => Math.max(m, r.a), 0);
+      const high = rows.filter(x => x.a >= Math.max(9000, maxAmount * .8)).length;
+      const hubs = nodes.filter(n => (out.get(n) || 0) >= 3 || (inc.get(n) || 0) >= 3).length;
+
+      let score = Math.min(100, Math.round(
+        cycles * 22 + high * 10 + hubs * 7 + (cycleNodes.size ? 18 : 0)
+      ));
+      if (rows.length >= 4) {
+        score = Math.max(score, Math.min(100, 35 + cycles * 20 + high * 8));
+      }
+      return { nodes, cycles, cycleNodes, out, inc, high, hubs, score };
+    };
+
+    const resizeCanvas = (preserve = true) => {
+      const rect = canvas.getBoundingClientRect();
+      const d = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.floor(rect.width * d));
+      canvas.height = Math.max(1, Math.floor(rect.height * d));
+      ctx.setTransform(d, 0, 0, d, 0, 0);
+      const w = rect.width, h = rect.height;
+      if (!graph.metrics) return;
+
+      const ids = graph.metrics.nodes;
+      if (!preserve || !graph.nodes.length || lastW !== w || lastH !== h) {
+        const cols = Math.min(6, Math.max(3, Math.ceil(Math.sqrt(ids.length))));
+        const rows = Math.ceil(ids.length / cols);
+        graph.nodes = ids.map((id, i) => {
+          const col = i % cols, row = Math.floor(i / cols);
+          return {
+            id,
+            x: w * (.12 + .76 * (col / Math.max(1, cols - 1))),
+            y: h * (.16 + .68 * (row / Math.max(1, rows - 1))),
+            vx: (Math.random() - .5) * .08,
+            vy: (Math.random() - .5) * .08,
+            phase: Math.random() * Math.PI * 2
+          };
+        });
+        graph.edges = graph.rows.map(x => ({ s: x.s, r: x.r }));
+        lastW = w;
+        lastH = h;
+      }
+    };
+
+    const drawCanvas = () => {
+      if (!ctx || !graph.metrics) return;
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width, h = rect.height;
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(83,214,255,.035)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < w; x += 32) { ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke(); }
+      for (let y = 0; y < h; y += 32) { ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke(); }
+      ctx.restore();
+
+      const pos = new Map(graph.nodes.map(n => [n.id, n]));
+
+      for (const e of graph.edges) {
+        const a = pos.get(e.s), b = pos.get(e.r);
+        if (!a || !b) continue;
+        const risk = graph.metrics.cycleNodes.has(e.s) && graph.metrics.cycleNodes.has(e.r);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = risk ? 'rgba(255,85,119,.62)' : 'rgba(79,209,255,.16)';
+        ctx.lineWidth = risk ? 1.6 : 1;
+        ctx.stroke();
+
+        const phase = ((pulse * .002 + e.s.length * .07 + e.r.length * .11) % 1);
+        const px = a.x + (b.x - a.x) * phase;
+        const py = a.y + (b.y - a.y) * phase;
+        ctx.beginPath();
+        ctx.arc(px, py, risk ? 2.5 : 1.7, 0, Math.PI * 2);
+        ctx.fillStyle = risk ? '#ff5577' : '#6be7ff';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      graph.nodes.forEach(n => {
+        n.x += n.vx;
+        n.y += n.vy;
+        if (n.x < 18 || n.x > w - 18) n.vx *= -1;
+        if (n.y < 18 || n.y > h - 18) n.vy *= -1;
+
+        const risk =
+          graph.metrics.cycleNodes.has(n.id) ||
+          (graph.metrics.out.get(n.id) || 0) >= 3 ||
+          (graph.metrics.inc.get(n.id) || 0) >= 3;
+
+        const radius = risk ? 5.5 : 3.2;
+        if (risk) {
+          const glow = 10 + Math.sin(pulse * .004 + n.phase) * 3;
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, glow, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(255,85,119,.16)';
+          ctx.stroke();
+        }
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = risk ? '#ff5577' : '#55d8ff';
+        ctx.shadowBlur = risk ? 14 : 6;
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+
+      pulse++;
+      raf = requestAnimationFrame(drawCanvas);
+    };
+
+    const renderAnalyzer = (rows, m) => {
+      if (raf) cancelAnimationFrame(raf);
+      graph = { rows, metrics: m, nodes: [], edges: [] };
+      resizeCanvas(false);
+      drawCanvas();
+
+      const el = (id) => document.getElementById(id);
+      if (el('metricTxPro')) el('metricTxPro').textContent = rows.length;
+      if (el('metricNodesPro')) el('metricNodesPro').textContent = m.nodes.length;
+      if (el('metricCyclesPro')) el('metricCyclesPro').textContent = m.cycles;
+      if (el('metricEdgesPro')) el('metricEdgesPro').textContent = rows.length;
+      if (el('riskScorePro')) el('riskScorePro').textContent = m.score;
+      if (el('riskLevelPro')) {
+        el('riskLevelPro').textContent =
+          m.score >= 70 ? 'High risk' :
+          m.score >= 40 ? 'Elevated risk' : 'Low risk';
+      }
+      if (el('riskMeterPro')) el('riskMeterPro').style.width = m.score + '%';
+      if (el('graphStatusPro')) el('graphStatusPro').textContent = m.cycles ? 'CYCLE DETECTED' : 'ANALYZED';
+      if (el('analysisTimePro')) el('analysisTimePro').textContent = 'just now';
+      if (el('rowCountPro')) el('rowCountPro').textContent = rows.length + ' rows';
+
+      const findings = [];
+      if (m.cycles) findings.push(['Circular flow', 'Multi-hop cycle detected across ' + m.cycleNodes.size + ' accounts.']);
+      if (m.high) findings.push(['High-value concentration', m.high + ' transaction' + (m.high > 1 ? 's' : '') + ' sits near the observed amount ceiling.']);
+      if (m.hubs) findings.push(['Hub behaviour', m.hubs + ' account' + (m.hubs > 1 ? 's' : '') + ' show elevated in/out connectivity.']);
+      if (!findings.length) findings.push(['No strong topology signal', 'No cycle, hub, or high-value signal crossed the demo thresholds.']);
+
+      if (el('findingListPro')) {
+        el('findingListPro').innerHTML = findings.map(x =>
+          `<div class="finding-item-pro"><i></i><div><b>${x[0]}</b><span>${x[1]}</span></div></div>`
+        ).join('');
+      }
+    };
+
+    const executeAnalyzer = (text) => {
+      try {
+        const rows = parseCSV(text);
+        renderAnalyzer(rows, computeMetrics(rows));
+      } catch (e) {
+        const el = document.getElementById('findingListPro');
+        if (el) el.innerHTML = `<div class="finding-empty">${e.message}</div>`;
+        const status = document.getElementById('graphStatusPro');
+        if (status) status.textContent = 'INPUT ERROR';
+      }
+    };
+
+    try {
+      const defaultRows = parseCSV(csvContent);
+      renderAnalyzer(defaultRows, computeMetrics(defaultRows));
+    } catch (e) { /* ignore */ }
+
+    const handleResize = () => { resizeCanvas(true); };
+    window.addEventListener('resize', handleResize);
+    window.__analyzerExecute = executeAnalyzer;
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (raf) cancelAnimationFrame(raf);
+      delete window.__analyzerExecute;
+    };
+  }, [csvContent]);
+
+  // --- HANDLERS ---
+  const handleAnalyzerRun = () => {
+    if (window.__analyzerExecute) window.__analyzerExecute(csvContent);
+  };
+  const handleAnalyzerDemo = () => {
+    const demo = `sender_account,receiver_account,amount,timestamp
+ACC_100,ACC_200,5000.00,2026-07-22T08:00:00Z
+ACC_200,ACC_300,4900.00,2026-07-22T08:05:00Z
+ACC_300,ACC_100,4800.00,2026-07-22T08:10:00Z
+ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
+    setCsvContent(demo);
+    if (window.__analyzerExecute) window.__analyzerExecute(demo);
+  };
+  const handleCsvChange = (e) => {
+    const val = e.target.value;
+    setCsvContent(val);
+    if (window.__analyzerExecute) window.__analyzerExecute(val);
+  };
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || '');
+      setCsvContent(text);
+      if (window.__analyzerExecute) window.__analyzerExecute(text);
+    };
+    reader.readAsText(file);
+  };
+
+  // --- RENDER ---
+  const currentDetection = detectionData[activeDetectionTab] || detectionData.cycle;
+  const currentArch = archData[activeArchStep] || archData[0];
+  const currentCase = caseData[activeCaseStep] || caseData[0];
+  const currentLab = labData[activeLabStep] || labData.ingest;
+  const currentDclcg = dclcgData[activeDclcgModule] || dclcgData[0];
 
   return (
     <div className="landing-shell">
-      {/* 3D Dynamic Background Elements */}
+      {/* Background orbs & grid */}
       <div className="bg-grid"></div>
       <div className="bg-orb orb-1"></div>
       <div className="bg-orb orb-2"></div>
       <div className="bg-orb orb-3"></div>
+      <div className="bg-orb orb-4"></div>
 
-      {/* Navigation */}
-      <div className="landing-nav" style={{ opacity: mounted ? 1 : 0, transition: 'opacity 1s ease' }}>
-        <div className="landing-logo">
-          <div className="logo-icon">⬡</div>
-          <span className="logo-text">TraceAcc</span>
-          <span className="logo-version-tag">v3.0 Graph AI</span>
-        </div>
+      {/* Particles */}
+      <div className="particles" ref={particlesRef}></div>
+
+      {/* Scroll Progress */}
+      <div className="scroll-progress" id="scrollProgress" ref={progressRef}></div>
+
+      {/* NAVIGATION */}
+      <nav className={`landing-nav ${scrolled ? 'scrolled' : ''}`} ref={navbarRef}>
+        <a href="#" className="landing-logo" onClick={(e) => e.preventDefault()}>
+          <div className="logo-icon">T</div>
+          <span className="logo-text">Trace<span>Acc</span></span>
+          <span className="logo-version-tag">Pro</span>
+        </a>
         <div className="nav-links-center">
-          <a href="#features">Roles</a>
-          <a href="#analyzer">Live Analyzer</a>
-          <a href="#architecture">Architecture</a>
-          <a href="#algorithms">Detection</a>
-          <a href="#investigation">Investigation</a>
-          <a href="#faq">FAQ</a>
+          <a href="#product" onClick={(e) => handleSmoothScroll(e, '#product')} className="active">Product</a>
+          <a href="#engine" onClick={(e) => handleSmoothScroll(e, '#engine')}>Engine</a>
+          <a href="#governance" onClick={(e) => handleSmoothScroll(e, '#governance')}>Governance</a>
+          <a href="#stack" onClick={(e) => handleSmoothScroll(e, '#stack')}>Stack</a>
+          <a href="#future" onClick={(e) => handleSmoothScroll(e, '#future')}>Future</a>
+          <a href="#case-replay" onClick={(e) => handleSmoothScroll(e, '#case-replay')}>Replay</a>
         </div>
         <div className="landing-actions">
-          <Link to="/login" className="btn-glass">Sign In</Link>
-          <Link to="/login" className="btn-glow">Launch Platform</Link>
+          <a href="#reviewer-lab" className="btn-ghost" onClick={(e) => handleSmoothScroll(e, '#reviewer-lab')}>Explore workflow</a>
+          <a href="#reviewer-lab" className="btn-primary" onClick={(e) => handleSmoothScroll(e, '#reviewer-lab')}>Explore platform</a>
         </div>
-      </div>
+      </nav>
 
-      {/* ═══════════ HERO ═══════════ */}
-      <div className="landing-hero">
-        <div className="hero-content">
-          <div className="hero-badge">
-            <span className="badge-pulse"></span>
-            Enterprise Graph-Theory AML Platform
-          </div>
-          <h1 className="hero-title">
-            Detect. Investigate.<br />
-            <span className="text-gradient">Govern. Release.</span>
-          </h1>
-          <p className="hero-subtitle">
-            TraceAcc Pro unifies the entire AML lifecycle — from client dataset submission through graph-based pattern detection, deep investigation, admin review, digital seal, and final client release in a single governed platform.
-          </p>
-          <div className="hero-cta-group">
-            <Link to="/login" className="btn-glow large">
-              <span>Enter Platform</span>
-              <i className="bi bi-arrow-right-short"></i>
-            </Link>
-            <a href="#architecture" className="btn-glass large">
-              <i className="bi bi-diagram-3"></i>
-              <span>View Architecture</span>
-            </a>
+      {/* HERO */}
+      <section className="hero-section" id="home">
+        <div className="hero-grid">
+          <div className="hero-content">
+            <div className="hero-badge">
+              <span className="badge-pulse"></span>
+              Enterprise AML Intelligence Platform
+            </div>
+            <h1 className="hero-title">
+              Detect. Investigate.<br />
+              <span className="text-gradient">Govern. Release.</span>
+            </h1>
+            <p className="hero-subtitle">
+              TraceAcc Pro unifies the entire AML lifecycle — from client dataset submission through
+              graph-based pattern detection, deep investigation, admin review, digital seal,
+              and final client release in a single governed platform.
+            </p>
+            <div className="hero-actions">
+              <a href="#reviewer-lab" className="btn-primary large" onClick={(e) => handleSmoothScroll(e, '#reviewer-lab')}>
+                Explore the system
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </a>
+              <a href="#architecture" className="btn-secondary large" onClick={(e) => handleSmoothScroll(e, '#architecture')}>
+                View Architecture
+              </a>
+              <Link to="/login" className="btn-glow large">
+                Get Started →
+              </Link>
+            </div>
+            <div className="hero-metrics">
+              <div className="metric"><span className="metric-value">4</span><span className="metric-label">Roles</span></div>
+              <div className="metric-divider"></div>
+              <div className="metric"><span className="metric-value">21</span><span className="metric-label">Detection / analytics</span></div>
+              <div className="metric-divider"></div>
+              <div className="metric"><span className="metric-value">SHA-256</span><span className="metric-label">Seals</span></div>
+              <div className="metric-divider"></div>
+              <div className="metric"><span className="metric-value">0–100</span><span className="metric-label">Risk score</span></div>
+            </div>
           </div>
 
-          <div className="hero-metrics-pill">
-            <div className="metric-item">
-              <span className="metric-val">4</span>
-              <span className="metric-lbl">Distinct Roles</span>
+          <div className="hero-graph">
+            <div className="graph-container" ref={graphContainerRef}>
+              <div className="graph-overlay-glow"></div>
+              <canvas ref={networkCanvasRef}></canvas>
             </div>
-            <div className="metric-divider"></div>
-            <div className="metric-item">
-              <span className="metric-val">15+</span>
-              <span className="metric-lbl">Detection Modules</span>
+            <div className="graph-controls">
+              <button className="graph-btn active" id="toggleFraud">Highlight Fraud</button>
+              <button className="graph-btn" id="layoutForce">Force</button>
+              <button className="graph-btn" id="layoutCircle">Circle</button>
             </div>
-            <div className="metric-divider"></div>
-            <div className="metric-item">
-              <span className="metric-val">SHA-256</span>
-              <span className="metric-lbl">Tamper-Evident Seals</span>
+            <div className="graph-legend">
+              <span><span className="dot core"></span> Core</span>
+              <span><span className="dot mule"></span> Mule</span>
+              <span><span className="dot normal"></span> Normal</span>
+              <span><span className="dot suspect"></span> Suspect</span>
             </div>
-          </div>
-        </div>
-
-        {/* Live Cytoscape 3D Network Visual */}
-        <div className="hero-visual-network">
-          <div className="cy-container" ref={cyRef}></div>
-          <div className="cy-overlay-controls">
-            <button className={`cy-btn ${showFraudOnly ? 'active' : ''}`} onClick={handleToggleFraud}>
-              {showFraudOnly ? 'Reset View' : 'Highlight Fraud Ring'}
-            </button>
-            <button className={`cy-btn ${graphLayout === 'cose' ? 'active' : ''}`} onClick={() => handleRelayout('cose')}>
-              Force Layout
-            </button>
-            <button className={`cy-btn ${graphLayout === 'circle' ? 'active' : ''}`} onClick={() => handleRelayout('circle')}>
-              Circle View
-            </button>
-          </div>
-          <div className="cy-legend-badge">
-            <span className="dot core"></span> Core
-            <span className="dot mule"></span> Mule Ring
-            <span className="dot normal"></span> Normal
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ═══════════ STATS CARDS ═══════════ */}
-      <div className="trusted-section">
-        {[
-          { icon: '📋', num: '4', label: 'Roles', desc: 'Client, Admin, TraceLab, InvoSpace' },
-          { icon: '🔬', num: '15+', label: 'Detection Modules', desc: 'Graph & ML Heuristics' },
-          { icon: '🔒', num: 'SHA-256', label: 'Digital Seals', desc: 'Tamper-Evident' },
-          { icon: '⚡', num: '< 50ms', label: 'Graph Processing', desc: 'Real-Time Analysis' },
-        ].map((stat, i) => (
-          <div key={i} className="stat-card-3d" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
-            <div className="stat-card-inner">
-              <div className="stat-icon">{stat.icon}</div>
-              <div className="stat-num">{stat.num}</div>
-              <div className="stat-label">{stat.label}</div>
-              <div className="stat-desc">{stat.desc}</div>
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* STATS */}
+      <section className="stats-section">
+        <div className="stat-card">
+          <div className="stat-icon">🏛️</div>
+          <div className="stat-number">4</div>
+          <div className="stat-label">Roles</div>
+          <div className="stat-desc">Client · Admin · TraceLab · InvoSpace</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">🔬</div>
+          <div className="stat-number">21</div>
+          <div className="stat-label">Detectors</div>
+          <div className="stat-desc">Graph · ML · Temporal · Behavioural</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">🔒</div>
+          <div className="stat-number">SHA-256</div>
+          <div className="stat-label">Digital Seals</div>
+          <div className="stat-desc">Tamper-Evident Audit Trail</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">⚡</div>
+          <div className="stat-number">&lt;50ms</div>
+          <div className="stat-label">Graph Processing</div>
+          <div className="stat-desc">Real-Time Analysis Engine</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">🧠</div>
+          <div className="stat-number">3</div>
+          <div className="stat-label">ML Models</div>
+          <div className="stat-desc">Isolation Forest · LOF · DBSCAN</div>
+        </div>
+      </section>
 
-      {/* ═══════════ ROLES / FEATURES ═══════════ */}
-      <div className="landing-section" id="features">
+      {/* FEATURES / ROLES */}
+      <section className="section" id="features">
         <div className="section-header">
           <span className="section-subtitle">Operating Model</span>
           <h2>Four Roles. One Governed Pipeline.</h2>
           <p>Each role has a dedicated workspace with strictly separated responsibilities. No role can bypass the workflow.</p>
         </div>
-
-        <div className="landing-features">
-          {roles.map((role, i) => (
-            <div key={i} className="feature-card-3d" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
-              <div className="feature-card-inner">
-                <div className="feature-icon-wrapper" style={{ background: `${role.color}15`, borderColor: `${role.color}30`, color: role.color }}>
-                  {role.icon}
-                </div>
-                <h3>{role.title}</h3>
-                <p>{role.desc}</p>
-                <div className="card-pill" style={{ color: role.color, background: `${role.color}12`, borderColor: `${role.color}25` }}>
-                  {role.pill}
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="roles-grid">
+          <div className="role-card">
+            <div className="role-icon" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>📋</div>
+            <h3>Client Portal</h3>
+            <p>Submit service requests with CSV/Excel datasets. Track request status. Download only Admin-approved and digitally sealed final reports.</p>
+            <span className="role-pill" style={{ color: '#10b981', borderColor: 'rgba(16,185,129,0.2)' }}>CLIENT</span>
+          </div>
+          <div className="role-card">
+            <div className="role-icon" style={{ background: 'rgba(37,99,235,0.12)', color: '#3b82f6' }}>⚙️</div>
+            <h3>Admin Operations Hub</h3>
+            <p>Accept/reject client requests. Assign work to TraceLab or InvoSpace. Review reports. Apply tamper-evident SHA-256 digital seal. Release to client.</p>
+            <span className="role-pill" style={{ color: '#3b82f6', borderColor: 'rgba(37,99,235,0.2)' }}>ADMIN</span>
+          </div>
+          <div className="role-card">
+            <div className="role-icon" style={{ background: 'rgba(124,58,237,0.12)', color: '#8b5cf6' }}>🔬</div>
+            <h3>TraceLab Analysis</h3>
+            <p>Validate datasets. Run graph analysis, pattern detection, ML scoring. Generate findings & technical reports. Escalate suspicious alerts.</p>
+            <span className="role-pill" style={{ color: '#8b5cf6', borderColor: 'rgba(124,58,237,0.2)' }}>ANALYST</span>
+          </div>
+          <div className="role-card">
+            <div className="role-icon" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>🛡️</div>
+            <h3>InvoSpace Investigation</h3>
+            <p>Convert alerts to cases. Deep investigation: Entity 360, multi-hop tracing, evidence, hypotheses, findings, timeline. Generate investigation reports.</p>
+            <span className="role-pill" style={{ color: '#f59e0b', borderColor: 'rgba(245,158,11,0.2)' }}>INVOSPACE</span>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* ═══════════ LIVE ANALYZER ═══════════ */}
-      <div className="landing-section alt-bg" id="analyzer">
+      {/* ARCHITECTURE */}
+      <section className="section alt-bg" id="architecture">
         <div className="section-header">
-          <span className="section-subtitle">Instant Sandbox</span>
-          <h2>Live CSV Fraud Analyzer</h2>
-          <p>Paste sample CSV data below to execute instant in-browser graph analysis and calculate risk scores.</p>
+          <span className="section-subtitle">Workflow Architecture</span>
+          <h2>End-to-End AML Operations Flow</h2>
+          <p>From client dataset submission to final report release — every step is audited and governed.</p>
         </div>
-
-        <div className="live-analyzer-container">
-          <div className="analyzer-editor">
-            <div className="editor-title-bar">
-              <span><i className="bi bi-file-earmark-code"></i> Live Input CSV Stream</span>
-              <button className="sample-btn" onClick={handleQuickAnalyze}>
-                {analyzing ? 'Analyzing Graph...' : 'Run Quick Analysis'}
-              </button>
+        <div className="architecture-grid">
+          <div className="architecture-steps">
+            {archData.map((step, idx) => (
+              <div
+                key={idx}
+                className={`arch-step ${activeArchStep === idx ? 'active' : ''}`}
+                onClick={() => setActiveArchStep(idx)}
+              >
+                <span className="arch-step-num">{step.num}</span>
+                <span className="arch-step-title">{step.title}</span>
+              </div>
+            ))}
+          </div>
+          <div className="arch-detail">
+            <div className="arch-detail-num">Step {currentArch.num}</div>
+            <h3>{currentArch.title}</h3>
+            <p>{currentArch.desc}</p>
+            <div className="arch-preview">
+              <div className="arch-status">
+                {currentArch.status.map((s, i) => <span key={i}>{s}</span>)}
+              </div>
             </div>
-            <textarea 
-              className="analyzer-textarea code-font"
-              value={analyzerCsv}
-              onChange={(e) => setAnalyzerCsv(e.target.value)}
-              rows={8}
-            />
-          </div>
-
-          <div className="analyzer-output">
-            <div className="output-header">Analysis Output</div>
-            {analyzerResults ? (
-              <div className="results-grid">
-                <div className="result-card">
-                  <span className="res-lbl">Suspicion Index</span>
-                  <span className={`res-val ${analyzerResults.cycleDetected ? 'danger' : 'success'}`}>
-                    {analyzerResults.suspicionScore}/100
-                  </span>
-                </div>
-                <div className="result-card">
-                  <span className="res-lbl">Total Volume</span>
-                  <span className="res-val">{analyzerResults.totalVolume}</span>
-                </div>
-                <div className="result-card">
-                  <span className="res-lbl">Detected Pattern</span>
-                  <span className="res-val highlight">{analyzerResults.flaggedPattern}</span>
-                </div>
-                <div className="result-card">
-                  <span className="res-lbl">Graph Size</span>
-                  <span className="res-val">{analyzerResults.totalNodes} Nodes / {analyzerResults.totalTx} Edges</span>
-                </div>
-              </div>
-            ) : (
-              <div className="empty-analyzer-state">
-                <i className="bi bi-cpu-fill"></i>
-                <p>Click "Run Quick Analysis" above to process the sample CSV stream.</p>
-              </div>
-            )}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ═══════════ DETECTION ALGORITHMS ═══════════ */}
-      <div className="landing-section" id="algorithms">
+      {/* DETECTION */}
+      <section className="section" id="detection">
         <div className="section-header">
           <span className="section-subtitle">Detection Engine</span>
           <h2>Multi-Heuristic AML Pattern Detection</h2>
-          <p>TraceAcc employs 7+ graph-based heuristics and 3+ ML models to detect sophisticated money laundering patterns.</p>
+          <p>TraceAcc combines 21 detection and analytics modules with three unsupervised ML approaches to surface sophisticated money-laundering patterns.</p>
         </div>
-
-        <div className="algo-matrix-container">
-          <div className="algo-tabs">
-            {Object.keys(algorithmData).map((key) => (
-              <button 
-                key={key}
-                className={`algo-tab ${activeTab === key ? 'active' : ''}`} 
-                onClick={() => setActiveTab(key)}
-              >
-                <i className={`bi bi-${key === 'cycle' ? 'arrow-repeat' : key === 'fan' ? 'share-fill' : key === 'layering' ? 'bezier2' : key === 'burst' ? 'clock-history' : 'speedometer2'}`}></i>
-                {key === 'cycle' ? 'Cycle' : key === 'fan' ? 'Fan' : key === 'layering' ? 'Layering' : key === 'burst' ? 'Burst' : 'Score'}
-              </button>
-            ))}
-          </div>
-
-          <div className="algo-content-card">
-            <div className="algo-header-row">
-              <div>
-                <span className="algo-badge">{algorithmData[activeTab].badge}</span>
-                <h3>{algorithmData[activeTab].title}</h3>
-              </div>
-              <div className="algo-weight-tag">{algorithmData[activeTab].weight}</div>
+        <div className="detection-tabs">
+          {Object.keys(detectionData).map((key) => (
+            <button
+              key={key}
+              className={`detection-tab ${activeDetectionTab === key ? 'active' : ''}`}
+              onClick={() => setActiveDetectionTab(key)}
+            >
+              {key === 'cycle' && '🔄 Cycle'}
+              {key === 'fan' && '📊 Fan'}
+              {key === 'layering' && '🔗 Layering'}
+              {key === 'burst' && '⏰ Burst'}
+              {key === 'score' && '📈 Score'}
+            </button>
+          ))}
+        </div>
+        <div className="detection-detail">
+          <div className="detection-header">
+            <div>
+              <span className="detection-badge">{currentDetection.badge}</span>
+              <h3>{currentDetection.title}</h3>
             </div>
-
-            <p className="algo-description">{algorithmData[activeTab].description}</p>
-
-            <div className="algo-grid-specs">
-              <div className="spec-box">
-                <span className="spec-lbl">Complexity</span>
-                <span className="spec-val code-font">{algorithmData[activeTab].complexity}</span>
-              </div>
-              <div className="spec-box">
-                <span className="spec-lbl">Mathematical Definition</span>
-                <span className="spec-val code-font">{algorithmData[activeTab].formula}</span>
-              </div>
-              <div className="spec-box full-width">
-                <span className="spec-lbl">Primary AML Target</span>
-                <span className="spec-val">{algorithmData[activeTab].useCase}</span>
-              </div>
-            </div>
+            <span className="detection-weight">{currentDetection.weight}</span>
+          </div>
+          <p className="detection-desc">{currentDetection.desc}</p>
+          <div className="detection-specs">
+            <div><span>Complexity</span><span className="code">{currentDetection.complexity}</span></div>
+            <div><span>Formula</span><span className="code">{currentDetection.formula}</span></div>
+            <div className="full"><span>Use Case</span><span>{currentDetection.useCase}</span></div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ═══════════ DETECTION MODULES GRID ═══════════ */}
-      <div className="landing-section alt-bg">
-        <div className="section-header">
-          <span className="section-subtitle">Detection Modules</span>
-          <h2>Complete Detection Capabilities</h2>
-        </div>
-
-        <div className="capabilities-grid">
-          <div className="capability-box">
-            <h4>🔬 Graph Heuristics</h4>
-            <ul className="capability-list">
-              {detectionModules.filter(d => d.tag.includes('Heuristic')).map((d, i) => (
-                <li key={i}><strong>{d.title}</strong> — {d.desc}</li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="capability-box">
-            <h4>🧠 ML & Scoring</h4>
-            <ul className="capability-list">
-              {detectionModules.filter(d => d.tag.includes('ML') || d.tag.includes('Scoring')).map((d, i) => (
-                <li key={i}><strong>{d.title}</strong> — {d.desc}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* ═══════════ INVESTIGATION ═══════════ */}
-      <div className="landing-section" id="investigation">
+      {/* INVESTIGATION */}
+      <section className="section alt-bg" id="investigation">
         <div className="section-header">
           <span className="section-subtitle">InvoSpace Deep Investigation</span>
           <h2>Comprehensive Case Management</h2>
           <p>InvoSpace provides investigators with advanced tools for deep AML investigations with full evidence tracking.</p>
         </div>
-
-        <div className="specs-grid">
-          {investigationItems.map((item, i) => (
-            <div key={i} className="spec-card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '24px' }}>{item.icon}</span>
-              <h4 style={{ fontSize: '15px', margin: 0 }}>{item.title}</h4>
-            </div>
-          ))}
+        <div className="investigation-grid">
+          <div className="investigation-item"><span className="inv-icon">🔍</span><span className="inv-title">Entity 360 View</span></div>
+          <div className="investigation-item"><span className="inv-icon">🕸️</span><span className="inv-title">Investigation Graph</span></div>
+          <div className="investigation-item"><span className="inv-icon">🔗</span><span className="inv-title">Multi-Hop Tracing</span></div>
+          <div className="investigation-item"><span className="inv-icon">📎</span><span className="inv-title">Evidence Management</span></div>
+          <div className="investigation-item"><span className="inv-icon">💡</span><span className="inv-title">Hypothesis Testing</span></div>
+          <div className="investigation-item"><span className="inv-icon">📋</span><span className="inv-title">Task Management</span></div>
+          <div className="investigation-item"><span className="inv-icon">🔬</span><span className="inv-title">ML/GNN Analysis</span></div>
+          <div className="investigation-item"><span className="inv-icon">⏱️</span><span className="inv-title">Investigation Timeline</span></div>
+          <div className="investigation-item"><span className="inv-icon">📊</span><span className="inv-title">Risk Reassessment</span></div>
+          <div className="investigation-item"><span className="inv-icon">📝</span><span className="inv-title">Investigation Report</span></div>
+          <div className="investigation-item"><span className="inv-icon">🔄</span><span className="inv-title">Similar Investigations</span></div>
+          <div className="investigation-item"><span className="inv-icon">🎯</span><span className="inv-title">SAR Decision Support</span></div>
         </div>
-      </div>
+      </section>
 
-      {/* ═══════════ ARCHITECTURE ═══════════ */}
-      <div className="landing-section alt-bg" id="architecture">
+      {/* ANALYZER SANDBOX */}
+      <section className="section analyzer-pro" id="analyzer">
         <div className="section-header">
-          <span className="section-subtitle">System Pipeline</span>
-          <h2>End-to-End Architectural Flow</h2>
-          <p>From client submission through analysis, investigation, review, seal, and release.</p>
+          <span className="section-kicker"><i></i> Interactive TraceLab</span>
+          <h2>From raw transactions to an explainable risk signal.</h2>
+          <p>Load a small CSV, inspect the transaction network, and see topology signals update in your browser. This is a demonstration layer — it does not replace the production analysis engine.</p>
         </div>
-
-        <div className="arch-flow-container">
-          <div className="arch-steps-nav">
-            {architectureSteps.map((step, idx) => (
-              <div 
-                key={idx} 
-                className={`arch-step-btn ${activeArchStep === idx ? 'active' : ''}`}
-                onClick={() => setActiveArchStep(idx)}
-              >
-                <span className="step-num">{step.num}</span>
-                <span className="step-title">{step.title}</span>
+        <div className="analyzer-pro-shell">
+          <div className="analyzer-toolbar">
+            <div className="analyzer-title"><span className="live-dot"></span><div><strong>TraceLab Sandbox</strong><small>client-side demonstration</small></div></div>
+            <div className="analyzer-actions">
+              <label className="file-chip">
+                <input type="file" accept=".csv,text/csv" onChange={handleFileUpload} />
+                Import CSV
+              </label>
+              <button type="button" className="ghost-mini" onClick={handleAnalyzerDemo}>Load demo</button>
+              <button type="button" className="primary-mini" onClick={handleAnalyzerRun}>Run analysis <span>↗</span></button>
+            </div>
+          </div>
+          <div className="analyzer-workbench">
+            <div className="analyzer-input-panel">
+              <div className="panel-head"><span>01 · TRANSACTION INPUT</span><span id="rowCountPro">4 rows</span></div>
+              <textarea
+                id="csvInputPro"
+                spellCheck="false"
+                value={csvContent}
+                onChange={handleCsvChange}
+              ></textarea>
+              <div className="schema-row"><span>sender_account</span><span>receiver_account</span><span>amount</span><span>timestamp</span></div>
+            </div>
+            <div className="analyzer-graph-panel">
+              <div className="panel-head"><span>02 · NETWORK SIGNAL</span><span id="graphStatusPro">READY</span></div>
+              <div className="graph-stage-pro">
+                <canvas ref={analyzerCanvasRef}></canvas>
+                <div className="graph-center-label"><b id="riskScorePro">—</b><span>risk signal</span></div>
               </div>
-            ))}
+              <div className="signal-legend"><span><i className="node-safe"></i>observed</span><span><i className="node-risk"></i>flagged</span><span><i className="edge-risk"></i>risk path</span></div>
+            </div>
+            <div className="analyzer-results-panel">
+              <div className="panel-head"><span>03 · FINDINGS</span><span id="analysisTimePro">—</span></div>
+              <div className="risk-summary-pro"><div><small>RISK LEVEL</small><strong id="riskLevelPro">Awaiting analysis</strong></div><div className="risk-meter-pro"><span id="riskMeterPro"></span></div></div>
+              <div className="metric-grid-pro">
+                <div><small>Transactions</small><b id="metricTxPro">0</b></div>
+                <div><small>Accounts</small><b id="metricNodesPro">0</b></div>
+                <div><small>Cycles</small><b id="metricCyclesPro">0</b></div>
+                <div><small>Edges</small><b id="metricEdgesPro">0</b></div>
+              </div>
+              <div className="finding-list-pro" id="findingListPro"><div className="finding-empty">Run the sandbox to surface topology signals.</div></div>
+            </div>
           </div>
+          <div className="analyzer-footnote"><span>ⓘ</span><span><b>Expected columns:</b> sender_account, receiver_account, amount, timestamp · ISO-8601 timestamps recommended.</span></div>
+        </div>
+      </section>
 
-          <div className="arch-card-display">
-            <div className="arch-card-badge">Step {architectureSteps[activeArchStep].num}</div>
-            <h3>{architectureSteps[activeArchStep].title}</h3>
-            <p>{architectureSteps[activeArchStep].desc}</p>
+      {/* ULTIMATE WRAP */}
+      <div className="ultimate-wrap">
+        {/* PRODUCT MAP */}
+        <section className="product-map reveal" id="product">
+          <div className="map-shell">
+            <div className="section-header">
+              <span className="section-kicker"><i></i> Product Intelligence</span>
+              <h2>One platform. Four workspaces. One governed chain of evidence.</h2>
+              <p>TraceAcc connects intake, analysis, alert triage, investigation and controlled reporting into a single operational loop.</p>
+            </div>
+            <div className="map-grid">
+              <div className="map-column stagger">
+                <div className="map-card"><span className="mini">01 / Intake</span><h3>Client Portal</h3><p>Submit a service request with transaction data and track the controlled journey to an approved final report.</p></div>
+                <div className="map-card"><span className="mini">02 / Governance</span><h3>Admin Workspace</h3><p>Review, validate, prioritize and route work to the right analytical or investigative workspace.</p></div>
+                <div className="map-card"><span className="mini">03 / Accountability</span><h3>Audit Layer</h3><p>Role boundaries and workflow events make each operational transition visible and traceable.</p></div>
+              </div>
+              <div className="map-core">
+                <div className="core-orbit"></div><div className="core-orbit two"></div>
+                <div className="core-node">TRANSACTION DATA</div><div className="core-node">RISK SIGNALS</div><div className="core-node">ALERT / CASE</div><div className="core-node">FINAL REPORT</div>
+                <div className="core-center"><div><strong>TRACEACC</strong><span>AML INTELLIGENCE CORE</span></div></div>
+              </div>
+              <div className="map-column stagger">
+                <div className="map-card"><span className="mini">04 / Intelligence</span><h3>TraceLab</h3><p>Validate datasets, build transaction graphs, detect money-muling topologies and fuse behavioural + ML signals.</p></div>
+                <div className="map-card"><span className="mini">05 / Investigation</span><h3>InvoSpace</h3><p>Turn escalated alerts into deep investigations with entities, evidence, hypotheses, timelines and findings.</p></div>
+                <div className="map-card"><span className="mini">06 / Release</span><h3>Controlled Reporting</h3><p>Technical and investigation reports move through review before the client receives the approved output.</p></div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-            <div className="arch-visual-box">
-              {activeArchStep === 0 && (
-                <div className="code-preview">
-                  <div className="code-bar"><span>📋 Client Submits Request</span></div>
-                  <pre><code>{`CSV/Excel Upload → Validation → Quality Check → History Tracking`}</code></pre>
+        {/* METRIC STRIP */}
+        <div className="metric-strip reveal">
+          <div className="metric-grid">
+            <div className="metric-item"><strong>4</strong><span>Core graph topologies</span><div className="metric-bar"><i></i></div></div>
+            <div className="metric-item"><strong>3</strong><span>Unsupervised ML detectors</span><div className="metric-bar"><i></i></div></div>
+            <div className="metric-item"><strong>0–100</strong><span>Weighted suspicion score</span><div className="metric-bar"><i></i></div></div>
+            <div className="metric-item"><strong>21+</strong><span>Detection / analytics modules</span><div className="metric-bar"><i></i></div></div>
+          </div>
+        </div>
+
+        {/* ENGINE SECTION */}
+        <section className="engine-section reveal" id="engine">
+          <div className="engine-shell">
+            <div className="section-header">
+              <span className="section-kicker"><i></i> Detection Engine</span>
+              <h2>From transactions to a multi-signal risk picture.</h2>
+              <p>TraceAcc does not stop at a single rule. It combines graph topology, behaviour, temporal signals, community structure and unsupervised anomaly detection into a weighted suspicion score.</p>
+            </div>
+            <div className="engine-layout">
+              <div className="engine-copy">
+                <span className="section-subtitle">Signal stack</span>
+                <h3>Multiple views of the same financial network.</h3>
+                <p>The current engine is built around a directed transaction graph and layers specialized detectors over it.</p>
+                <div className="signal-list stagger">
+                  <div className="signal"><b>Cycle</b><em>A → B → C → A</em></div>
+                  <div className="signal"><b>Fan</b><em>hub / disguise</em></div>
+                  <div className="signal"><b>Layering</b><em>multi-hop flow</em></div>
+                  <div className="signal"><b>Burst</b><em>activation spike</em></div>
+                  <div className="signal"><b>Centrality</b><em>network influence</em></div>
+                  <div className="signal"><b>Community</b><em>Louvain structure</em></div>
+                  <div className="signal"><b>K-core / Motifs</b><em>structural density</em></div>
+                  <div className="signal"><b>Temporal / Velocity</b><em>time behaviour</em></div>
+                  <div className="signal"><b>Isolation Forest</b><em>unsupervised ML</em></div>
+                  <div className="signal"><b>LOF / DBSCAN</b><em>density anomalies</em></div>
                 </div>
-              )}
-              {activeArchStep === 1 && (
-                <div className="graph-preview-box">
-                  <span className="status-item">✓ Review Request</span>
-                  <span className="status-item">✓ Validate</span>
-                  <span className="status-item">✓ Priority Assignment</span>
-                  <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-                    <span className="arch-decision-yes">✓ Accept</span>
-                    <span className="arch-decision-no">✗ Reject</span>
+              </div>
+              <div className="engine-visual">
+                <div className="engine-top"><span className="live-chip"><b>● LIVE</b> SIGNAL SIMULATION</span><span className="live-chip">NETWORKX → GRAPH → SCORE</span></div>
+                <canvas ref={engineCanvasRef}></canvas>
+                <div className="engine-readout">
+                  <div className="readout"><span>Accounts</span><strong id="rAccounts">1,284</strong></div>
+                  <div className="readout"><span>Edges</span><strong id="rEdges">8,642</strong></div>
+                  <div className="readout"><span>Risk signal</span><strong id="rRisk">HIGH</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* DATA STORY */}
+        <section className="data-section reveal" id="data-story">
+          <div className="data-shell">
+            <div className="section-header">
+              <span className="section-kicker"><i></i> Data → Decision</span>
+              <h2>Show the reviewer what actually happens to the data.</h2>
+              <p>A landing page should explain the product's operating logic, not just display feature cards.</p>
+            </div>
+            <div className="data-layout">
+              <div className="data-card">
+                <h3>The governed chain</h3><p>Every major stage has a clear owner and a clear output.</p>
+                <div className="data-flow stagger">
+                  <div className="flow-node"><div className="n">01</div><div><b>Dataset intake</b><span>CSV / Excel + request details</span></div></div>
+                  <div className="flow-node"><div className="n">02</div><div><b>Graph construction</b><span>accounts become nodes, transfers become edges</span></div></div>
+                  <div className="flow-node"><div className="n">03</div><div><b>Pattern + ML analysis</b><span>topology, behaviour and anomaly signals</span></div></div>
+                  <div className="flow-node"><div className="n">04</div><div><b>Risk + alert triage</b><span>weighted suspicion score and escalation</span></div></div>
+                  <div className="flow-node"><div className="n">05</div><div><b>Investigation</b><span>entities, evidence, hypotheses and timeline</span></div></div>
+                  <div className="flow-node"><div className="n">06</div><div><b>Review + release</b><span>approved report returns to the client</span></div></div>
+                </div>
+              </div>
+              <div className="data-visual">
+                <div className="data-ring r1"></div><div className="data-ring r2"></div><div className="data-ring r3"></div>
+                <div className="data-center"><div><strong>RISK</strong><span>CONTEXTUAL SIGNAL</span></div></div>
+                <div className="data-float a">ACCOUNT A → B</div><div className="data-float b">BURST + VELOCITY</div><div className="data-float c">4-HOP PATH</div><div className="data-float d">ML ANOMALY</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* GOVERNANCE */}
+        <section className="governance-section reveal" id="governance">
+          <div className="gov-shell">
+            <div className="section-header">
+              <span className="section-kicker"><i></i> Trust & Governance</span>
+              <h2>Detection is only useful when the result can be governed.</h2>
+              <p>The platform combines analysis with role separation, auditability and controlled report release.</p>
+            </div>
+            <div className="gov-grid stagger">
+              <div className="gov-card"><div className="gov-icon">◈</div><h3>JWT + RBAC</h3><p>Authenticated workspaces separate Client, Admin, TraceLab Analyst and InvoSpace Investigator responsibilities.</p><div className="gov-code">AUTH → ROLE → WORKSPACE</div></div>
+              <div className="gov-card"><div className="gov-icon">◎</div><h3>Audit Trail</h3><p>Operational events record actions, statuses and timing so the workflow has a traceable history.</p><div className="gov-code">EVENT → ACTOR → TIMESTAMP</div></div>
+              <div className="gov-card"><div className="gov-icon">⬡</div><h3>Governed Workflow</h3><p>Requests move through review, assignment, analysis/investigation, report review and release states.</p><div className="gov-code">SUBMIT → REVIEW → ASSIGN → RELEASE</div></div>
+              <div className="gov-card"><div className="gov-icon">⌁</div><h3>Evidence Context</h3><p>Investigation work can combine entities, evidence, hypotheses, findings and a timeline into one case narrative.</p><div className="gov-code">ENTITY → EVIDENCE → FINDING</div></div>
+              <div className="gov-card"><div className="gov-icon">◉</div><h3>Risk Reassessment</h3><p>Investigators can revisit risk in context rather than treating the original alert score as the final decision.</p><div className="gov-code">ALERT → CASE → DECISION</div></div>
+              <div className="gov-card"><div className="gov-icon">▣</div><h3>Controlled Reporting</h3><p>Technical and investigation reports pass through administrative review before release to the client.</p><div className="gov-code">DRAFT → REVIEW → APPROVE</div></div>
+            </div>
+          </div>
+        </section>
+
+        {/* STACK */}
+        <section className="stack-section reveal" id="stack">
+          <div className="stack-shell">
+            <div className="section-header">
+              <span className="section-kicker"><i></i> Technical Architecture</span>
+              <h2>Built as a real full-stack engineering system.</h2>
+              <p>The current implementation spans a React/Vite presentation layer, FastAPI application layer, SQLAlchemy/PostgreSQL data layer and a graph/ML detection engine.</p>
+            </div>
+            <div className="stack-grid">
+              <div className="stack-card">
+                <h3>Current stack</h3><p>Technology choices mapped to what each layer is responsible for.</p>
+                <div className="stack-layer"><label>Frontend</label><div className="tech-pills"><span className="tech primary">React</span><span className="tech primary">Vite</span><span className="tech">Cytoscape.js</span></div></div>
+                <div className="stack-layer"><label>API</label><div className="tech-pills"><span className="tech primary">FastAPI</span><span className="tech">Uvicorn</span><span className="tech">REST</span></div></div>
+                <div className="stack-layer"><label>Data</label><div className="tech-pills"><span className="tech primary">PostgreSQL</span><span className="tech">SQLAlchemy</span><span className="tech">Alembic</span></div></div>
+                <div className="stack-layer"><label>Graph</label><div className="tech-pills"><span className="tech primary">NetworkX</span><span className="tech">DFS</span><span className="tech">Graph analytics</span></div></div>
+                <div className="stack-layer"><label>ML</label><div className="tech-pills"><span className="tech primary">scikit-learn</span><span className="tech">Isolation Forest</span><span className="tech">LOF</span><span className="tech">DBSCAN</span></div></div>
+              </div>
+              <div className="stack-card">
+                <h3>Engineering profile</h3><p>Useful technical facts for a reviewer or interviewer.</p>
+                <div className="spec-panel">
+                  <div className="spec-row"><span>Graph model</span><b>Directed financial graph</b></div>
+                  <div className="spec-row"><span>Core topology</span><b>Cycle / Fan / Layering / Burst</b></div>
+                  <div className="spec-row"><span>Score range</span><b>0 → 100</b></div>
+                  <div className="spec-row"><span>Frontend graph</span><b>Cytoscape.js</b></div>
+                  <div className="spec-row"><span>Backend</span><b>FastAPI + SQLAlchemy</b></div>
+                  <div className="spec-row"><span>Auth</span><b>JWT + password hashing</b></div>
+                  <div className="spec-row"><span>Advanced API</span><b>/analyze/advanced</b></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* CASE REPLAY */}
+        <section className="section" id="case-replay">
+          <div className="section-header reveal">
+            <span className="section-subtitle">Interactive Case Replay</span>
+            <h2>Watch one signal become an investigation.</h2>
+            <p>A compact visual walkthrough of the TraceAcc operating model — from transaction movement to graph evidence, risk synthesis and investigation context.</p>
+          </div>
+          <div className="case-replay reveal">
+            <div className="case-replay-grid">
+              <div className="case-copy">
+                <span className="case-kicker"><i></i> reviewer mode · simulated case</span>
+                <h3>{currentCase.title}</h3>
+                <p>{currentCase.text}</p>
+                <div className="case-controls">
+                  {caseData.map((_, idx) => (
+                    <button
+                      key={idx}
+                      className={`case-step ${activeCaseStep === idx ? 'active' : ''}`}
+                      onClick={() => setActiveCaseStep(idx)}
+                    >
+                      {idx === 0 ? '01 · INGEST' :
+                       idx === 1 ? '02 · DETECT' :
+                       idx === 2 ? '03 · TRACE' :
+                       idx === 3 ? '04 · INVESTIGATE' :
+                       '05 · REPORT'}
+                    </button>
+                  ))}
+                </div>
+                <div className="case-detail">
+                  <strong>{currentCase.detailTitle}</strong>
+                  <span>{currentCase.detailText}</span>
+                  <div className="case-signal-list">
+                    {currentCase.metrics.map((m, i) => (
+                      <div className="case-signal" key={i}>
+                        <b>{m}</b>
+                        <small>{currentCase.labels[i]}</small>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              )}
-              {activeArchStep === 2 && (
-                <div className="heuristics-status-grid">
-                  <span className="status-item">✓ Dataset Validation</span>
-                  <span className="status-item">✓ Transaction Analysis</span>
-                  <span className="status-item">✓ Pattern Detection</span>
-                  <span className="status-item">✓ Graph Analysis</span>
-                  <span className="status-item">✓ ML + Risk Scoring</span>
-                </div>
-              )}
-              {activeArchStep === 3 && (
-                <div className="score-preview-box">
-                  <div className="risk-ring-preview">
-                    <span className="score-val" style={{ color: '#34d399' }}>✓ Technical Report</span>
-                    <span className="score-desc" style={{ color: '#fbbf24' }}>⚠ Alert Generated</span>
+              </div>
+              <div className="case-visual">
+                <svg className="case-svg" viewBox="0 0 700 580" preserveAspectRatio="none">
+                  <path className="case-edge cool" d="M110 175 C215 95 330 135 350 245"/>
+                  <path className="case-edge cool" d="M350 245 C435 125 520 140 585 185"/>
+                  <path className="case-edge" d="M110 175 C170 280 245 355 350 430"/>
+                  <path className="case-edge hot" d="M350 245 C430 330 485 390 585 405"/>
+                  <path className="case-edge hot" d="M585 405 C480 475 265 470 110 175"/>
+                </svg>
+                <div className="case-node c1"><b>ACC-101</b><small>origin</small></div>
+                <div className="case-node c2"><b>ACC-204</b><small>pass-through</small></div>
+                <div className="case-node c3"><b>ACC-318</b><small>receiver</small></div>
+                <div className="case-node c4"><b>ACC-447</b><small>hub</small></div>
+                <div className="case-node c5"><b>ACC-552</b><small>linked</small></div>
+                <div className="case-risk"><span>RISK</span><strong>{currentCase.risk}</strong><small>{currentCase.riskLabel}</small></div>
+                <div className="case-live">{currentCase.live}</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* DC-LCG RESEARCH LAB (is-visible added) */}
+        <section className="section alt-bg reveal is-visible" id="dclcg">
+          <div className="section-header">
+            <span className="section-subtitle">Research Layer · Advanced</span>
+            <h2>DC-LCG: local camouflage meets long-range context.</h2>
+            <p>A research-facing evolution for TraceAcc: combine local neighbourhood structure with multi-hop transaction paths, then fuse both views before learned risk scoring.</p>
+          </div>
+          <div className="dclcg-wrap">
+            <div className="dclcg-copy">
+              <span className="section-kicker"><i></i> Dual-context graph learning</span>
+              <h3>Designed for the patterns simple neighbourhood models miss.</h3>
+              <p>DC-LCG's core idea is complementary views: a <b>local view</b> models neighbourhood characteristics where illicit nodes can camouflage themselves, while a <b>context view</b> models extended transaction paths that expose longer laundering chains.</p>
+              <div className="dclcg-badges">
+                <span className="dclcg-badge">DMG · Dynamic grouping</span>
+                <span className="dclcg-badge">DMP · Path pruning & fusion</span>
+                <span className="dclcg-badge">MAF · Mutual attention</span>
+              </div>
+              <div className="dclcg-modules">
+                {dclcgData.map((mod, idx) => (
+                  <div
+                    key={idx}
+                    className={`dclcg-module ${activeDclcgModule === idx ? 'active' : ''}`}
+                    onClick={() => setActiveDclcgModule(idx)}
+                  >
+                    <strong>{mod.title}</strong>
+                    <span>{mod.subtitle}</span>
                   </div>
+                ))}
+              </div>
+              <div className="dclcg-compare">
+                <div><b>Current TraceAcc</b><span>Graph heuristics + behavioural features + unsupervised anomaly models + weighted suspicion scoring.</span></div>
+                <div><b>Advanced research path</b><span>Learn representations directly from graph structure and transaction context, then compare learned evidence with existing signals.</span></div>
+              </div>
+            </div>
+            <div className="dclcg-visual">
+              <div className="dclcg-canvas">
+                <svg className="dclcg-svg" viewBox="0 0 600 390" preserveAspectRatio="none">
+                  <path className="dclcg-line" d="M100 115 C185 125 235 170 300 245"/>
+                  <path className="dclcg-line" d="M100 150 C185 185 230 220 300 245"/>
+                  <path className="dclcg-line pathline" d="M500 115 C420 125 365 170 300 245"/>
+                  <path className="dclcg-line pathline" d="M500 155 C420 190 365 220 300 245"/>
+                  <path className="dclcg-line fusion" d="M300 245 C300 285 300 315 300 345"/>
+                </svg>
+                <div className="dclcg-node local"><b>Local View</b><small>Neighbourhood structure<br/>camouflage signals</small></div>
+                <div className="dclcg-node path"><b>Context View</b><small>Multi-hop paths<br/>extended fund flows</small></div>
+                <div className="dclcg-chip">MUTUAL ATTENTION FUSION</div>
+                <div className="dclcg-node mutual"><b>Learned representation</b><small>combined local + contextual evidence</small></div>
+                <div className="dclcg-explain"><strong>{currentDclcg.copy}</strong></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* FUTURE */}
+        <section className="future-section reveal" id="future">
+          <div className="future-shell">
+            <div className="future-intro">
+              <div><span className="section-kicker"><i></i> Next Generation</span><h2 style={{ marginTop: '15px' }}>The advanced TraceAcc roadmap.</h2></div>
+              <p>These are intentionally presented as the next evolution — not as claims that the current prototype already runs these components.</p>
+            </div>
+            <div className="roadmap">
+              <div className="road-line"></div>
+              <div className="road-grid stagger">
+                <div className="road-card"><div className="road-dot"></div><h4>Neo4j</h4><p>Persistent graph storage and Cypher-based network querying for larger financial graphs.</p><span className="road-tag">GRAPH STORAGE</span></div>
+                <div className="road-card"><div className="road-dot"></div><h4>GraphSAGE / GCN</h4><p>Learn representations from graph structure rather than relying only on manually extracted features.</p><span className="road-tag">GNN</span></div>
+                <div className="road-card"><div className="road-dot"></div><h4>Kafka</h4><p>Move from static uploads toward continuous transaction streams and live graph updates.</p><span className="road-tag">STREAMING</span></div>
+                <div className="road-card"><div className="road-dot"></div><h4>SHAP / LIME</h4><p>Expose the evidence behind a model signal so analysts can understand why an account was flagged.</p><span className="road-tag">XAI</span></div>
+                <div className="road-card"><div className="road-dot"></div><h4>Celery + Redis</h4><p>Offload CPU-heavy analysis into background workers and expose job progress to the UI.</p><span className="road-tag">ASYNC COMPUTE</span></div>
+                <div className="road-card"><div className="road-dot"></div><h4>Temporal Graph</h4><p>Replay network formation over time with a timeline slider for dynamic investigation.</p><span className="road-tag">TIME SERIES</span></div>
+                <div className="road-card"><div className="road-dot"></div><h4>Docker + Cloud</h4><p>Package the full stack for repeatable deployment and scalable environments.</p><span className="road-tag">DEVOPS</span></div>
+              </div>
+            </div>
+            <div className="future-callout"><b>Research direction:</b> DC-LCG is a candidate advanced learned layer, not a claim that the current TraceAcc engine already runs DC-LCG. Its dual-context design combines local neighbourhood evidence with multi-hop transaction-path context to better expose camouflaged illicit nodes and long-range fund flows.</div>
+          </div>
+        </section>
+
+        {/* FINAL CTA */}
+        <section className="final-cta reveal" id="overview">
+          <div className="cta-shell">
+            <span className="section-kicker"><i></i> TraceAcc Pro</span>
+            <h2 style={{ marginTop: '18px' }}>Detect the signal.<br /><span>Understand the network.</span></h2>
+            <p>TraceAcc turns transaction data into graph intelligence, risk signals and investigation context — with a governed path from request to report.</p>
+            <div className="cta-chips"><span className="cta-chip">GRAPH INTELLIGENCE</span><span className="cta-chip">UNSUPERVISED ML</span><span className="cta-chip">CASE INVESTIGATION</span><span className="cta-chip">AUDITABLE WORKFLOW</span><span className="cta-chip">ADVANCED ROADMAP</span></div>
+          </div>
+        </section>
+      </div>
+
+      {/* REVIEWER LAB */}
+      <section className="section reviewer-lab" id="reviewer-lab">
+        <div className="section-header reveal">
+          <span className="section-subtitle">Live Product Walkthrough</span>
+          <h2>See the investigation happen.</h2>
+          <p>Trace one suspicious flow from transaction signal to explainable investigation outcome.</p>
+        </div>
+        <div className="lab-shell reveal">
+          <div className="lab-topbar">
+            <div className="lab-title"><span className="live-dot"></span> TRACEACC / INVESTIGATION SIMULATOR</div>
+            <div className="lab-status">SIMULATED DATA · INTERACTIVE DEMO</div>
+          </div>
+          <div className="lab-body">
+            <div className="lab-rail">
+              {['ingest', 'detect', 'trace', 'investigate', 'report'].map((step) => (
+                <button
+                  key={step}
+                  className={`lab-step ${activeLabStep === step ? 'active' : ''}`}
+                  onClick={() => setActiveLabStep(step)}
+                >
+                  <b>{step === 'ingest' ? '01' : step === 'detect' ? '02' : step === 'trace' ? '03' : step === 'investigate' ? '04' : '05'}</b>
+                  <span>{step.charAt(0).toUpperCase() + step.slice(1)}</span>
+                </button>
+              ))}
+            </div>
+            <div className="lab-main">
+              <div className="lab-stage">
+                <div className="lab-grid"></div>
+                <div className="signal-card signal-a"><span>TX-1842</span><strong>₹ 9,900</strong><small>ACC-104 → ACC-208</small></div>
+                <div className="signal-card signal-b"><span>TX-1843</span><strong>₹ 9,850</strong><small>ACC-208 → ACC-411</small></div>
+                <div className="signal-card signal-c"><span>TX-1844</span><strong>₹ 9,700</strong><small>ACC-411 → ACC-104</small></div>
+                <svg className="lab-links" viewBox="0 0 900 420" preserveAspectRatio="none">
+                  <path d="M180 130 C330 80 360 300 500 205 S690 130 760 260" />
+                  <path d="M180 130 C310 230 360 90 500 205" />
+                  <circle cx="180" cy="130" r="7" /><circle cx="500" cy="205" r="9" /><circle cx="760" cy="260" r="7" />
+                </svg>
+                <div className="risk-orb"><span>RISK</span><strong id="labRisk">{currentLab.risk}</strong><small>HIGH</small></div>
+                <div className="lab-event" id="labEvent">{currentLab.msg}</div>
+              </div>
+              <div className="lab-detail">
+                <div>
+                  <span className="eyebrow" id="labEyebrow">{currentLab.eyebrow}</span>
+                  <h3 id="labTitle">{currentLab.title}</h3>
+                  <p id="labCopy">{currentLab.copy}</p>
                 </div>
-              )}
-              {activeArchStep === 4 && (
-                <div className="ui-preview-box">
-                  <span className="status-item">✓ Entity 360</span>
-                  <span className="status-item">✓ Multi-Hop Tracing</span>
-                  <span className="status-item">✓ Evidence Management</span>
-                  <span className="status-item">✓ Hypothesis Testing</span>
-                  <span className="status-item">✓ Case Report</span>
+                <div className="lab-metrics" id="labMetrics">
+                  {currentLab.metrics.map((m, i) => (
+                    <div key={i}><strong>{m[0]}</strong><span>{m[1]}</span></div>
+                  ))}
                 </div>
-              )}
-              {activeArchStep === 5 && (
-                <div className="ui-preview-box">
-                  <span className="status-item">✓ Collect Reports</span>
-                  <span className="status-item">✓ Review & Approve</span>
-                  <span className="status-item">✓ Digital Signature</span>
-                  <span className="status-item">🔒 SHA-256 Seal</span>
-                  <div className="arch-seal-preview" style={{ marginTop: '8px', padding: '8px 16px', background: 'rgba(34,211,238,0.1)', borderRadius: '8px', border: '1px solid rgba(34,211,238,0.2)' }}>
-                    <span style={{ color: '#22d3ee' }}>🔒 Tamper-Evident Seal Applied</span>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ═══════════ FAQ ═══════════ */}
-      <div className="landing-section" id="faq">
+      {/* REVIEWER COMMAND */}
+      <section className="section command-section" id="reviewer-command">
+        <div className="section-header reveal">
+          <span className="section-subtitle">Reviewer Mode</span>
+          <h2>Explore TraceAcc like a product, not a brochure.</h2>
+          <p>Jump directly to the parts that matter during a technical review.</p>
+        </div>
+        <div className="command-grid reveal">
+          <button onClick={(e) => handleSmoothScroll(e, '#engine')}><span>⌘</span><div><b>Intelligence Engine</b><small>Graph + ML + pattern detection</small></div><i>↗</i></button>
+          <button onClick={(e) => handleSmoothScroll(e, '#investigation')}><span>◉</span><div><b>Investigation Workspace</b><small>Entity 360 + evidence + timeline</small></div><i>↗</i></button>
+          <button onClick={(e) => handleSmoothScroll(e, '#architecture')}><span>⇄</span><div><b>Governed Workflow</b><small>Client → Admin → TraceLab → InvoSpace</small></div><i>↗</i></button>
+          <button onClick={(e) => handleSmoothScroll(e, '#future')}><span>✦</span><div><b>Advanced Evolution</b><small>Neo4j + GNN + Kafka + XAI</small></div><i>↗</i></button>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="section alt-bg" id="faq">
         <div className="section-header">
-          <span className="section-subtitle">Frequently Asked Questions</span>
+          <span className="section-subtitle">FAQ</span>
           <h2>Everything You Need to Know</h2>
-          <p>Clear answers on data formatting, detection latency, and enterprise deployment.</p>
         </div>
-
-        <div className="faq-container">
-          {faqs.map((faq, idx) => (
-            <div 
-              key={idx} 
-              className={`faq-item ${activeFaq === idx ? 'open' : ''}`}
-              onClick={() => setActiveFaq(activeFaq === idx ? null : idx)}
-            >
-              <div className="faq-question">
-                <span>{faq.q}</span>
-                <i className={`bi ${activeFaq === idx ? 'bi-chevron-up' : 'bi-chevron-down'}`}></i>
-              </div>
-              {activeFaq === idx && (
-                <div className="faq-answer">
-                  <p>{faq.a}</p>
-                </div>
-              )}
+        <div className="faq-grid">
+          {[
+            { q: 'What CSV columns are required for money muling detection?', a: 'Headers: sender_account, receiver_account, amount, timestamp (ISO-8601 format).' },
+            { q: 'How does TraceAcc differ from traditional rules-based AML systems?', a: 'Rules engines inspect individual transactions in isolation. TraceAcc builds a directed graph network, tracing multi-hop layering paths, circular loops, and community structures across thousands of accounts.' },
+            { q: 'What are the four roles in the TraceAcc workflow?', a: 'Client (submits requests), Admin (reviews, assigns, seals), TraceLab (analyzes, detects patterns), and InvoSpace (investigates, generates reports).' },
+            { q: 'How does the digital seal work?', a: 'Admin applies a SHA-256 tamper-evident digital signature to all approved reports before release to the client portal, ensuring complete audit compliance.' },
+            { q: 'Is TraceAcc compliant with AML regulations?', a: 'Yes. The platform provides immutable audit trails, role-based access control, digital seals, and comprehensive reporting — supporting AML governance through audit trails, role-based access control, digital seals, and structured reporting; regulatory compliance still depends on deployment, controls, and organizational policy.' }
+          ].map((item, idx) => (
+            <div key={idx} className={`faq-item ${activeFaq === idx ? 'open' : ''}`} onClick={() => toggleFaq(idx)}>
+              <div className="faq-question"><span>{item.q}</span><span>{activeFaq === idx ? '−' : '+'}</span></div>
+              <div className="faq-answer"><p>{item.a}</p></div>
             </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* ═══════════ FOOTER ═══════════ */}
-      <div className="landing-footer">
+      {/* FOOTER */}
+      <footer className="footer">
         <div className="footer-content">
           <div className="footer-brand">
-            <div className="logo-icon">⬡</div>
-            <span className="logo-text">TraceAcc</span>
-            <span className="logo-version-tag">PRO</span>
+            <div className="logo-icon">T</div>
+            <span className="logo-text">Trace<span>Acc</span></span>
+            <span className="logo-version-tag">Pro</span>
           </div>
-          <p className="footer-tagline">Enterprise AML Operations Platform — Detect. Investigate. Govern. Release.</p>
+          <p className="footer-tagline">Enterprise AML Intelligence Platform — Detect. Investigate. Govern. Release.</p>
           <div className="footer-links">
             <Link to="/login">Sign In</Link>
-            <Link to="/login">Get Started</Link>
-            <a href="#features">Features</a>
-            <a href="#architecture">Architecture</a>
+            <a href="#">Get Started</a>
+            <a href="#features" onClick={(e) => handleSmoothScroll(e, '#features')}>Features</a>
+            <a href="#architecture" onClick={(e) => handleSmoothScroll(e, '#architecture')}>Architecture</a>
+            <a href="#detection" onClick={(e) => handleSmoothScroll(e, '#detection')}>Detection</a>
+            <a href="#faq" onClick={(e) => handleSmoothScroll(e, '#faq')}>FAQ</a>
           </div>
         </div>
-        <div className="footer-bottom">
-          <p>© 2026 TraceAcc Pro — Enterprise AML Operations Platform</p>
+        <div className="footer-bottom">© 2026 TraceAcc Pro — Enterprise AML Operations Platform · Advanced research modules are clearly marked as roadmap concepts.</div>
+      </footer>
+
+      {/* TRUTH BAR */}
+      <div className="truth-bar">
+        <span className="truth-dot"></span>
+        <button onClick={() => setTruthOpen(!truthOpen)}>PROJECT TRUTH · REVIEWER</button>
+      </div>
+
+      <div className={`truth-panel ${truthOpen ? 'open' : ''}`}>
+        <div className="truth-modal">
+          <div className="truth-modal-head">
+            <div><span className="section-subtitle">Reviewer transparency</span><h3>What is current vs advanced?</h3></div>
+            <button className="truth-close" onClick={() => setTruthOpen(false)}>Close</button>
+          </div>
+          <div className="truth-grid">
+            <div className="truth-item"><b>Current system</b><span>CSV ingestion, directed graph construction, graph heuristics, unsupervised anomaly models, weighted suspicion scoring and interactive graph presentation.</span></div>
+            <div className="truth-item"><b>Detection depth</b><span>Four core graph heuristics are documented in the production review, with a broader project detector/analytics suite described in the detailed project assessment.</span></div>
+            <div className="truth-item"><b>Governance</b><span>Role separation, audit logging, report review/sealing and controlled release are part of the product story.</span></div>
+            <div className="truth-item"><b>Advanced research</b><span>Neo4j, GNNs, Kafka, XAI, Celery/Redis, temporal graphs, cloud deployment and DC-LCG are presented as the next evolution unless separately implemented.</span></div>
+          </div>
+          <p className="truth-note">This panel exists to prevent visual demos from being mistaken for production telemetry. Animated numbers and case replay are illustrative UI simulations; project capability claims are kept separate from them.</p>
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default LandingPage;

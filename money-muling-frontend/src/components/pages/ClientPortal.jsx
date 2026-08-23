@@ -10,7 +10,20 @@ function ClientPortal() {
   const [reports, setReports] = useState([]);
   const [lastRequest, setLastRequest] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [downloadingId, setDownloadingId] = useState(null);
   const navigate = useNavigate();
+
+  const handleDownload = async (report) => {
+    try {
+      setDownloadingId(report.id);
+      await reportsAPI.download(report);
+    } catch (err) {
+      console.error('Download failed', err);
+      alert(err.response?.data?.detail || 'Download failed.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -45,6 +58,7 @@ function ClientPortal() {
 
   const getStatusBadge = (status) => {
     const map = {
+      SUBMITTED: 'warning',
       PENDING: 'warning',
       APPROVED: 'primary',
       IN_PROGRESS: 'info',
@@ -160,8 +174,8 @@ function ClientPortal() {
                       </div>
                       <Button
                         variant="link"
-                        href={reportsAPI.downloadUrl(rep.id)}
-                        target="_blank"
+                        disabled={downloadingId === rep.id}
+                        onClick={() => handleDownload(rep)}
                         className="p-0 text-decoration-none"
                       >
                         <CloudDownload size={20} />

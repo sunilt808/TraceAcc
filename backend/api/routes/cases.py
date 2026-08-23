@@ -591,6 +591,30 @@ class TaskUpdate(BaseModel):
 VALID_TASK_STATUSES = {"PENDING", "IN_PROGRESS", "COMPLETED", "SKIPPED"}
 
 
+def _validate_task_assignee(
+    db: Session,
+    org_id: int,
+    assigned_to_id: int,
+) -> None:
+    """
+    Ensure the task assignee exists inside the same
+    organization (prevents FK IntegrityError 500s).
+    """
+    assignee = (
+        db.query(User)
+        .filter(
+            User.id == assigned_to_id,
+            User.organization_id == org_id,
+        )
+        .first()
+    )
+    if not assignee:
+        raise HTTPException(
+            status_code=400,
+            detail="assigned_to_id must be an existing user in this organization.",
+        )
+
+
 @router.post("/{case_id}/tasks", status_code=201)
 def create_task(
     case_id: int,
@@ -600,6 +624,8 @@ def create_task(
     db: Session = Depends(get_db),
 ):
     case = _get_case(db, current_user, org_id, case_id)
+    if body.assigned_to_id:
+        _validate_task_assignee(db, org_id, body.assigned_to_id)
     task = InvestigationTask(
         organization_id=org_id,
         case_id=case.id,
@@ -683,6 +709,7 @@ def update_task(
     if body.notes is not None:
         task.notes = body.notes
     if body.assigned_to_id is not None:
+        _validate_task_assignee(db, org_id, body.assigned_to_id)
         task.assigned_to_id = body.assigned_to_id
     if body.due_date is not None:
         task.due_date = body.due_date

@@ -457,8 +457,7 @@ def release_report(
     report.is_released = True
     report.released_at = datetime.now(timezone.utc)
     report.released_by_id = current_user.id
-    if report.status != "SIGNED":
-        report.status = "RELEASED"
+    report.status = "RELEASED"
 
     # Notify the client who owns the linked request
     client_id = None
