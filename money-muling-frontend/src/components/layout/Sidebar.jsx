@@ -91,6 +91,18 @@ const NAV_ITEMS = [
         label: 'Timeline',
         roles: ['TRACE_LAB_ANALYST', 'INVESTIGATOR', 'ADMIN'],
       },
+      {
+        path: '/patterns',
+        icon: '🧩',
+        label: 'Patterns',
+        roles: ['TRACE_LAB_ANALYST'],
+      },
+      {
+        path: '/intel',
+        icon: '🕵️',
+        label: 'Intel Hub',
+        roles: ['INVESTIGATOR'],
+      },
     ],
   },
 

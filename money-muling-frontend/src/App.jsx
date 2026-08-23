@@ -42,8 +42,19 @@ import ReportsPage from './components/pages/ReportsPage';
 import CasesPage from './components/pages/CasesPage';
 import CaseDetail from './components/pages/CaseDetail';
 import AlertsPage from './components/pages/AlertsPage';
+import AnalystPatternsPage from './components/pages/AnalystPatternsPage';
+import InvestigatorIntelPage from './components/pages/InvestigatorIntelPage';
 
 import SettingsPage from './components/settings/SettingsPage';
+
+// Analyst-only inline guard (parent tracelab route also admits ADMIN)
+function AnalystOnly({ children }) {
+  const { role } = useAuth();
+  if (role !== 'TRACE_LAB_ANALYST') {
+    return <Navigate to="/tracelab/overview" replace />;
+  }
+  return children;
+}
 
 
 // ============================================================
@@ -361,6 +372,15 @@ function App() {
             path="/tracelab/alerts"
             element={<AlertsPage />}
           />
+
+          <Route
+            path="/tracelab/patterns"
+            element={
+              <AnalystOnly>
+                <AnalystPatternsPage />
+              </AnalystOnly>
+            }
+          />
         </Route>
 
 
@@ -452,6 +472,11 @@ function App() {
           <Route
             path="/invospace/alerts"
             element={<AlertsPage />}
+          />
+
+          <Route
+            path="/invospace/intel"
+            element={<InvestigatorIntelPage />}
           />
         </Route>
 

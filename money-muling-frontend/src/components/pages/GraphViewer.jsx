@@ -156,7 +156,15 @@ function GraphViewer() {
 
     cyInstance.current.on('tap', 'node', (evt) => {
       const node = evt.target;
-      setSelected(node.data());
+      const dclcgBlock = analysisResult?.dclcg;
+      let dclcgProb = null;
+      if (dclcgBlock?.available) {
+        const hit = (dclcgBlock.top_accounts || []).find(
+          (t) => t.account_id === node.id(),
+        );
+        if (hit) dclcgProb = hit.illicit_prob;
+      }
+      setSelected({ ...node.data(), dclcgProb });
       // Highlight neighbors
       cyInstance.current.elements().addClass('faded');
       node.neighborhood().addClass('highlighted');
@@ -325,6 +333,15 @@ function GraphViewer() {
               {selected.score?.toFixed(1) || '0.0'}
             </div>
 
+            {selected.dclcgProb != null && (
+              <>
+                <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>DC-LCG Illicit Prob.</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#a371f7', marginBottom: 12 }}>
+                  {(selected.dclcgProb * 100).toFixed(1)}%
+                </div>
+              </>
+            )}
+
             {selected.rings?.length > 0 && (
               <>
                 <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 6 }}>Ring Memberships</div>
@@ -349,6 +366,9 @@ function GraphViewer() {
         )}
       </div>
 
+      {/* DC-LCG panel (basepaper dual-view GNN) */}
+      <DCLCGPanel result={analysisResult} onSelect={(id) => handleSearch(id)} />
+
       {/* Legend */}
       <div style={{ display: 'flex', gap: 16, marginTop: 16, flexWrap: 'wrap' }}>
         {Object.entries(RISK_COLORS).filter(([k]) => k !== 'DEFAULT').map(([tier, color]) => (
@@ -362,6 +382,136 @@ function GraphViewer() {
         ))}
       </div>
     </AppLayout>
+  );
+}
+
+// ============================================================
+// DC-LCG PANEL — renders the dclcg block of the analysis result
+// ============================================================
+function DCLCGPanel({ result, onSelect }) {
+  const block = result?.dclcg;
+
+  if (!block) {
+    return (
+      <div style={{
+        marginTop: 16, padding: '14px 18px', background: '#0d1117',
+        border: '1px solid #21262d', borderRadius: 10,
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <span style={{ fontSize: 20 }}>🧠</span>
+        <div style={{ fontSize: 13, color: '#8b949e' }}>
+          <strong style={{ color: '#c9d1d9' }}>DC-LCG Dual-View GNN</strong> —
+          no model output in this result. Re-run analysis with a trained
+          model registered to enable the basepaper detector.
+        </div>
+      </div>
+    );
+  }
+
+  if (!block.available) {
+    return (
+      <div style={{
+        marginTop: 16, padding: '14px 18px', background: '#0d1117',
+        border: '1px solid #21262d', borderRadius: 10,
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <span style={{ fontSize: 20 }}>🧠</span>
+        <div style={{ fontSize: 13, color: '#8b949e' }}>
+          <strong style={{ color: '#c9d1d9' }}>DC-LCG Dual-View GNN</strong> —
+          no trained artifact found{block.error ? ` (${block.error})` : ''}.
+          Train one via the Patterns page → Model Registry.
+        </div>
+      </div>
+    );
+  }
+
+  const top = block.top_accounts || [];
+  return (
+    <div style={{
+      marginTop: 16, background: '#0d1117', border: '1px solid #21262d',
+      borderRadius: 10, padding: 18,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+        <span style={{ fontSize: 20 }}>🧠</span>
+        <div style={{ fontWeight: 700, fontSize: 14, color: '#f0f6fc' }}>
+          DC-LCG Dual-View GNN
+          <span style={{
+            marginLeft: 8, fontSize: 11, fontWeight: 600, color: '#a371f7',
+            background: '#a371f722', padding: '2px 8px', borderRadius: 10,
+          }}>
+            {block.model}
+          </span>
+        </div>
+        <div style={{ marginLeft: 'auto', fontSize: 12, color: '#8b949e' }}>
+          {block.n_scored} scored ·{' '}
+          <strong style={{ color: '#f85149' }}>{block.flagged_count}</strong> flagged (p ≥ 0.5)
+        </div>
+      </div>
+      <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12 }}>
+        Soft-label grouping + pruned random-walk contextual transformer,
+        fused by mutual attention (basepaper Li et al., IEEE TCSS 2026).
+      </div>
+
+      {top.length === 0 ? (
+        <div style={{ fontSize: 13, color: '#8b949e' }}>No accounts above threshold.</div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ color: '#8b949e', textAlign: 'left' }}>
+              <th style={{ padding: '6px 8px', borderBottom: '1px solid #21262d' }}>Account</th>
+              <th style={{ padding: '6px 8px', borderBottom: '1px solid #21262d', width: 180 }}>Illicit prob.</th>
+              <th style={{ padding: '6px 8px', borderBottom: '1px solid #21262d', width: 110 }}>Disguise</th>
+              <th style={{ padding: '6px 8px', borderBottom: '1px solid #21262d' }}>Top path (pruned)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {top.slice(0, 10).map((row) => (
+              <tr key={row.account_id} style={{ borderTop: '1px solid #161b22' }}>
+                <td
+                  onClick={() => onSelect(row.account_id)}
+                  style={{
+                    padding: '6px 8px', fontFamily: 'monospace',
+                    color: '#388bfd', cursor: 'pointer',
+                  }}
+                  title="Search in graph"
+                >
+                  {row.account_id}
+                </td>
+                <td style={{ padding: '6px 8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{
+                      flex: 1, height: 6, background: '#161b22', borderRadius: 3,
+                    }}>
+                      <div style={{
+                        width: `${Math.round(row.illicit_prob * 100)}%`, height: '100%',
+                        borderRadius: 3,
+                        background: row.illicit_prob >= 0.5 ? '#f85149' : '#d29922',
+                      }} />
+                    </div>
+                    <span style={{ color: '#c9d1d9', minWidth: 38 }}>
+                      {(row.illicit_prob * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                </td>
+                <td style={{ padding: '6px 8px', color: '#c9d1d9' }}>
+                  {(row.disguise_score ?? 0).toFixed(2)}
+                </td>
+                <td
+                  style={{
+                    padding: '6px 8px', fontFamily: 'monospace',
+                    color: '#8b949e', whiteSpace: 'nowrap',
+                    overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 260,
+                  }}
+                  title={(row.top_paths || []).join(' | ') || '-'}
+                >
+                  {(row.top_paths && row.top_paths[0]) || '-'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
 

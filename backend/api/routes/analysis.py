@@ -51,6 +51,153 @@ from detectors.dclcg import get_latest_artifact, load_artifact, predict_graph
 
 router = APIRouter(prefix="/analyze", tags=["analysis"])
 
+RISK_LEVEL_BANDS = [(40, "LOW"), (70, "MEDIUM"), (90, "HIGH"), (101, "CRITICAL")]
+
+
+def _risk_level_for(score: float) -> str:
+    for ceiling, level in RISK_LEVEL_BANDS:
+        if score < ceiling:
+            return level
+    return "CRITICAL"
+
+
+def _auto_store_technical_report(
+    *, db, org_id, analyst, service_request, job, filename,
+    result, hybrid_scores, alert_ids,
+):
+    """
+    Create or refresh the DRAFT TechnicalReport linked to a service
+    request with the latest analysis output. Reports that already left
+    DRAFT (submitted/approved) are never mutated — a new versioned
+    draft is created instead.
+    """
+    from models.technical_report import TechnicalReport
+
+    latest = (
+        db.query(TechnicalReport)
+        .filter(
+            TechnicalReport.service_request_id == service_request.id,
+            TechnicalReport.organization_id == org_id,
+        )
+        .order_by(TechnicalReport.created_at.desc())
+        .first()
+    )
+
+    summary = result.get("summary", {})
+    dclcg_block = result.get("dclcg") or {}
+    fraud_rings = result.get("fraud_rings", []) or []
+    suspicious = result.get("suspicious_accounts", []) or []
+
+    top_sorted = sorted(
+        hybrid_scores,
+        key=lambda e: float(e.get("final_score", 0.0)),
+        reverse=True,
+    )
+    top10 = top_sorted[:10]
+    peak_score = (
+        float(top_sorted[0].get("final_score", 0.0)) if top_sorted else 0.0
+    )
+
+    detector_counts = summary.get("detector_counts", {})
+
+    dataset_summary = {
+        "filename": filename,
+        "job_id": job.id,
+        "total_accounts": job.total_accounts,
+        "total_transactions": job.total_transactions,
+        "processing_time_seconds": round(job.processing_time_seconds or 0, 2),
+        "analyzed_by": analyst.username,
+    }
+    transaction_analysis = {
+        **summary,
+        "auto_generated": True,
+        "generated_from_job": job.id,
+    }
+    pattern_findings = {
+        "detector_counts": detector_counts,
+        "suspicious_count": len(suspicious),
+        "dclcg": {
+            "available": dclcg_block.get("available", False),
+            "model": dclcg_block.get("model"),
+            "flagged_count": dclcg_block.get("flagged_count", 0),
+            "top_accounts": (dclcg_block.get("top_accounts") or [])[:5],
+        },
+    }
+    graph_findings = {
+        "fraud_ring_count": len(fraud_rings),
+        "rings_sample": [
+            {
+                "ring_id": r.get("ring_id") or r.get("id"),
+                "members": (r.get("accounts") or r.get("members") or r.get("path")
+                            or [])[:12],
+            }
+            for r in fraud_rings[:10]
+        ],
+    }
+    behaviour_findings = {
+        "fan_in_flagged": detector_counts.get("fan_in", 0),
+        "burst_accounts": [
+            a.get("account_id") for a in (result.get("burst_accounts") or [])[:10]
+        ]
+        if isinstance(result.get("burst_accounts"), list) else None,
+    }
+    temporal_findings = result.get("temporal_patterns") or {}
+    ml_findings = {
+        "ml_flagged": detector_counts.get("ml_flagged", 0),
+        "dclcg_dimension_used": bool(dclcg_block.get("available")),
+        "dclcg_model": dclcg_block.get("model"),
+    }
+    risk_factors = [
+        {
+            "account_id": e.get("account_id"),
+            "final_score": e.get("final_score"),
+            "risk_tier": e.get("risk_tier"),
+            "patterns": e.get("patterns", []),
+        }
+        for e in top10
+    ]
+
+    conclusion = (
+        f"Auto-generated from analysis job #{job.id} on '{filename}'. "
+        f"{len(suspicious)} suspicious account(s), {len(fraud_rings)} "
+        f"fraud ring(s); peak hybrid risk {peak_score:.1f}/100"
+    )
+    if dclcg_block.get("available"):
+        conclusion += (
+            f"; DC-LCG model '{dclcg_block.get('model')}' flagged "
+            f"{dclcg_block.get('flagged_count', 0)} account(s)."
+        )
+    else:
+        conclusion += "; DC-LCG dimension not active for this run."
+
+    if latest is not None and latest.status == "DRAFT":
+        report = latest
+    else:
+        report = TechnicalReport(
+            organization_id=org_id,
+            service_request_id=service_request.id,
+            analyst_id=analyst.id,
+            version=(latest.version + 1) if latest else 1,
+        )
+
+    report.analysis_job_id = job.id
+    report.title = report.title or f"Technical Analysis — {service_request.title}"
+    report.dataset_summary = dataset_summary
+    report.transaction_analysis = transaction_analysis
+    report.pattern_findings = pattern_findings
+    report.graph_findings = graph_findings
+    report.behaviour_findings = behaviour_findings
+    report.temporal_findings = temporal_findings
+    report.ml_findings = ml_findings
+    report.risk_score = round(peak_score, 2)
+    report.risk_level = _risk_level_for(peak_score)
+    report.risk_factors = risk_factors
+    report.alert_ids = alert_ids
+    report.conclusion = conclusion
+
+    db.add(report)
+    db.commit()
+
 # Cap on the serialized analysis result stored with a job.
 # Larger results are summarized instead of persisted whole.
 MAX_STORED_RESULT_BYTES = 4 * 1024 * 1024
@@ -349,6 +496,7 @@ async def analyze_advanced(
         # NOTE: compute_hybrid_scores() emits "final_score";
         # older revisions used "score". Accept both defensively.
         alerts_created = 0
+        new_alert_ids: list = []
         for entry in hybrid_scores:
             score = float(
                 entry.get("final_score", entry.get("score", 0.0))
@@ -368,9 +516,30 @@ async def analyze_advanced(
                     related_accounts=[entry["account_id"]],
                 )
                 db.add(alert)
+                db.flush()
+                new_alert_ids.append(alert.id)
                 alerts_created += 1
         if alerts_created > 0:
             db.commit()
+
+        # ── Auto-store results into the Technical Report ───────
+        # Every completed SR-linked analysis refreshes the linked
+        # DRAFT technical report so findings are never lost between
+        # analysis and report writing.
+        if service_request is not None:
+            try:
+                _auto_store_technical_report(
+                    db=db, org_id=org_id, analyst=current_user,
+                    service_request=service_request, job=job,
+                    filename=file.filename, result=result,
+                    hybrid_scores=hybrid_scores,
+                    alert_ids=new_alert_ids,
+                )
+            except Exception as store_err:  # noqa: BLE001
+                db.rollback()
+                result.setdefault("warnings", []).append(
+                    f"technical-report auto-store failed: {store_err}"
+                )
 
         log_event(
             db=db, event_type=EventType.ANALYZE,

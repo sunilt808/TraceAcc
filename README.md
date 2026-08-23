@@ -5,6 +5,7 @@
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react)](https://reactjs.org)
 [![NetworkX](https://img.shields.io/badge/NetworkX-Graph-orange?style=flat)](https://networkx.org)
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-ML-F7931E?style=flat&logo=scikit-learn)](https://scikit-learn.org)
+[![PyTorch](https://img.shields.io/badge/PyTorch-DC--LCG%20GNN-EE4C2C?style=flat&logo=pytorch)](https://pytorch.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-336791?style=flat&logo=postgresql)](https://supabase.com)
 
 ---
@@ -14,11 +15,11 @@
 **TraceAcc Pro** is an AML operations platform that keeps the client, technical analysis, investigation, and release stages separated but connected through one governed workflow.
 
 - **Admin Workspace** receives client requests, routes work, tracks progress, and reviews reports before release.
-- **TraceLab** performs technical AML analysis, generates findings, and creates alerts only.
-- **InvoSpace** receives escalations, owns cases, collects evidence, and produces final investigation reports.
+- **TraceLab** performs technical AML analysis with a 15-pattern automated suite, generates findings, and creates alerts only. Every completed analysis auto-stores its results into the linked DRAFT technical report.
+- **InvoSpace** receives escalations, owns cases, collects evidence, produces final investigation reports, and works from the Intel Hub (cross-job account dossiers, similar-account search, follow-the-money paths).
 - **Client Portal** submits requests and downloads only approved final reports.
 
-The platform still uses graph analytics, heuristics, and risk scoring, but those outputs now feed a workflow chain instead of existing as a standalone demo.
+The detection stack combines graph heuristics, behavioural/temporal signals, unsupervised anomaly models and the **DC-LCG dual-view graph neural network** (trained on labeled datasets, registered as versioned artifacts, fused into every advanced analysis as a supervised scoring dimension).
 
 ---
 
@@ -34,11 +35,20 @@ d:/rift/
 │   │   ├── routes/
 │   │   │   ├── auth.py            # /auth/login, /auth/register, /auth/me
 │   │   │   ├── audit.py           # /audit/logs, /audit/stats
-│   │   │   ├── analysis.py        # /analyze/jobs (job history)
+│   │   │   ├── analysis.py        # /analyze/advanced (+ auto-stored technical reports)
 │   │   │   ├── graph.py           # /graph/* endpoints
-│   │   │   └── cases.py           # /cases/* case management
+│   │   │   ├── cases.py           # /cases/* case management
+│   │   │   ├── patterns.py        # /patterns/analyze — 15-pattern suite (CSV/XLSX or stored job)
+│   │   │   ├── dclcg.py           # /dclcg/models registry + /dclcg/train (labeled CSV)
+│   │   │   └── intel.py           # /intel/accounts/{id}/overview|similar|paths
 │   │   └── deps.py                # JWT auth dependency injection
 │   ├── detectors/                 # Core fraud detection algorithms
+│   │   ├── dclcg/                 # DC-LCG dual-view GNN package (PyTorch)
+│   │   │   ├── value_encoder.py   # Transaction value embeddings
+│   │   │   ├── model.py           # Local grouping view + pruned random-walk context transformer
+│   │   │   ├── train.py           # Supervised / weak-heuristic training loop
+│   │   │   ├── inference.py       # Scoring: illicit prob, disguise score, pruned evidence paths
+│   │   │   └── registry.py        # Versioned model artifact save/load (.pt in models_artifacts/)
 │   │   ├── cycle.py               # DFS cycle detection (fraud rings)
 │   │   ├── fan.py                 # Fan-In / Fan-Out hub detection
 │   │   ├── layering.py            # Layering shell chain detection
@@ -58,7 +68,9 @@ d:/rift/
 │   │   ├── amount_patterns.py     # Amount structuring detection
 │   │   ├── repeat.py              # Repeat transaction pattern detection
 │   │   ├── risk_propagation.py    # Risk score propagation through graph
-│   │   └── hybrid_engine.py       # Combined heuristic + ML scoring pipeline
+│   │   ├── risk_propagation.py    # Risk score propagation through graph
+│   │   ├── pattern_suite.py       # 15-pattern orchestrator (basic / intermediate / advanced ML)
+│   │   └── hybrid_engine.py       # Combined heuristic + ML + DC-LCG scoring pipeline
 │   ├── models/                    # SQLAlchemy ORM models
 │   ├── schemas/                   # Pydantic request/response schemas
 │   ├── services/                  # Business logic services (auth, audit)
@@ -84,7 +96,7 @@ d:/rift/
 │   │   │   ├── auth/              # LoginCard, ProtectedRoute
 │   │   │   ├── dashboard/         # Dashboard, GraphPanel, UploadCard, MetricsBar, FraudRingTable, Navbar, SampleGenerator
 │   │   │   ├── layout/            # AppLayout (sidebar shell), Sidebar
-│   │   │   ├── pages/             # OverviewPage, GraphViewer, CommunitiesPage, RiskMapPage, TimelinePage, StatisticsPage, ReportsPage, CasesPage, LandingPage
+│   │   │   ├── pages/             # OverviewPage, GraphViewer, CommunitiesPage, RiskMapPage, TimelinePage, StatisticsPage, ReportsPage, CasesPage, AnalystPatternsPage, InvestigatorIntelPage, LandingPage
 │   │   │   ├── profile/           # ProfilePage
 │   │   │   ├── audit/             # AuditHistory
 │   │   │   └── settings/          # SettingsPage
@@ -156,6 +168,44 @@ Score = min(Score, 100)
 | Layering | 20 |
 | Multi-ring bonus | +5/ring (max 20) |
 
+> This is the base heuristic layer. The advanced pipeline (`/analyze/advanced`) fuses all signals through the hybrid engine below.
+
+### 7. Hybrid Engine (`detectors/hybrid_engine.py`)
+Weighted fusion of every detector family into one 0–100 score plus a per-dimension breakdown:
+
+| Dimension | Weight (base) | Weight (with DC-LCG) |
+|-----------|--------------|---------------------|
+| Graph heuristics | 0.35 | 0.30 |
+| Behavioural | 0.20 | 0.17 |
+| Temporal | 0.15 | 0.12 |
+| Community | 0.10 | 0.08 |
+| ML anomaly | 0.20 | 0.13 |
+| DC-LCG GNN | — | 0.20 |
+
+When a trained DC-LCG artifact is available (and `use_dclcg=true`, the default), its per-account illicit probability joins the blend as a sixth supervised dimension; otherwise the engine degrades gracefully to the base weights.
+
+### 8. 15-Pattern Suite (`detectors/pattern_suite.py`)
+One orchestrated pass over the transaction graph returning 15 uniform result blocks, exposed to analysts via `POST /patterns/analyze` (CSV/Excel upload or re-run of any stored analysis job):
+
+| Tier | Patterns |
+|------|----------|
+| **Basic** | Circular transaction · Fan-in hub · Fan-out hub · Burst activity · Structuring (smurfing) |
+| **Intermediate / Hard** | Layering shells · Rapid movement (velocity chains) · Night-window activity · Periodic bot-like transfers · Dormant-account activation |
+| **Advanced ML** | DC-LCG GNN scores · Isolation Forest · LOF · DBSCAN noise · Risk-propagation hotspots |
+
+Each block reports `flagged_count`, up to 50 flagged accounts with per-pattern details (e.g., cycle membership, shell depth, night-window ratio, periodicity confidence), and runtime.
+
+### 9. DC-LCG Dual-View GNN (`detectors/dclcg/`)
+The implemented basepaper model: a **D**ual-**C**ontext **L**earned **C**lassification **G**raph network trained on labeled transaction CSVs (or weak-supervised heuristics when no labels exist).
+
+- **Local view** — soft-label propagation over immediate neighbourhoods with degree-normalized weight sums.
+- **Contextual view** — pruned random-walk transformer over multi-hop paths for long-range evidence.
+- **Mutual attention fusion** — both views gate each other before classification.
+- **Outputs per account** — illicit probability, disguise (camouflage) score, top pruned evidence paths used in analyst explanations.
+- **Registry** — versioned `.pt` artifacts under `backend/models_artifacts/`, listed via `GET /dclcg/models`, trained via `POST /dclcg/train`.
+
+Reference results on the synthetic benchmark: F1 = AUC = AP = 1.0 (epochs ≥ 25).
+
 ---
 
 ## 🗄️ Workflow Schema
@@ -187,6 +237,8 @@ Score = min(Score, 100)
 | `/statistics` | `StatisticsPage` | Quantitative distribution charts |
 | `/reports` | `ReportsPage` | Export-ready analyst reports |
 | `/cases` | `CasesPage` | Case management and triage |
+| `/tracelab/patterns` | `AnalystPatternsPage` | 15-pattern suite run + tier-grouped results (analyst/admin) |
+| `/invospace/intel` | `InvestigatorIntelPage` | Intel Hub: account dossiers, similar accounts, money paths (investigator) |
 ### Workflow Coverage
 
 - Client request submission
@@ -199,7 +251,10 @@ Score = min(Score, 100)
 
 ## 🧪 Validation
 
-Backend workflow regression coverage lives in `backend/tests/test_workflow_foundation.py` and now covers request creation, alert escalation, case handoff, and report release.
+Backend regression coverage lives in `backend/tests/`:
+
+- `test_workflow_foundation.py` — request creation, alert escalation, case handoff, report release.
+- `test_dclcg.py` — DC-LCG model round-trip (NaN-safe forward on isolated nodes), `/dclcg` API + RBAC, 15-pattern suite endpoint (+ Excel upload, client rejection), and auto-storage of analysis results into technical reports.
 
 ---
 | `/audit-history` | `AuditHistory` | Complete audit log viewer |
@@ -215,7 +270,7 @@ Backend workflow regression coverage lives in `backend/tests/test_workflow_found
 |-------|-----------|
 | **Backend Framework** | FastAPI 2.0 + Uvicorn |
 | **Graph Processing** | NetworkX (in-memory directed graph) |
-| **Machine Learning** | scikit-learn (Isolation Forest, LOF, DBSCAN) |
+| **Machine Learning** | scikit-learn (Isolation Forest, LOF, DBSCAN) · PyTorch (DC-LCG dual-view GNN) |
 | **ORM & Database** | SQLAlchemy + PostgreSQL (Supabase) / SQLite fallback |
 | **Auth** | JWT (python-jose) + bcrypt (passlib) |
 | **CSV Processing** | Python csv module + pandas |
@@ -276,7 +331,7 @@ App: [http://localhost:5173](http://localhost:5173)
 
 ## 📊 CSV Format
 
-The system expects a CSV with the following columns:
+The analysis engine expects a CSV (Excel `.xlsx` also supported) with the following columns:
 
 ```csv
 sender_id,receiver_id,amount,timestamp
@@ -291,6 +346,8 @@ ACC_003,ACC_001,1480.00,2024-01-15 11:30:00
 | `receiver_id` | string | Destination account identifier |
 | `amount` | float | Transaction amount |
 | `timestamp` | datetime | ISO 8601 or common datetime string |
+
+**DC-LCG training CSVs** may additionally include a label column (`label`, `class`, `is_fraud`, or `illicit`) — `1`/`illicit` for known mules, `0` otherwise. Datasets without labels fall back to weak heuristic supervision.
 
 ---
 

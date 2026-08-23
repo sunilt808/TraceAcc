@@ -207,3 +207,73 @@ def test_pattern_suite_excel_upload(client):
     )
     assert res.status_code == 200, res.text
     assert res.json()["total_patterns"] == 15
+
+
+def test_analysis_auto_stores_technical_report(client, setup_db):
+    """
+    Completed SR-linked analyses must automatically refresh a DRAFT
+    TechnicalReport with the analysis findings (incl. DC-LCG block).
+    Re-running analysis updates the SAME draft instead of duplicating.
+    """
+    from models.technical_report import TechnicalReport
+
+    csv_content = (
+        "sender,receiver,amount,timestamp\n"
+        "A,B,8500,2024-01-01 10:00:00\n"
+        "B,C,8500,2024-01-01 10:05:00\n"
+        "C,A,8500,2024-01-01 10:10:00\n"
+    )
+
+    admin_h = _login(client, "admin", "admin123")
+    res = client.post(
+        "/service-requests",
+        headers=admin_h,
+        json={"title": "Auto-report test", "description": "x",
+              "request_type": "ANALYSIS"},
+    )
+    assert res.status_code == 201, res.text
+    sr_id = res.json()["id"]
+
+    res = client.post(
+        f"/service-requests/{sr_id}/upload",
+        headers=admin_h,
+        files={"file": ("auto.csv", csv_content.encode(), "text/csv")},
+    )
+    assert res.status_code == 200, res.text
+
+    analyst_h = _login(client, "analyst", "analyst123")
+
+    def run_analysis():
+        return client.post(
+            "/analyze/advanced",
+            headers=analyst_h,
+            files={"file": ("auto.csv", csv_content.encode(), "text/csv")},
+            data={"use_dclcg": "false",
+                  "service_request_id": str(sr_id)},
+        )
+
+    res = run_analysis()
+    assert res.status_code == 200, res.text
+    job_id_1 = res.json()["job_id"]
+
+    reports = setup_db.query(TechnicalReport).all()
+    assert len(reports) == 1
+    rep = reports[0]
+    assert rep.service_request_id == sr_id
+    assert rep.analysis_job_id == job_id_1
+    assert rep.status == "DRAFT"
+    assert rep.dataset_summary["filename"] == "auto.csv"
+    assert rep.risk_level in {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+    assert rep.ml_findings["dclcg_dimension_used"] is False
+    assert f"#{job_id_1}" in rep.conclusion
+
+    # Second analysis refreshes the same DRAFT
+    res = run_analysis()
+    assert res.status_code == 200
+    job_id_2 = res.json()["job_id"]
+
+    setup_db.expire_all()
+    reports = setup_db.query(TechnicalReport).all()
+    assert len(reports) == 1, "draft must be refreshed, not duplicated"
+    assert reports[0].analysis_job_id == job_id_2
+    assert f"#{job_id_2}" in reports[0].conclusion

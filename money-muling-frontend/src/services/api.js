@@ -681,6 +681,81 @@ export const notificationsAPI = {
 };
 
 // ============================================================
+// DC-LCG MODEL REGISTRY API
+// ============================================================
+
+export const dclcgAPI = {
+  listModels: async () => {
+    const res = await api.get('/dclcg/models');
+    return res.data;
+  },
+
+  getModel: async (name) => {
+    const res = await api.get(`/dclcg/models/${encodeURIComponent(name)}`);
+    return res.data;
+  },
+
+  train: async (file, modelName, epochs = 20) => {
+    const form = new FormData();
+    form.append('request_file', file);
+    form.append('model_name', modelName);
+    form.append('epochs', String(epochs));
+    const res = await api.post('/dclcg/train', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 600000,
+    });
+    return res.data;
+  },
+};
+
+// ============================================================
+// PATTERN SUITE API (15 detectors, TraceLab analyst only)
+// ============================================================
+
+export const patternsAPI = {
+  analyze: async ({ file, jobId, useDclcg = true } = {}) => {
+    const form = new FormData();
+    if (file) form.append('file', file);
+    if (jobId) form.append('job_id', String(jobId));
+    form.append('use_dclcg', String(useDclcg));
+    const res = await api.post('/patterns/analyze', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000,
+    });
+    return res.data;
+  },
+};
+
+// ============================================================
+// INVESTIGATOR INTEL API
+// ============================================================
+
+export const intelAPI = {
+  overview: async (accountId) => {
+    const res = await api.get(
+      `/intel/accounts/${encodeURIComponent(accountId)}/overview`,
+    );
+    return res.data;
+  },
+
+  similar: async (accountId, top = 8) => {
+    const res = await api.get(
+      `/intel/accounts/${encodeURIComponent(accountId)}/similar`,
+      { params: { top } },
+    );
+    return res.data;
+  },
+
+  paths: async (accountId, jobId, depth = 3, top = 5) => {
+    const res = await api.get(
+      `/intel/accounts/${encodeURIComponent(accountId)}/paths`,
+      { params: { job_id: jobId, depth, top } },
+    );
+    return res.data;
+  },
+};
+
+// ============================================================
 // DEFAULT EXPORT
 // ============================================================
 

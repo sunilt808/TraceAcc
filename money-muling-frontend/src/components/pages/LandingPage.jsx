@@ -2,8 +2,30 @@
 import React, { useState, useRef, useLayoutEffect } from 'react';
 import { Link } from 'react-router-dom';
 import cytoscape from 'cytoscape';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import '../../assets/landing.css';
+
+// Additive reveal animation helpers (existing CSS/canvas animations untouched)
+const revealUp = {
+  initial: { opacity: 0, y: 26 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, amount: 0.2 },
+  transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
+};
+
+const Reveal = ({ children, delay = 0, ...rest }) => (
+  <motion.div {...revealUp} transition={{ ...revealUp.transition, delay }} {...rest}>
+    {children}
+  </motion.div>
+);
+
+const swapAnim = {
+  initial: { opacity: 0, y: 14 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -10 },
+  transition: { duration: 0.35, ease: 'easeOut' },
+};
 
 
 
@@ -39,7 +61,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
     cycle: {
       badge: 'Cycles (Length 3-5)',
       title: 'Lexicographical Cycle Detection',
-      weight: '40 Risk Points',
+      weight: 'Graph topology signal',
       desc: 'Identifies circular transfers where illicit money flows through intermediate mule accounts before returning to the seed account (A → B → C → A). Uses lexicographical pruning to eliminate redundant searches and optimize path detection.',
       complexity: 'O(V + E) per seed node',
       formula: 'Path(v₀, v₁, ..., vₖ) where v₀ = vₖ',
@@ -48,7 +70,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
     fan: {
       badge: 'Fan / Hub Structure',
       title: 'Hub-and-Spoke Disguise Detection',
-      weight: '35 Risk Points',
+      weight: 'Hub topology signal',
       desc: 'Identifies hub accounts that receive funds from multiple sources and distribute to many destinations, often used to obscure the true origin of funds.',
       complexity: 'O(V + E) per hub',
       formula: 'Hub(v) = indegree(v) × outdegree(v)',
@@ -57,7 +79,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
     layering: {
       badge: 'Multi-Hop Layering',
       title: 'Layering Path Analysis',
-      weight: '45 Risk Points',
+      weight: 'Path topology signal',
       desc: 'Tracks funds across multiple hops to identify complex layering schemes where money moves through many accounts to obscure its trail.',
       complexity: 'O(V + E) per path',
       formula: 'Path(v₀ → v₁ → ... → vₖ)',
@@ -66,7 +88,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
     burst: {
       badge: 'Temporal Burst',
       title: 'Transaction Burst Detection',
-      weight: '30 Risk Points',
+      weight: 'Temporal velocity signal',
       desc: 'Identifies unusual spikes in transaction volume or velocity that may indicate automated laundering or structuring activity.',
       complexity: 'O(V + E) per time window',
       formula: 'Burst = Σ(transactions) / Δt',
@@ -74,9 +96,9 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`
     },
     score: {
       badge: 'ML Anomaly Score',
-      title: 'Unsupervised Anomaly Detection',
-      weight: '50 Risk Points',
-      desc: 'Combines Isolation Forest, LOF, and DBSCAN to identify accounts with anomalous transaction patterns that deviate from normal behaviour.',
+      title: 'Unsupervised Anomaly + DC-LCG GNN',
+      weight: 'ML ensemble + supervised GNN',
+      desc: 'Combines Isolation Forest, LOF, and DBSCAN for unsupervised anomalies, with the trained DC-LCG dual-view graph neural network adding a supervised illicit-probability dimension to the weighted score.',
       complexity: 'O(V × log V)',
       formula: 'Score = w₁×IF + w₂×LOF + w₃×DBSCAN',
       useCase: 'Detecting sophisticated anomalies that evade rule-based detection.'
@@ -845,7 +867,9 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
             <div className="hero-metrics">
               <div className="metric"><span className="metric-value">4</span><span className="metric-label">Roles</span></div>
               <div className="metric-divider"></div>
-              <div className="metric"><span className="metric-value">21</span><span className="metric-label">Detection / analytics</span></div>
+              <div className="metric"><span className="metric-value">21+</span><span className="metric-label">Detection / analytics</span></div>
+              <div className="metric-divider"></div>
+              <div className="metric"><span className="metric-value">15</span><span className="metric-label">Pattern suite</span></div>
               <div className="metric-divider"></div>
               <div className="metric"><span className="metric-value">SHA-256</span><span className="metric-label">Seals</span></div>
               <div className="metric-divider"></div>
@@ -875,36 +899,23 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
 
       {/* STATS */}
       <section className="stats-section">
-        <div className="stat-card">
-          <div className="stat-icon">🏛️</div>
-          <div className="stat-number">4</div>
-          <div className="stat-label">Roles</div>
-          <div className="stat-desc">Client · Admin · TraceLab · InvoSpace</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon">🔬</div>
-          <div className="stat-number">21</div>
-          <div className="stat-label">Detectors</div>
-          <div className="stat-desc">Graph · ML · Temporal · Behavioural</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon">🔒</div>
-          <div className="stat-number">SHA-256</div>
-          <div className="stat-label">Digital Seals</div>
-          <div className="stat-desc">Tamper-Evident Audit Trail</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon">⚡</div>
-          <div className="stat-number">&lt;50ms</div>
-          <div className="stat-label">Graph Processing</div>
-          <div className="stat-desc">Real-Time Analysis Engine</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon">🧠</div>
-          <div className="stat-number">3</div>
-          <div className="stat-label">ML Models</div>
-          <div className="stat-desc">Isolation Forest · LOF · DBSCAN</div>
-        </div>
+        {[
+          { icon: '🏛️', num: '4', label: 'Roles', desc: 'Client · Admin · TraceLab · InvoSpace' },
+          { icon: '🔬', num: '21+', label: 'Detectors', desc: 'Graph · ML · Temporal · Behavioural' },
+          { icon: '🔒', num: 'SHA-256', label: 'Digital Seals', desc: 'Tamper-Evident Audit Trail' },
+          { icon: '⚡', num: '<50ms', label: 'Graph Processing', desc: 'Real-Time Analysis Engine' },
+          { icon: '🧠', num: '4', label: 'ML Models', desc: 'Isolation Forest · LOF · DBSCAN · DC-LCG GNN' },
+          { icon: '🧩', num: '15', label: 'Pattern Suite', desc: '5 Basic · 5 Intermediate · 5 Advanced ML' },
+        ].map((s, i) => (
+          <Reveal key={s.label} delay={i * 0.07}>
+            <div className="stat-card">
+              <div className="stat-icon">{s.icon}</div>
+              <div className="stat-number">{s.num}</div>
+              <div className="stat-label">{s.label}</div>
+              <div className="stat-desc">{s.desc}</div>
+            </div>
+          </Reveal>
+        ))}
       </section>
 
       {/* FEATURES / ROLES */}
@@ -915,30 +926,21 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
           <p>Each role has a dedicated workspace with strictly separated responsibilities. No role can bypass the workflow.</p>
         </div>
         <div className="roles-grid">
-          <div className="role-card">
-            <div className="role-icon" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>📋</div>
-            <h3>Client Portal</h3>
-            <p>Submit service requests with CSV/Excel datasets. Track request status. Download only Admin-approved and digitally sealed final reports.</p>
-            <span className="role-pill" style={{ color: '#10b981', borderColor: 'rgba(16,185,129,0.2)' }}>CLIENT</span>
-          </div>
-          <div className="role-card">
-            <div className="role-icon" style={{ background: 'rgba(37,99,235,0.12)', color: '#3b82f6' }}>⚙️</div>
-            <h3>Admin Operations Hub</h3>
-            <p>Accept/reject client requests. Assign work to TraceLab or InvoSpace. Review reports. Apply tamper-evident SHA-256 digital seal. Release to client.</p>
-            <span className="role-pill" style={{ color: '#3b82f6', borderColor: 'rgba(37,99,235,0.2)' }}>ADMIN</span>
-          </div>
-          <div className="role-card">
-            <div className="role-icon" style={{ background: 'rgba(124,58,237,0.12)', color: '#8b5cf6' }}>🔬</div>
-            <h3>TraceLab Analysis</h3>
-            <p>Validate datasets. Run graph analysis, pattern detection, ML scoring. Generate findings & technical reports. Escalate suspicious alerts.</p>
-            <span className="role-pill" style={{ color: '#8b5cf6', borderColor: 'rgba(124,58,237,0.2)' }}>ANALYST</span>
-          </div>
-          <div className="role-card">
-            <div className="role-icon" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>🛡️</div>
-            <h3>InvoSpace Investigation</h3>
-            <p>Convert alerts to cases. Deep investigation: Entity 360, multi-hop tracing, evidence, hypotheses, findings, timeline. Generate investigation reports.</p>
-            <span className="role-pill" style={{ color: '#f59e0b', borderColor: 'rgba(245,158,11,0.2)' }}>INVOSPACE</span>
-          </div>
+          {[
+            { icon: '📋', bg: 'rgba(16,185,129,0.12)', color: '#10b981', title: 'Client Portal', text: 'Submit service requests with CSV/Excel datasets. Track request status. Download only Admin-approved and digitally sealed final reports.', pill: 'CLIENT' },
+            { icon: '⚙️', bg: 'rgba(37,99,235,0.12)', color: '#3b82f6', title: 'Admin Operations Hub', text: 'Accept/reject client requests. Assign work to TraceLab or InvoSpace. Review reports. Apply tamper-evident SHA-256 digital seal. Release to client.', pill: 'ADMIN' },
+            { icon: '🔬', bg: 'rgba(124,58,237,0.12)', color: '#8b5cf6', title: 'TraceLab Analysis', text: 'Validate datasets. Run graph analysis, the 15-pattern suite, ML + DC-LCG scoring. Generate findings & technical reports — auto-stored from every analysis. Escalate suspicious alerts.', pill: 'ANALYST' },
+            { icon: '🛡️', bg: 'rgba(245,158,11,0.12)', color: '#f59e0b', title: 'InvoSpace Investigation', text: 'Convert alerts to cases. Deep investigation: Entity 360, multi-hop tracing, evidence, hypotheses, findings, timeline, plus the Intel Hub with cross-job dossiers and money-path tracing.', pill: 'INVESTIGATOR' },
+          ].map((r, i) => (
+            <Reveal key={r.title} delay={i * 0.08}>
+              <div className="role-card">
+                <div className="role-icon" style={{ background: r.bg, color: r.color }}>{r.icon}</div>
+                <h3>{r.title}</h3>
+                <p>{r.text}</p>
+                <span className="role-pill" style={{ color: r.color, borderColor: r.bg.replace(/0\.12\)/, '0.2)') }}>{r.pill}</span>
+              </div>
+            </Reveal>
+          ))}
         </div>
       </section>
 
@@ -963,14 +965,18 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
             ))}
           </div>
           <div className="arch-detail">
-            <div className="arch-detail-num">Step {currentArch.num}</div>
-            <h3>{currentArch.title}</h3>
-            <p>{currentArch.desc}</p>
-            <div className="arch-preview">
-              <div className="arch-status">
-                {currentArch.status.map((s, i) => <span key={i}>{s}</span>)}
-              </div>
-            </div>
+            <AnimatePresence mode="wait">
+              <motion.div key={activeArchStep} {...swapAnim}>
+                <div className="arch-detail-num">Step {currentArch.num}</div>
+                <h3>{currentArch.title}</h3>
+                <p>{currentArch.desc}</p>
+                <div className="arch-preview">
+                  <div className="arch-status">
+                    {currentArch.status.map((s, i) => <span key={i}>{s}</span>)}
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
       </section>
@@ -998,19 +1004,23 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
           ))}
         </div>
         <div className="detection-detail">
-          <div className="detection-header">
-            <div>
-              <span className="detection-badge">{currentDetection.badge}</span>
-              <h3>{currentDetection.title}</h3>
-            </div>
-            <span className="detection-weight">{currentDetection.weight}</span>
-          </div>
-          <p className="detection-desc">{currentDetection.desc}</p>
-          <div className="detection-specs">
-            <div><span>Complexity</span><span className="code">{currentDetection.complexity}</span></div>
-            <div><span>Formula</span><span className="code">{currentDetection.formula}</span></div>
-            <div className="full"><span>Use Case</span><span>{currentDetection.useCase}</span></div>
-          </div>
+          <AnimatePresence mode="wait">
+            <motion.div key={activeDetectionTab} {...swapAnim}>
+              <div className="detection-header">
+                <div>
+                  <span className="detection-badge">{currentDetection.badge}</span>
+                  <h3>{currentDetection.title}</h3>
+                </div>
+                <span className="detection-weight">{currentDetection.weight}</span>
+              </div>
+              <p className="detection-desc">{currentDetection.desc}</p>
+              <div className="detection-specs">
+                <div><span>Complexity</span><span className="code">{currentDetection.complexity}</span></div>
+                <div><span>Formula</span><span className="code">{currentDetection.formula}</span></div>
+                <div className="full"><span>Use Case</span><span>{currentDetection.useCase}</span></div>
+              </div>
+            </motion.div>
+          </AnimatePresence>
         </div>
       </section>
 
@@ -1125,8 +1135,8 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
         <div className="metric-strip reveal">
           <div className="metric-grid">
             <div className="metric-item"><strong>4</strong><span>Core graph topologies</span><div className="metric-bar"><i></i></div></div>
-            <div className="metric-item"><strong>3</strong><span>Unsupervised ML detectors</span><div className="metric-bar"><i></i></div></div>
-            <div className="metric-item"><strong>0–100</strong><span>Weighted suspicion score</span><div className="metric-bar"><i></i></div></div>
+            <div className="metric-item"><strong>4</strong><span>ML models incl. DC-LCG GNN</span><div className="metric-bar"><i></i></div></div>
+            <div className="metric-item"><strong>15</strong><span>Automated pattern suite</span><div className="metric-bar"><i></i></div></div>
             <div className="metric-item"><strong>21+</strong><span>Detection / analytics modules</span><div className="metric-bar"><i></i></div></div>
           </div>
         </div>
@@ -1231,20 +1241,22 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
                 <h3>Current stack</h3><p>Technology choices mapped to what each layer is responsible for.</p>
                 <div className="stack-layer"><label>Frontend</label><div className="tech-pills"><span className="tech primary">React</span><span className="tech primary">Vite</span><span className="tech">Cytoscape.js</span></div></div>
                 <div className="stack-layer"><label>API</label><div className="tech-pills"><span className="tech primary">FastAPI</span><span className="tech">Uvicorn</span><span className="tech">REST</span></div></div>
-                <div className="stack-layer"><label>Data</label><div className="tech-pills"><span className="tech primary">PostgreSQL</span><span className="tech">SQLAlchemy</span><span className="tech">Alembic</span></div></div>
+                <div className="stack-layer"><label>Data</label><div className="tech-pills"><span className="tech primary">SQLAlchemy</span><span className="tech">SQLite / PostgreSQL-ready</span><span className="tech">Alembic</span></div></div>
                 <div className="stack-layer"><label>Graph</label><div className="tech-pills"><span className="tech primary">NetworkX</span><span className="tech">DFS</span><span className="tech">Graph analytics</span></div></div>
-                <div className="stack-layer"><label>ML</label><div className="tech-pills"><span className="tech primary">scikit-learn</span><span className="tech">Isolation Forest</span><span className="tech">LOF</span><span className="tech">DBSCAN</span></div></div>
+                <div className="stack-layer"><label>ML</label><div className="tech-pills"><span className="tech primary">scikit-learn</span><span className="tech primary">PyTorch · DC-LCG GNN</span><span className="tech">Isolation Forest</span><span className="tech">LOF</span><span className="tech">DBSCAN</span></div></div>
               </div>
               <div className="stack-card">
                 <h3>Engineering profile</h3><p>Useful technical facts for a reviewer or interviewer.</p>
                 <div className="spec-panel">
                   <div className="spec-row"><span>Graph model</span><b>Directed financial graph</b></div>
                   <div className="spec-row"><span>Core topology</span><b>Cycle / Fan / Layering / Burst</b></div>
+                  <div className="spec-row"><span>Pattern suite</span><b>15 automated detectors</b></div>
+                  <div className="spec-row"><span>GNN layer</span><b>DC-LCG dual-view (PyTorch)</b></div>
                   <div className="spec-row"><span>Score range</span><b>0 → 100</b></div>
                   <div className="spec-row"><span>Frontend graph</span><b>Cytoscape.js</b></div>
                   <div className="spec-row"><span>Backend</span><b>FastAPI + SQLAlchemy</b></div>
                   <div className="spec-row"><span>Auth</span><b>JWT + password hashing</b></div>
-                  <div className="spec-row"><span>Advanced API</span><b>/analyze/advanced</b></div>
+                  <div className="spec-row"><span>Advanced API</span><b>/analyze/advanced · /patterns · /dclcg · /intel</b></div>
                 </div>
               </div>
             </div>
@@ -1280,16 +1292,20 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
                   ))}
                 </div>
                 <div className="case-detail">
-                  <strong>{currentCase.detailTitle}</strong>
-                  <span>{currentCase.detailText}</span>
-                  <div className="case-signal-list">
-                    {currentCase.metrics.map((m, i) => (
-                      <div className="case-signal" key={i}>
-                        <b>{m}</b>
-                        <small>{currentCase.labels[i]}</small>
+                  <AnimatePresence mode="wait">
+                    <motion.div key={activeCaseStep} {...swapAnim}>
+                      <strong>{currentCase.detailTitle}</strong>
+                      <span>{currentCase.detailText}</span>
+                      <div className="case-signal-list">
+                        {currentCase.metrics.map((m, i) => (
+                          <div className="case-signal" key={i}>
+                            <b>{m}</b>
+                            <small>{currentCase.labels[i]}</small>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
               </div>
               <div className="case-visual">
@@ -1315,9 +1331,9 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
         {/* DC-LCG RESEARCH LAB (is-visible added) */}
         <section className="section alt-bg reveal is-visible" id="dclcg">
           <div className="section-header">
-            <span className="section-subtitle">Research Layer · Advanced</span>
+            <span className="section-subtitle">Advanced Layer · Implemented</span>
             <h2>DC-LCG: local camouflage meets long-range context.</h2>
-            <p>A research-facing evolution for TraceAcc: combine local neighbourhood structure with multi-hop transaction paths, then fuse both views before learned risk scoring.</p>
+            <p>TraceAcc's dual-view graph neural network is live: analysts train it on labeled datasets, every analysis scores accounts with it as a dedicated dimension, and flagged nodes expose their pruned evidence paths.</p>
           </div>
           <div className="dclcg-wrap">
             <div className="dclcg-copy">
@@ -1342,8 +1358,8 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
                 ))}
               </div>
               <div className="dclcg-compare">
-                <div><b>Current TraceAcc</b><span>Graph heuristics + behavioural features + unsupervised anomaly models + weighted suspicion scoring.</span></div>
-                <div><b>Advanced research path</b><span>Learn representations directly from graph structure and transaction context, then compare learned evidence with existing signals.</span></div>
+                <div><b>Heuristic engine</b><span>Graph heuristics + behavioural features + unsupervised anomaly models + weighted suspicion scoring.</span></div>
+                <div><b>DC-LCG in production</b><span>Trained via the model registry on labeled CSVs, registered as versioned artifacts, and fused into every advanced analysis as a supervised illicit-probability dimension with per-account disguise and path explainability.</span></div>
               </div>
             </div>
             <div className="dclcg-visual">
@@ -1359,7 +1375,15 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
                 <div className="dclcg-node path"><b>Context View</b><small>Multi-hop paths<br/>extended fund flows</small></div>
                 <div className="dclcg-chip">MUTUAL ATTENTION FUSION</div>
                 <div className="dclcg-node mutual"><b>Learned representation</b><small>combined local + contextual evidence</small></div>
-                <div className="dclcg-explain"><strong>{currentDclcg.copy}</strong></div>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    className="dclcg-explain"
+                    key={activeDclcgModule}
+                    {...swapAnim}
+                  >
+                    <strong>{currentDclcg.copy}</strong>
+                  </motion.div>
+                </AnimatePresence>
               </div>
             </div>
           </div>
@@ -1376,7 +1400,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
               <div className="road-line"></div>
               <div className="road-grid stagger">
                 <div className="road-card"><div className="road-dot"></div><h4>Neo4j</h4><p>Persistent graph storage and Cypher-based network querying for larger financial graphs.</p><span className="road-tag">GRAPH STORAGE</span></div>
-                <div className="road-card"><div className="road-dot"></div><h4>GraphSAGE / GCN</h4><p>Learn representations from graph structure rather than relying only on manually extracted features.</p><span className="road-tag">GNN</span></div>
+                <div className="road-card"><div className="road-dot"></div><h4>GNN Scaling</h4><p>Extend the shipped DC-LCG dual-view GNN with GraphSAGE/GCN variants and GPU training for larger graphs.</p><span className="road-tag">GNN</span></div>
                 <div className="road-card"><div className="road-dot"></div><h4>Kafka</h4><p>Move from static uploads toward continuous transaction streams and live graph updates.</p><span className="road-tag">STREAMING</span></div>
                 <div className="road-card"><div className="road-dot"></div><h4>SHAP / LIME</h4><p>Expose the evidence behind a model signal so analysts can understand why an account was flagged.</p><span className="road-tag">XAI</span></div>
                 <div className="road-card"><div className="road-dot"></div><h4>Celery + Redis</h4><p>Offload CPU-heavy analysis into background workers and expose job progress to the UI.</p><span className="road-tag">ASYNC COMPUTE</span></div>
@@ -1384,7 +1408,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
                 <div className="road-card"><div className="road-dot"></div><h4>Docker + Cloud</h4><p>Package the full stack for repeatable deployment and scalable environments.</p><span className="road-tag">DEVOPS</span></div>
               </div>
             </div>
-            <div className="future-callout"><b>Research direction:</b> DC-LCG is a candidate advanced learned layer, not a claim that the current TraceAcc engine already runs DC-LCG. Its dual-context design combines local neighbourhood evidence with multi-hop transaction-path context to better expose camouflaged illicit nodes and long-range fund flows.</div>
+            <div className="future-callout"><b>Shipped & next:</b> the DC-LCG dual-view GNN is implemented and runs inside production analysis (model registry, training API, scoring dimension). The remaining items below are the next evolution — persistent graph storage, streaming, XAI and scaled deployment.</div>
           </div>
         </section>
 
@@ -1439,11 +1463,13 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
                 <div className="lab-event" id="labEvent">{currentLab.msg}</div>
               </div>
               <div className="lab-detail">
-                <div>
-                  <span className="eyebrow" id="labEyebrow">{currentLab.eyebrow}</span>
-                  <h3 id="labTitle">{currentLab.title}</h3>
-                  <p id="labCopy">{currentLab.copy}</p>
-                </div>
+                <AnimatePresence mode="wait">
+                  <motion.div key={activeLabStep} {...swapAnim}>
+                    <span className="eyebrow" id="labEyebrow">{currentLab.eyebrow}</span>
+                    <h3 id="labTitle">{currentLab.title}</h3>
+                    <p id="labCopy">{currentLab.copy}</p>
+                  </motion.div>
+                </AnimatePresence>
                 <div className="lab-metrics" id="labMetrics">
                   {currentLab.metrics.map((m, i) => (
                     <div key={i}><strong>{m[0]}</strong><span>{m[1]}</span></div>
@@ -1478,9 +1504,11 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
         </div>
         <div className="faq-grid">
           {[
-            { q: 'What CSV columns are required for money muling detection?', a: 'Headers: sender_account, receiver_account, amount, timestamp (ISO-8601 format).' },
+            { q: 'What CSV columns are required for money muling detection?', a: 'Headers: sender_account, receiver_account, amount, timestamp (ISO-8601 format). Excel (.xlsx) uploads are also supported, and labeled datasets can additionally carry a label column for supervised DC-LCG training.' },
             { q: 'How does TraceAcc differ from traditional rules-based AML systems?', a: 'Rules engines inspect individual transactions in isolation. TraceAcc builds a directed graph network, tracing multi-hop layering paths, circular loops, and community structures across thousands of accounts.' },
-            { q: 'What are the four roles in the TraceAcc workflow?', a: 'Client (submits requests), Admin (reviews, assigns, seals), TraceLab (analyzes, detects patterns), and InvoSpace (investigates, generates reports).' },
+            { q: 'What is the DC-LCG model and how is it used?', a: 'DC-LCG is TraceAcc\'s dual-view graph neural network: a local soft-label grouping view plus a pruned random-walk contextual transformer, fused by mutual attention. Analysts train it on labeled CSVs through the model registry; trained artifacts then score every account during analysis as a dedicated dimension, complete with disguise scores and pruned evidence paths.' },
+            { q: 'What does the 15-pattern suite cover?', a: 'TraceLab analysts get one Patterns page with 15 automated detectors: 5 basic (cycles, fan-in, fan-out, bursts, structuring), 5 intermediate-to-hard (layered shells, velocity anomalies, night activity, periodic bot-like transfers, dormant-account activation) and 5 advanced ML (DC-LCG GNN, Isolation Forest, LOF, DBSCAN noise, risk-propagation hotspots).' },
+            { q: 'What are the four roles in the TraceAcc workflow?', a: 'Client (submits requests), Admin (reviews, assigns, seals), TraceLab analyst (analyzes, detects patterns) and InvoSpace investigator (investigates via cases, evidence and the Intel Hub).' },
             { q: 'How does the digital seal work?', a: 'Admin applies a SHA-256 tamper-evident digital signature to all approved reports before release to the client portal, ensuring complete audit compliance.' },
             { q: 'Is TraceAcc compliant with AML regulations?', a: 'Yes. The platform provides immutable audit trails, role-based access control, digital seals, and comprehensive reporting — supporting AML governance through audit trails, role-based access control, digital seals, and structured reporting; regulatory compliance still depends on deployment, controls, and organizational policy.' }
           ].map((item, idx) => (
@@ -1510,7 +1538,7 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
             <a href="#faq" onClick={(e) => handleSmoothScroll(e, '#faq')}>FAQ</a>
           </div>
         </div>
-        <div className="footer-bottom">© 2026 TraceAcc Pro — Enterprise AML Operations Platform · Advanced research modules are clearly marked as roadmap concepts.</div>
+        <div className="footer-bottom">© 2026 TraceAcc Pro — Enterprise AML Operations Platform · DC-LCG dual-view GNN and the 15-pattern suite are implemented; remaining advanced modules are marked as roadmap.</div>
       </footer>
 
       {/* TRUTH BAR */}
@@ -1526,10 +1554,10 @@ ACC_400,ACC_200,9900.00,2026-07-22T08:12:00Z`;
             <button className="truth-close" onClick={() => setTruthOpen(false)}>Close</button>
           </div>
           <div className="truth-grid">
-            <div className="truth-item"><b>Current system</b><span>CSV ingestion, directed graph construction, graph heuristics, unsupervised anomaly models, weighted suspicion scoring and interactive graph presentation.</span></div>
-            <div className="truth-item"><b>Detection depth</b><span>Four core graph heuristics are documented in the production review, with a broader project detector/analytics suite described in the detailed project assessment.</span></div>
-            <div className="truth-item"><b>Governance</b><span>Role separation, audit logging, report review/sealing and controlled release are part of the product story.</span></div>
-            <div className="truth-item"><b>Advanced research</b><span>Neo4j, GNNs, Kafka, XAI, Celery/Redis, temporal graphs, cloud deployment and DC-LCG are presented as the next evolution unless separately implemented.</span></div>
+            <div className="truth-item"><b>Current system</b><span>CSV/Excel ingestion, directed graph construction, graph heuristics, unsupervised anomaly models, the DC-LCG dual-view GNN as a supervised scoring dimension, a 15-pattern automated suite and interactive graph presentation.</span></div>
+            <div className="truth-item"><b>Detection depth</b><span>Four core graph heuristics plus 21+ detector/analytics modules, organized into a 15-pattern suite (5 basic · 5 intermediate · 5 advanced ML) with an investigator Intel Hub for cross-job dossiers.</span></div>
+            <div className="truth-item"><b>Governance</b><span>Role separation, audit logging, auto-stored technical reports, report review/sealing and controlled release are part of the product story.</span></div>
+            <div className="truth-item"><b>Advanced research</b><span>Neo4j, Kafka, XAI, Celery/Redis, temporal graph replay and cloud deployment remain the roadmap. DC-LCG has graduated from roadmap to implementation.</span></div>
           </div>
           <p className="truth-note">This panel exists to prevent visual demos from being mistaken for production telemetry. Animated numbers and case replay are illustrative UI simulations; project capability claims are kept separate from them.</p>
         </div>
