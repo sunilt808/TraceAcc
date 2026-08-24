@@ -22,7 +22,7 @@
 The detection stack combines graph heuristics, behavioural/temporal signals, unsupervised anomaly models and the **DC-LCG dual-view graph neural network** (trained on labeled datasets, registered as versioned artifacts, fused into every advanced analysis as a supervised scoring dimension).
 
 ---
-
+<a href="https://deepwiki.com/sunilt808/TraceAcc1"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 ## 🏗️ System Architecture
 
 ### High-Level Layers
