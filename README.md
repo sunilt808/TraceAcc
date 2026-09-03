@@ -1,4 +1,7 @@
-# TraceAcc Pro — Enterprise AML Operations Platform
+# TraceAcc Pro — Enterprise AML Operations Platform <a href="https://deepwiki.com/sunilt808/TraceAcc1">
+  <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki">
+</a>
+
 > **Admin-centered workflow platform for client intake, TraceLab analysis, InvoSpace investigation, and governed client release**
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-2.0-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
