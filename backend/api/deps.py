@@ -223,7 +223,7 @@ def get_current_workspace(
     # ADMIN — full platform administration
     # --------------------------------------------------------
 
-    if user.role == Role.ADMIN.value:
+    if user.role in (Role.ADMIN.value, Role.TRACE_LAB_ANALYST.value, Role.INVESTIGATOR.value, LEGACY_SUPER_ADMIN):
 
         if x_organization_id is not None:
             organization_id = x_organization_id
@@ -233,7 +233,7 @@ def get_current_workspace(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
-                    "ADMIN must provide X-Organization-Id "
+                    "Staff must provide X-Organization-Id "
                     "for organization-scoped operations"
                 ),
             )
@@ -310,6 +310,7 @@ class RoleChecker:
     Role-Based Access Control dependency.
 
     Checks the user's role against the allowed list.
+    ADMIN is universally authorized across all operations.
     """
 
     def __init__(
@@ -322,6 +323,9 @@ class RoleChecker:
         self,
         user: User = Depends(get_current_user),
     ) -> User:
+
+        if user.role in (Role.ADMIN.value, "ADMIN", "SUPER_ADMIN"):
+            return user
 
         if not self.allowed_roles:
             raise HTTPException(
@@ -356,7 +360,7 @@ def require_client(
     user: User = Depends(get_current_user),
 ) -> User:
 
-    if user.role != Role.CLIENT_USER.value:
+    if user.role not in (Role.CLIENT_USER.value, Role.ADMIN.value, "ADMIN", "SUPER_ADMIN"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Client access required",
@@ -369,7 +373,7 @@ def require_admin(
     user: User = Depends(get_current_user),
 ) -> User:
 
-    if user.role != Role.ADMIN.value:
+    if user.role not in (Role.ADMIN.value, "ADMIN", "SUPER_ADMIN"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
@@ -382,7 +386,7 @@ def require_analyst(
     user: User = Depends(get_current_user),
 ) -> User:
 
-    if user.role != Role.TRACE_LAB_ANALYST.value:
+    if user.role not in (Role.TRACE_LAB_ANALYST.value, Role.ADMIN.value, "ADMIN", "SUPER_ADMIN"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="TraceLab analyst access required",
@@ -395,7 +399,7 @@ def require_investigator(
     user: User = Depends(get_current_user),
 ) -> User:
 
-    if user.role != Role.INVESTIGATOR.value:
+    if user.role not in (Role.INVESTIGATOR.value, Role.ADMIN.value, "ADMIN", "SUPER_ADMIN"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="InvoSpace investigator access required",
@@ -414,6 +418,8 @@ def require_internal_user(
 
     internal_roles = {
         Role.ADMIN.value,
+        "ADMIN",
+        "SUPER_ADMIN",
         Role.TRACE_LAB_ANALYST.value,
         Role.INVESTIGATOR.value,
     }

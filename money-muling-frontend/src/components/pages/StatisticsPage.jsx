@@ -26,7 +26,7 @@ function StatisticsPage() {
 
   if (!data) {
     return (
-      <AppLayout title="Statistics" subtitle="Analytical charts">
+      <AppLayout title="Statistics">
         <div style={{ textAlign: 'center', padding: 60, color: '#8b949e' }}>
           <div style={{ fontSize: 48 }}>📈</div>
           <div style={{ marginTop: 12, fontSize: 14 }}>
@@ -78,7 +78,7 @@ function StatisticsPage() {
   ];
 
   return (
-    <AppLayout title="Statistics" subtitle="Analytical charts from last analysis">
+    <AppLayout title="Statistics" >
       {/* Summary stats */}
       <div className="stat-grid">
         <StatCard label="Total Accounts"       value={summary.total_accounts_analyzed}          accent="accent" />

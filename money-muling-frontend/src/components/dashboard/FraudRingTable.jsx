@@ -1,6 +1,6 @@
 import React from 'react';
 import { Table, Card, Badge, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { InfoCircle } from 'react-bootstrap-icons';
+import { Info, AlertTriangle, Users, Layers } from 'lucide-react';
 
 const FraudRingTable = ({ rings = [], onRingClick }) => {
   // Helper to extract numeric ID from RING_XXXX
@@ -10,66 +10,74 @@ const FraudRingTable = ({ rings = [], onRingClick }) => {
     return match ? match[0] : ringId;
   };
 
-  // Format member accounts for display (truncate if too long)
+  // Format member accounts for display
   const formatMembers = (members) => {
     if (!members || members.length === 0) return '—';
     const display = members.join(', ');
-    return display.length > 30 ? display.substring(0, 27) + '...' : display;
+    return display.length > 24 ? display.substring(0, 22) + '...' : display;
   };
 
-  // Get badge variant based on risk score with more nuance
-  const getRiskVariant = (score) => {
-    if (score >= 80) return 'danger';
-    if (score >= 60) return 'warning';
-    if (score >= 40) return 'info';
-    return 'secondary';
-  };
-
-  // Get badge color for pattern type
-  const getPatternBadge = (pattern) => {
-    switch(pattern) {
-      case 'cycle': return 'primary';
-      case 'fan': return 'success';
-      case 'layered': return 'warning';
-      default: return 'secondary';
-    }
-  };
-
-  // Tooltip content for full member list
   const renderMemberTooltip = (members) => (
-    <Tooltip id="member-tooltip">
-      <div style={{ maxWidth: '250px', wordWrap: 'break-word' }}>
+    <Tooltip id="member-tooltip" style={{ fontSize: 11 }}>
+      <div style={{ maxWidth: '240px', wordWrap: 'break-word', padding: '2px 4px' }}>
         {members?.join(', ') || 'None'}
       </div>
     </Tooltip>
   );
 
   return (
-    <Card className="h-100 bg-dark border-secondary">
-      <Card.Header className="bg-darker text-light border-secondary py-2 d-flex justify-content-between align-items-center">
-        <h6 className="mb-0 fw-semibold">FRAUD RINGS DETECTED</h6>
+    <Card
+      className="h-100 shadow-none d-flex flex-column"
+      style={{
+        backgroundColor: '#000000',
+        borderColor: '#1f242c',
+        borderRadius: 8,
+      }}
+    >
+      <div
+        className="p-3 d-flex justify-content-between align-items-center border-bottom"
+        style={{ borderColor: '#1f242c', backgroundColor: '#05070a' }}
+      >
+        <div className="d-flex align-items-center gap-2">
+          <Layers size={14} color="#58a6ff" />
+          <span className="text-white fw-bold" style={{ fontSize: 12, letterSpacing: '-0.01em' }}>
+            Detected Fraud Rings
+          </span>
+        </div>
         {rings.length > 0 && (
-          <Badge bg="info" pill>
+          <span
+            style={{
+              padding: '1px 7px',
+              borderRadius: 10,
+              fontSize: 10,
+              fontWeight: 600,
+              backgroundColor: 'rgba(56, 139, 253, 0.15)',
+              color: '#58a6ff',
+              border: '1px solid rgba(56, 139, 253, 0.3)',
+            }}
+          >
             {rings.length} {rings.length === 1 ? 'ring' : 'rings'}
-          </Badge>
+          </span>
         )}
-      </Card.Header>
-      <Card.Body className="p-0 overflow-auto" style={{ maxHeight: 'calc(100% - 45px)' }}>
-        <Table hover variant="dark" className="mb-0" size="sm">
-          <thead className="sticky-top bg-darker" style={{ top: 0 }}>
-            <tr>
-              <th className="text-muted fw-normal">ID</th>
-              <th className="text-muted fw-normal">Pattern</th>
-              <th className="text-muted fw-normal text-end">Members</th>
-              <th className="text-muted fw-normal text-end">Risk Score</th>
-              <th className="text-muted fw-normal">Accounts</th>
+      </div>
+
+      <Card.Body className="p-0 overflow-auto flex-grow-1" style={{ backgroundColor: '#000000' }}>
+        <Table hover className="mb-0 align-middle" style={{ borderColor: '#161b22', backgroundColor: '#000000' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid #1f242c', backgroundColor: '#05070a' }}>
+              <th className="ps-3 py-2 text-secondary small fw-semibold" style={{ fontSize: 10, textTransform: 'uppercase' }}>ID</th>
+              <th className="py-2 text-secondary small fw-semibold" style={{ fontSize: 10, textTransform: 'uppercase' }}>Pattern</th>
+              <th className="py-2 text-secondary small fw-semibold text-end" style={{ fontSize: 10, textTransform: 'uppercase' }}>Members</th>
+              <th className="py-2 text-secondary small fw-semibold text-end" style={{ fontSize: 10, textTransform: 'uppercase' }}>Risk</th>
+              <th className="py-2 pe-3 text-secondary small fw-semibold" style={{ fontSize: 10, textTransform: 'uppercase' }}>Accounts</th>
             </tr>
           </thead>
           <tbody>
             {rings.length === 0 ? (
               <tr>
-                <td colSpan="5" className="text-center text-muted py-4">
-                  No fraud rings detected yet
+                <td colSpan="5" className="text-center text-secondary py-5" style={{ backgroundColor: '#000000' }}>
+                  <AlertTriangle size={24} className="opacity-40 mb-1" />
+                  <div className="small">No fraud rings detected</div>
                 </td>
               </tr>
             ) : (
@@ -77,34 +85,67 @@ const FraudRingTable = ({ rings = [], onRingClick }) => {
                 <tr
                   key={ring.ring_id}
                   onClick={() => onRingClick && onRingClick(ring.ring_id)}
-                  style={{ cursor: onRingClick ? 'pointer' : 'default' }}
-                  className="ring-row"
+                  style={{
+                    cursor: onRingClick ? 'pointer' : 'default',
+                    borderBottom: '1px solid #161b22',
+                    backgroundColor: '#000000',
+                    fontSize: 12,
+                  }}
                 >
-                  <td className="text-light">{extractRingNumber(ring.ring_id)}</td>
-                  <td>
-                    <Badge 
-                      bg={getPatternBadge(ring.pattern_type)} 
-                      className="text-uppercase" 
-                      style={{ fontSize: '0.7rem' }}
+                  <td className="ps-3 py-2 text-white font-monospace" style={{ fontSize: 11 }}>
+                    #{extractRingNumber(ring.ring_id)}
+                  </td>
+                  <td className="py-2">
+                    <span
+                      style={{
+                        padding: '1px 6px',
+                        borderRadius: 4,
+                        fontSize: 10,
+                        fontWeight: 600,
+                        backgroundColor: '#161b22',
+                        border: '1px solid #30363d',
+                        color: '#f0f6fc',
+                        textTransform: 'uppercase',
+                      }}
                     >
-                      {ring.pattern_type}
-                    </Badge>
+                      {ring.pattern_type || 'CYCLE'}
+                    </span>
                   </td>
-                  <td className="text-light text-end fw-medium">{ring.member_accounts?.length || 0}</td>
-                  <td className="text-end">
-                    <Badge bg={getRiskVariant(ring.risk_score)}>
-                      {ring.risk_score?.toFixed(1)}
-                    </Badge>
+                  <td className="py-2 text-light text-end fw-medium" style={{ fontSize: 11 }}>
+                    {ring.member_accounts?.length || 0}
                   </td>
-                  <td className="text-light small">
-                    <div className="d-flex align-items-center">
-                      <span className="me-1">{formatMembers(ring.member_accounts)}</span>
+                  <td className="py-2 text-end">
+                    <span
+                      style={{
+                        padding: '1px 6px',
+                        borderRadius: 10,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        backgroundColor:
+                          (ring.risk_score || 0) >= 70
+                            ? 'rgba(248, 81, 73, 0.15)'
+                            : (ring.risk_score || 0) >= 40
+                            ? 'rgba(227, 179, 65, 0.15)'
+                            : 'rgba(63, 185, 80, 0.15)',
+                        color:
+                          (ring.risk_score || 0) >= 70
+                            ? '#f85149'
+                            : (ring.risk_score || 0) >= 40
+                            ? '#e3b341'
+                            : '#3fb950',
+                      }}
+                    >
+                      {ring.risk_score?.toFixed(1) || '0.0'}
+                    </span>
+                  </td>
+                  <td className="py-2 pe-3 text-secondary small">
+                    <div className="d-flex align-items-center gap-1">
+                      <span className="text-light" style={{ fontSize: 11 }}>
+                        {formatMembers(ring.member_accounts)}
+                      </span>
                       {ring.member_accounts?.length > 0 && (
-                        <OverlayTrigger
-                          placement="top"
-                          overlay={renderMemberTooltip(ring.member_accounts)}
-                        >
-                          <InfoCircle size={12} className="text-muted" style={{ cursor: 'help' }} />
+                        <OverlayTrigger placement="top" overlay={renderMemberTooltip(ring.member_accounts)}>
+                          <Info size={11} className="text-secondary opacity-75" style={{ cursor: 'pointer' }} />
                         </OverlayTrigger>
                       )}
                     </div>
@@ -119,4 +160,4 @@ const FraudRingTable = ({ rings = [], onRingClick }) => {
   );
 };
 
-export default FraudRingTable;
+export default FraudRingTable;

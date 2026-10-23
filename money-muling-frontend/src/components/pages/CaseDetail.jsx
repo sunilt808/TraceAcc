@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AppLayout from '../layout/AppLayout';
 import { casesAPI, evidenceAPI } from '../../services/api';
+import CaseDetailModal from '../cases/CaseDetailModal';
 
 // ============================================================
 // SHARED BITS
@@ -687,6 +688,7 @@ function CaseDetail() {
   const [timeline, setTimeline] = useState([]);
   const [evidence, setEvidence] = useState([]);
   const [tab, setTab] = useState('overview');
+  const [showIntelligenceModal, setShowIntelligenceModal] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -716,12 +718,41 @@ function CaseDetail() {
     loadCase();
   }, [loadCase]);
 
-  const handleStatusChange = async (newStatus) => {
+  const [pendingTransition, setPendingTransition] = useState(null); // { targetStatus: string }
+  const [transitionNotes, setTransitionNotes] = useState('');
+  const [transitioning, setTransitioning] = useState(false);
+
+  const FORWARD_STAGES = {
+    SUBMITTED: ['OPEN', 'ASSIGNED'],
+    OPEN: ['ASSIGNED', 'INVESTIGATING'],
+    ASSIGNED: ['INVESTIGATING', 'EVIDENCE_REVIEW'],
+    IN_PROGRESS: ['INVESTIGATING', 'EVIDENCE_REVIEW', 'PENDING_REVIEW'],
+    INVESTIGATING: ['EVIDENCE_REVIEW', 'PENDING_REVIEW'],
+    EVIDENCE_REVIEW: ['PENDING_REVIEW'],
+    PENDING_REVIEW: ['APPROVED', 'CLOSED'],
+    APPROVED: ['CLOSED'],
+    RESOLVED: ['CLOSED'],
+    CLOSED: [],
+  };
+
+  const handleRequestStatusChange = (newStatus) => {
+    if (!newStatus || newStatus === caseData?.status) return;
+    setPendingTransition({ targetStatus: newStatus });
+    setTransitionNotes('');
+  };
+
+  const handleConfirmTransition = async (e) => {
+    if (e) e.preventDefault();
+    if (!pendingTransition?.targetStatus) return;
     try {
-      await casesAPI.updateStatus(id, newStatus);
+      setTransitioning(true);
+      await casesAPI.transitionStatus(id, pendingTransition.targetStatus, transitionNotes);
+      setPendingTransition(null);
       await loadCase();
     } catch (err) {
-      console.error('Failed to update status', err);
+      alert(err.response?.data?.detail || 'Failed to update case status');
+    } finally {
+      setTransitioning(false);
     }
   };
 
@@ -798,6 +829,9 @@ function CaseDetail() {
             Created {new Date(caseData.created_at).toLocaleString()}
             {caseData.alert_id && <> · from alert #{caseData.alert_id}</>}
             {caseData.service_request_id && <> · request #{caseData.service_request_id}</>}
+            {caseData.title?.includes('LiveShield Simulation') && (
+              <> · <a href="/invospace/liveshield" style={{ color: '#58a6ff', textDecoration: 'none', fontWeight: 600 }}>📡 LiveShield Simulator</a></>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -814,19 +848,121 @@ function CaseDetail() {
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 10, color: '#8b949e', marginBottom: 2 }}>STATUS</div>
+            <div style={{ fontSize: 10, color: '#8b949e', marginBottom: 2 }}>LIFECYCLE STAGE (ONE-WAY)</div>
             <select
               value={caseData.status}
-              onChange={(e) => handleStatusChange(e.target.value)}
+              onChange={(e) => handleRequestStatusChange(e.target.value)}
               disabled={caseData.status === 'CLOSED'}
-              style={{ ...inputStyle, width: 180 }}
+              style={{ ...inputStyle, width: 200 }}
             >
-              {Object.keys(STATUS_COLORS).map((s) => (
-                <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+              <option value={caseData.status}>Current: {(caseData.status || '').replace(/_/g, ' ')}</option>
+              {(FORWARD_STAGES[caseData.status] || []).map((s) => (
+                <option key={s} value={s}>
+                  → Advance to {s.replace(/_/g, ' ')}
+                </option>
               ))}
             </select>
           </div>
           <Pill value={caseData.priority} />
+
+          <button
+            className="btn-primary"
+            style={{ fontSize: 12, padding: '6px 12px', background: '#238636', display: 'flex', alignItems: 'center', gap: 6 }}
+            onClick={() => setShowIntelligenceModal(true)}
+          >
+            📊 Full Case Intelligence & Forensic Report
+          </button>
+
+          <button
+            className="btn-secondary"
+            style={{
+              fontSize: 12,
+              padding: '6px 12px',
+              background: caseData.status === 'CLOSED' ? '#1f6feb' : 'transparent',
+              color: '#fff',
+              border: '1px solid #388bfd',
+              borderRadius: 6,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontWeight: 600,
+            }}
+            onClick={() => window.open(`/cases/${caseData.id}/pdf`, '_blank')}
+            title="Open dedicated print-ready PDF investigation report"
+          >
+            📄 {caseData.status === 'CLOSED' ? 'Download Closed Case PDF' : 'Official PDF Report'}
+          </button>
+        </div>
+      </div>
+
+      {/* Investigator 5-Step SOP Ribbon */}
+      <div
+        className="panel"
+        style={{
+          marginBottom: 20,
+          background: '#0d1117',
+          border: '1px solid #30363d',
+          borderRadius: 8,
+          padding: '12px 16px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#f0f6fc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            ⚡ Investigator SOP Investigation Steps
+          </div>
+          <div style={{ fontSize: 11, color: '#8b949e' }}>
+            Current Stage: <span style={{ color: '#58a6ff', fontWeight: 600 }}>{(caseData.status || '').replace(/_/g, ' ')}</span> · Strict One-Way Progression
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+          {[
+            { num: 1, title: 'Step 1: Signal & Intake', desc: 'Alert ingestion & case creation', match: ['SUBMITTED', 'OPEN'] },
+            { num: 2, title: 'Step 2: Typology & Graph', desc: 'TraceLab & DC-LCG forensics', match: ['ASSIGNED', 'INVESTIGATING', 'IN_PROGRESS'] },
+            { num: 3, title: 'Step 3: Evidence & Tasks', desc: 'Hypotheses, files & checklist', match: ['EVIDENCE_REVIEW'] },
+            { num: 4, title: 'Step 4: SAR Decision', desc: 'Formal determination & narrative', match: ['PENDING_REVIEW'] },
+            { num: 5, title: 'Step 5: Admin Audit & Sealing', desc: 'Quality review & client report', match: ['APPROVED', 'RESOLVED', 'CLOSED'] },
+          ].map((step) => {
+            const isCurrent = step.match.includes(caseData.status);
+            return (
+              <div
+                key={step.num}
+                style={{
+                  background: isCurrent ? 'rgba(56,139,253,0.12)' : '#161b22',
+                  border: `1px solid ${isCurrent ? '#388bfd' : '#30363d'}`,
+                  borderRadius: 6,
+                  padding: '8px 10px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <span
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: '50%',
+                      background: isCurrent ? '#1f6feb' : '#21262d',
+                      color: isCurrent ? '#ffffff' : '#8b949e',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {step.num}
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: isCurrent ? '#58a6ff' : '#f0f6fc' }}>
+                    {step.title}
+                  </span>
+                </div>
+                <div style={{ fontSize: 10, color: '#8b949e', paddingLeft: 24 }}>
+                  {step.desc}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -1015,6 +1151,95 @@ function CaseDetail() {
             )}
           </div>
         </TabCard>
+      )}
+
+      {/* Case Intelligence Studio & Forensic Report Modal */}
+      <CaseDetailModal
+        show={showIntelligenceModal}
+        onHide={() => setShowIntelligenceModal(false)}
+        caseId={id}
+        onCaseUpdated={loadCase}
+      />
+
+      {/* Strict One-Way Stage Progression Confirmation Modal */}
+      {pendingTransition && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(1,4,9,0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1050,
+          }}
+          onClick={() => setPendingTransition(null)}
+        >
+          <div
+            className="panel"
+            style={{ width: 460, margin: 0, background: '#0d1117', border: '1px solid #30363d', borderRadius: 8, boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="panel-header" style={{ background: '#161b22', borderBottom: '1px solid #30363d', padding: '12px 16px' }}>
+              <span style={{ fontSize: 16 }}>⚠️</span>
+              <h3 className="panel-title" style={{ fontSize: 14, fontWeight: 700, color: '#f0f6fc', margin: 0 }}>
+                Confirm Irreversible Stage Progression
+              </h3>
+            </div>
+            <div className="panel-body" style={{ padding: '16px' }}>
+              <div style={{ background: 'rgba(210,153,34,0.12)', border: '1px solid rgba(210,153,34,0.3)', borderRadius: 6, padding: '10px 12px', marginBottom: 14 }}>
+                <div style={{ color: '#d29922', fontWeight: 600, fontSize: 12, marginBottom: 4 }}>
+                  One-Way Workflow Compliance Policy
+                </div>
+                <div style={{ color: '#c9d1d9', fontSize: 12, lineHeight: 1.4 }}>
+                  You are advancing this case from <strong style={{ color: '#58a6ff' }}>{(caseData.status || '').replace(/_/g, ' ')}</strong> to <strong style={{ color: '#3fb950' }}>{(pendingTransition.targetStatus || '').replace(/_/g, ' ')}</strong>.
+                  <br />
+                  Once advanced, this investigation <strong>cannot be moved backwards</strong> to previous stages.
+                </div>
+              </div>
+
+              <label style={{ fontSize: 12, color: '#8b949e', display: 'block', marginBottom: 4 }}>
+                Stage Transition Audit Notes (Optional)
+              </label>
+              <textarea
+                rows={3}
+                value={transitionNotes}
+                onChange={(e) => setTransitionNotes(e.target.value)}
+                placeholder="Log the rationale, completed forensics checklist, or evidence readiness notes..."
+                style={{
+                  width: '100%',
+                  background: '#161b22',
+                  border: '1px solid #30363d',
+                  borderRadius: 6,
+                  padding: '8px 12px',
+                  color: '#f0f6fc',
+                  fontSize: 12,
+                  resize: 'vertical',
+                }}
+              />
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setPendingTransition(null)}
+                  style={{ background: '#21262d', border: '1px solid #30363d', color: '#8b949e', fontSize: 12, padding: '6px 14px', borderRadius: 6, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={transitioning}
+                  onClick={handleConfirmTransition}
+                  style={{ background: '#1f6feb', border: '1px solid #388bfd', color: '#ffffff', fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 6, cursor: 'pointer' }}
+                >
+                  {transitioning ? 'Advancing Stage…' : `Confirm & Advance to ${pendingTransition.targetStatus.replace(/_/g, ' ')} →`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </AppLayout>
   );

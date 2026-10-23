@@ -18,7 +18,7 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import torch
 
-from .value_encoder import build_value_features
+from .value_encoder import build_value_features, FeatureScaler
 from .model import DCLCGModel, WalkGraph
 from .inference import predict_graph
 
@@ -62,6 +62,8 @@ def train_dclcg(
     walk_length: int = 6,
     walks_per_node: int = 4,
     seed: int = 7,
+    scaler: Optional[FeatureScaler] = None,
+    buffer_momentum: float = 0.70,
 ) -> Tuple[DCLCGModel, dict]:
     """
     Train DC-LCG on a TransactionGraph.
@@ -76,8 +78,15 @@ def train_dclcg(
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    accounts, X_np = build_value_features(graph)
+    accounts, X_raw = build_value_features(graph)
     index = {a: i for i, a in enumerate(accounts)}
+
+    # Fit feature scaler exclusively on training graph if not provided
+    if scaler is None:
+        scaler = FeatureScaler()
+        X_np = scaler.fit_transform(X_raw)
+    else:
+        X_np = scaler.transform(X_raw)
 
     # ---- initial soft-label buffer -------------------------------------
     if labels:
@@ -100,6 +109,12 @@ def train_dclcg(
     model = DCLCGModel(in_dim=X_np.shape[1], hidden_dim=hidden_dim, n_layers=n_layers)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
 
+    pos_count = float(np.sum(y_true > 0.5))
+    total_count = float(len(y_true))
+    neg_count = total_count - pos_count
+    pos_weight_val = (neg_count / max(pos_count, 1.0)) if supervised and pos_count > 0 else 1.0
+    pos_weight = torch.tensor([pos_weight_val], dtype=torch.float32)
+
     history = []
     final_paths: Dict[int, list] = {}
 
@@ -116,7 +131,14 @@ def train_dclcg(
         probs, _, _ = model(x_t, soft, neighbors, paths)
 
         target = torch.tensor(y_true, dtype=torch.float32)
-        bce = torch.nn.functional.binary_cross_entropy(probs, target.clamp(0, 1))
+        if supervised:
+            # Weighted BCE to address class imbalance
+            target_clamped = target.clamp(0, 1)
+            bce = - (pos_weight * target_clamped * torch.log(probs.clamp(1e-7, 1 - 1e-7)) +
+                     (1 - target_clamped) * torch.log((1 - probs).clamp(1e-7, 1 - 1e-7))).mean()
+        else:
+            bce = torch.nn.functional.binary_cross_entropy(probs, target.clamp(0, 1))
+
         # Consistency regularizer: predictions should not drift far from
         # the current soft-label buffer too quickly (paper Eq.19 spirit).
         consist = torch.nn.functional.mse_loss(probs, soft)
@@ -124,8 +146,9 @@ def train_dclcg(
         loss.backward()
         opt.step()
 
-        # Update the soft-label buffer with model output (Alg. 2 step 16)
-        buffer = probs.detach().numpy().clip(0.0, 1.0)
+        # Update the soft-label buffer with model output using momentum EMA
+        new_preds = probs.detach().numpy().clip(0.0, 1.0)
+        buffer = buffer_momentum * buffer + (1.0 - buffer_momentum) * new_preds
         history.append(float(loss.item()))
 
     with torch.no_grad():
@@ -166,6 +189,7 @@ def train_dclcg(
         "probs": probs.detach().numpy(),
         "embeddings_local": h_emb.detach().numpy(),
         "embeddings_ctx": c_emb.detach().numpy(),
+        "scaler": scaler.to_dict(),
     }
     return model, info
 
@@ -179,6 +203,7 @@ def save_artifact(model: DCLCGModel, info: dict, name: str) -> str:
         {
             "state_dict": model.state_dict(),
             "accounts": info["accounts"],
+            "scaler": info.get("scaler"),
             "config": {
                 k: info[k]
                 for k in ("epochs", "hidden_dim", "n_layers", "supervised",

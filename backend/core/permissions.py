@@ -47,41 +47,104 @@ _PERMISSIONS: dict[str, Set[str]] = {
         "profile.update",
     },
     ROLE_ADMIN: {
-        # Request management
+        # Universal permissions - Admin has full operational access across all features
+        "request.create",
         "request.view_all",
+        "request.view_own",
+        "request.view_assigned",
+        "request.update_own",
         "request.review",
         "request.approve",
         "request.reject",
         "request.request_information",
+        "request.respond_information",
         "request.assign_analyst",
         "request.assign_invospace",
         "request.reassign",
         # Alert management
+        "alert.create",
         "alert.view_all",
+        "alert.view_assigned",
         "alert.review",
+        "alert.update",
         "alert.route_to_invospace",
+        "alert.escalate_to_admin",
+        # Case management
+        "case.create",
+        "case.view_all",
+        "case.view_assigned",
+        "case.update",
+        "case.assign",
+        "case.reassign",
         # Report management
         "report.view_internal",
+        "report.view_released",
+        "report.download_released",
         "report.review",
         "report.request_revision",
         "report.approve",
         "report.sign",
         "report.release",
-        # User management
+        "technical_report.create",
+        "technical_report.submit",
+        "investigation_report.create",
+        "investigation_report.submit",
+        "investigation_report.revise",
+        # Dataset / Transactions / Analysis
+        "dataset.create",
+        "dataset.view_assigned",
+        "dataset.validate",
+        "transaction.view",
+        "analysis.run",
+        "graph.analyze",
+        "behaviour.analyze",
+        "temporal.analyze",
+        "ml.run",
+        "risk.calculate",
+        "evidence.create",
+        "evidence.view",
+        "evidence.download",
+        # Investigation artifacts
+        "investigation.note.create",
+        "investigation.note.update",
+        "investigation.hypothesis.create",
+        "investigation.hypothesis.update",
+        "investigation.task.create",
+        "investigation.task.update",
+        "investigation.finding.create",
+        "investigation.finding.update",
+        "investigation.timeline.create",
+        "investigation.graph.analyze",
+        "investigation.behaviour.analyze",
+        "investigation.temporal.analyze",
+        "investigation.ml.run",
+        "investigation.risk.reassess",
+        # User & Org management
         "user.view",
         "user.create",
         "user.update",
         "user.disable",
-        # Organization management
         "organization.view",
         "organization.create",
         "organization.update",
-        # Communication
+        # Communication & Profile
         "message.view",
+        "message.view_own",
         "message.create",
+        "message.create_to_admin",
+        "notification.view",
         "notification.manage",
-        # Audit
+        "profile.view",
+        "profile.update",
         "audit.view",
+        # LiveShield & Simulator
+        "liveshield.view",
+        "liveshield.create",
+        "liveshield.start",
+        "liveshield.stop",
+        "liveshield.update",
+        "liveshield.delete",
+        "simulation.manage",
     },
     ROLE_ANALYST: {
         # Assigned request access
@@ -160,8 +223,10 @@ def _effective_role(role: str) -> str:
 
 
 def has_permission(user: User, permission: str) -> bool:
-    """Return True if the user's role grants the given permission."""
+    """Return True if the user's role grants the given permission (ADMIN has all permissions)."""
     role = _effective_role(user.role)
+    if role in ADMIN_ROLES or role == ROLE_ADMIN:
+        return True
     return permission in _PERMISSIONS.get(role, set())
 
 
@@ -201,13 +266,16 @@ def require_any_permission(*permissions: str):
 def require_role(*roles: str):
     """
     Dependency that checks role membership directly.
-    Legacy SUPER_ADMIN is automatically treated as ADMIN.
+    ADMIN has universal access across all role-gated routes.
     """
     expanded = set(roles)
-    if ROLE_ADMIN in expanded:
-        expanded.add(ROLE_SUPER_LEGACY)
+    expanded.add(ROLE_ADMIN)
+    expanded.add(ROLE_SUPER_LEGACY)
 
     def _check(user: User = Depends(get_current_user)) -> User:
+        role = _effective_role(user.role)
+        if role in ADMIN_ROLES or role == ROLE_ADMIN:
+            return user
         if user.role not in expanded:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

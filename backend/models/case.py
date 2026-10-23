@@ -1,17 +1,14 @@
 """
 case.py — Investigation Case model for TraceAcc Pro.
 
-IMPORTANT:
-  Only INVOSPACE (INVESTIGATOR) can create Cases.
-  Analyst cannot create Cases.
-  Cases are created from:
-    1. Admin assigns serious request directly to InvoSpace
-    2. Admin routes an escalated Alert to InvoSpace
+Lifecycle States:
+  SUBMITTED | OPEN | ASSIGNED | IN_PROGRESS | PENDING_REVIEW
+  | RETURNED_FOR_REVISION | APPROVED | CLOSED | REOPENED | CANCELLED
 
-States: OPEN | ASSIGNED | INVESTIGATING | EVIDENCE_REVIEW | PENDING_REVIEW
-        | REVISION_REQUIRED | RESOLVED | CLOSED
+Origins:
+  CLIENT_UPLOAD | LIVESHIELD_SIMULATION | MANUAL_INTERNAL | ALERT_ESCALATION
 """
-from sqlalchemy import Column, Integer, String, DateTime, Float, JSON, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, DateTime, Float, JSON, ForeignKey, Text, Boolean
 from sqlalchemy.sql import func
 from db.database import Base
 
@@ -23,11 +20,16 @@ class Case(Base):
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     service_request_id = Column(Integer, ForeignKey("service_requests.id"), nullable=True, index=True)
     alert_id        = Column(Integer, ForeignKey("alerts.id"), nullable=True, index=True)
+    simulation_id   = Column(Integer, ForeignKey("liveshield_simulations.id", ondelete="SET NULL"), nullable=True, index=True)
 
-    # Creator must be INVESTIGATOR (enforced at API layer)
+    # Origin and synthetic distinction
+    case_origin     = Column(String(50), default="MANUAL_INTERNAL", nullable=False, index=True) # CLIENT_UPLOAD | LIVESHIELD_SIMULATION | MANUAL_INTERNAL | ALERT_ESCALATION
+    is_synthetic    = Column(Boolean, default=False, nullable=False, index=True)
+
+    # Creator
     created_by_id   = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
-    # Assigned investigator (InvoSpace user)
+    # Assigned investigator (InvoSpace / TraceLab user)
     assigned_investigator_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
     # Legacy / workflow
@@ -37,8 +39,9 @@ class Case(Base):
     title         = Column(String(255), nullable=False)
     description   = Column(Text, nullable=True)
 
-    # OPEN | ASSIGNED | INVESTIGATING | EVIDENCE_REVIEW | PENDING_REVIEW
-    # REVISION_REQUIRED | RESOLVED | CLOSED
+    # Workflow State Machine:
+    # SUBMITTED | OPEN | ASSIGNED | IN_PROGRESS | PENDING_REVIEW
+    # | RETURNED_FOR_REVISION | APPROVED | CLOSED | REOPENED | CANCELLED
     status        = Column(String(50), default="OPEN", nullable=False, index=True)
 
     # LOW | MEDIUM | HIGH | CRITICAL
@@ -53,6 +56,13 @@ class Case(Base):
     decision      = Column(String(50), nullable=True)
     decision_reason = Column(Text, nullable=True)
     decision_at   = Column(DateTime(timezone=True), nullable=True)
+
+    # Admin closure review and independence
+    closure_reviewed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    closure_reviewed_at   = Column(DateTime(timezone=True), nullable=True)
+    closure_notes         = Column(Text, nullable=True)
+    self_approval_exception = Column(Boolean, default=False, nullable=False)
+    self_approval_reason   = Column(Text, nullable=True)
 
     # Related entities
     linked_accounts = Column(JSON, nullable=True)

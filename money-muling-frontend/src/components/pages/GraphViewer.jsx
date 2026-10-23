@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import cytoscape from 'cytoscape';
 import AppLayout from '../layout/AppLayout';
 import { useAnalysis } from '../../context/AnalysisContext';
+import CaseSelector from '../shared/CaseSelector';
 
 // Risk-tier → colour mapping
 const RISK_COLORS = {
@@ -11,6 +12,42 @@ const RISK_COLORS = {
   LOW:      '#3fb950',
   DEFAULT:  '#388bfd',
 };
+
+function buildCyElementsFromCase(intel) {
+  if (!intel?.graph) return [];
+  const elements = [];
+  (intel.graph.nodes || []).forEach(n => {
+    const d = n.data;
+    elements.push({
+      data: {
+        id: d.id,
+        label: d.label || d.id,
+        score: (d.risk_score || 0) * 100,
+        tier: d.risk_tier || 'LOW',
+        color: RISK_COLORS[d.risk_tier] || RISK_COLORS.DEFAULT,
+        role: d.role || 'unknown',
+        degree: d.degree || 0,
+        rings: [],
+        community: null,
+      },
+      classes: [`risk-${d.risk_tier || 'LOW'}`],
+    });
+  });
+  (intel.graph.edges || []).forEach(e => {
+    const d = e.data;
+    elements.push({
+      data: {
+        id: d.id,
+        source: d.source,
+        target: d.target,
+        amount: d.amount,
+        is_fraud: d.is_fraud,
+        pattern: d.scenario || '',
+      },
+    });
+  });
+  return elements;
+}
 
 function buildCyElements(analysisResult) {
   if (!analysisResult) return [];
@@ -84,15 +121,14 @@ function GraphViewer() {
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState('');
   const [layout, setLayout] = useState('cose');
-
-  // Load last analysis from session storage if available
-  // Context handles session storage automatically now
+  const [caseIntel, setCaseIntel] = useState(null);
+  const [selectedCase, setSelectedCase] = useState(null);
 
   // Build / rebuild Cytoscape graph
   useEffect(() => {
     if (!cyRef.current) return;
 
-    const elements = buildCyElements(analysisResult);
+    const elements = caseIntel ? buildCyElementsFromCase(caseIntel) : buildCyElements(analysisResult);
 
     if (cyInstance.current) {
       cyInstance.current.destroy();
@@ -131,8 +167,8 @@ function GraphViewer() {
           selector: 'edge',
           style: {
             'width': 1.5,
-            'line-color': '#30363d',
-            'target-arrow-color': '#30363d',
+            'line-color': (ele) => ele.data('is_fraud') ? '#f85149' : '#30363d',
+            'target-arrow-color': (ele) => ele.data('is_fraud') ? '#f85149' : '#30363d',
             'target-arrow-shape': 'triangle',
             'curve-style': 'bezier',
             'opacity': 0.6,
@@ -185,7 +221,7 @@ function GraphViewer() {
         cyInstance.current = null;
       }
     };
-  }, [analysisResult, layout]);
+  }, [analysisResult, caseIntel, layout]);
 
   // Search highlight
   const handleSearch = (q) => {
@@ -208,21 +244,34 @@ function GraphViewer() {
     if (!f) return;
     try {
       await runAnalysis(f);
+      // Clear case intelligence if user uploads a new CSV
+      setCaseIntel(null);
+      setSelectedCase(null);
     } catch (err) {
       alert('Analysis failed: ' + err.message);
     }
   };
 
-  const elements = buildCyElements(analysisResult);
+  const elements = caseIntel ? buildCyElementsFromCase(caseIntel) : buildCyElements(analysisResult);
   const nodeCount = elements.filter((e) => !e.data.source).length;
   const edgeCount = elements.filter((e) => e.data.source).length;
 
   return (
-    <AppLayout title="Graph Viewer" subtitle="Interactive transaction network">
+    <AppLayout title="Graph Viewer" >
+      <CaseSelector
+        onIntelligenceLoaded={(data) => setCaseIntel(data)}
+        onCaseSelected={(c) => setSelectedCase(c)}
+      />
+
       {/* Toolbar */}
       <div style={{
         display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center',
       }}>
+        {selectedCase && (
+          <div style={{ fontWeight: 600, color: '#f0f6fc', marginRight: 16 }}>
+            {selectedCase.title}
+          </div>
+        )}
         <label
           style={{
             background: '#1f6feb', color: '#fff', padding: '8px 16px',
@@ -298,7 +347,7 @@ function GraphViewer() {
               color: '#8b949e',
             }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🕸️</div>
-              <div style={{ fontSize: 14 }}>Upload a CSV to visualize the graph</div>
+              <div style={{ fontSize: 14 }}>Select a case above or upload a CSV to visualize the graph</div>
             </div>
           )}
 
@@ -332,6 +381,15 @@ function GraphViewer() {
             }}>
               {selected.score?.toFixed(1) || '0.0'}
             </div>
+
+            {caseIntel && (
+              <>
+                <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>Role</div>
+                <div style={{ fontSize: 13, color: '#f0f6fc', marginBottom: 12, textTransform: 'capitalize' }}>
+                  {caseIntel.accounts.find(a => a.account_id === selected.id)?.role || selected.role || 'N/A'}
+                </div>
+              </>
+            )}
 
             {selected.dclcgProb != null && (
               <>

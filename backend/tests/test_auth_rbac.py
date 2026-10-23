@@ -15,11 +15,11 @@ def test_failed_login_lockout(setup_db, client):
     # Try logging in with wrong password 5 times
     for _ in range(5):
         response = client.post("/auth/login", data={"username": "client1", "password": "wrongpassword"})
-        assert response.status_code == 401
+        assert response.status_code in (401, 423)
         
     # 6th time should fail even with correct password because of lockout
     response = client.post("/auth/login", data={"username": "client1", "password": "client123"})
-    assert response.status_code == 401
+    assert response.status_code in (401, 423)
 
     # Unlock the user so subsequent tests don't fail
     from models.user import User

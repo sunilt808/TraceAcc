@@ -119,7 +119,7 @@ def create_user(
         password=get_password_hash(password),
         email=clean_email,
         phone=phone,
-        role=role.value,
+        role=role.value if hasattr(role, "value") else str(role),
         organization_id=organization_id,
         is_active=True,
         failed_login_count=0,

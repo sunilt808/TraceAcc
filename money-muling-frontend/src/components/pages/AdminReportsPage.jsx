@@ -1,6 +1,19 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import AppLayout from '../layout/AppLayout';
 import { adminAPI, reportsAPI } from '../../services/api';
+import {
+  ShieldCheck,
+  XCircle,
+  FileText,
+  RotateCw,
+  CheckCircle2,
+  AlertCircle,
+  Download,
+  Lock,
+  Send,
+  FileCheck,
+} from 'lucide-react';
+import { Card, Table, Button, Spinner, Badge } from 'react-bootstrap';
 
 const STATUS_COLORS = {
   DRAFT: '#8b949e',
@@ -20,10 +33,11 @@ function StatusPill({ value }) {
       style={{
         padding: '2px 8px',
         borderRadius: 12,
-        fontSize: 10,
-        fontWeight: 700,
-        background: `${color}26`,
+        fontSize: 11,
+        fontWeight: 600,
+        background: `${color}22`,
         color,
+        border: `1px solid ${color}44`,
       }}
     >
       {(value || '—').replace(/_/g, ' ')}
@@ -54,12 +68,12 @@ function SealBadge({ report }) {
 
   if (!report.signature_hash) {
     return (
-      <span style={{ fontSize: 11, color: '#8b949e' }}>unsigned</span>
+      <span className="text-secondary small">unsigned</span>
     );
   }
 
   if (!seal) {
-    return <span style={{ fontSize: 11, color: '#8b949e' }}>checking seal…</span>;
+    return <span className="text-secondary small">checking seal…</span>;
   }
 
   const valid = seal.valid;
@@ -68,11 +82,11 @@ function SealBadge({ report }) {
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 6,
-        padding: '3px 10px',
+        gap: 5,
+        padding: '3px 9px',
         borderRadius: 14,
         border: `1px solid ${valid ? '#3fb950' : '#f85149'}`,
-        background: valid ? 'rgba(63,185,80,0.1)' : 'rgba(248,81,73,0.1)',
+        background: valid ? 'rgba(63,185,80,0.12)' : 'rgba(248,81,73,0.12)',
         fontSize: 11,
         fontWeight: 600,
         color: valid ? '#3fb950' : '#f85149',
@@ -84,10 +98,31 @@ function SealBadge({ report }) {
           : seal.reason
       }
     >
-      {valid ? '✓ Sealed' : '✕ Seal INVALID'}
+      {valid ? (
+        <>
+          <ShieldCheck size={13} />
+          <span>Sealed</span>
+        </>
+      ) : (
+        <>
+          <XCircle size={13} />
+          <span>Seal Invalid</span>
+        </>
+      )}
     </div>
   );
 }
+
+const darkCardStyle = {
+  backgroundColor: '#0d1117',
+  borderColor: '#21262d',
+};
+
+const cellStyle = {
+  backgroundColor: '#0d1117',
+  borderColor: '#21262d',
+  color: '#c9d1d9',
+};
 
 export default function AdminReportsPage() {
   const [reports, setReports] = useState([]);
@@ -123,13 +158,13 @@ export default function AdminReportsPage() {
     try {
       if (action === 'approve') {
         await reportsAPI.approve(report.id);
-        flash(true, `Report #${report.id} approved. You can now sign it.`);
+        flash(true, `Report #${report.id} approved. You can now sign and seal it.`);
       } else if (action === 'sign') {
         const signed = await reportsAPI.sign(report.id);
-        flash(true, `Report #${report.id} sealed — ${signed.seal_id}`);
+        flash(true, `Report #${report.id} digitally sealed — ${signed.seal_id}`);
       } else if (action === 'release') {
         await reportsAPI.release(report.id);
-        flash(true, `Report #${report.id} released to the client portal.`);
+        flash(true, `Report #${report.id} successfully released to client portal.`);
       } else if (action === 'reject') {
         await adminAPI.reviewReport(report.id, { status: 'REJECTED' });
         flash(true, `Report #${report.id} rejected.`);
@@ -150,19 +185,11 @@ export default function AdminReportsPage() {
     }
   };
 
-  const btn = (label, variant, disabled, onClick) => (
-    <button
-      className={variant === 'primary' ? 'btn-primary' : 'btn-secondary'}
-      style={{ fontSize: 11, padding: '4px 10px' }}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {label}
-    </button>
-  );
-
   return (
-    <AppLayout title="Report Review" subtitle="Approve, seal and release client reports">
+    <AppLayout
+      title="Report Review"
+       >
+      {/* Messages */}
       {message && (
         <div
           style={{
@@ -173,135 +200,207 @@ export default function AdminReportsPage() {
             background: message.ok ? 'rgba(63,185,80,0.1)' : 'rgba(248,81,73,0.1)',
             border: `1px solid ${message.ok ? '#3fb95055' : '#f8514955'}`,
             color: message.ok ? '#3fb950' : '#f85149',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
           }}
         >
-          {message.text}
+          {message.ok ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+          <span>{message.text}</span>
         </div>
       )}
 
-      <div className="panel">
-        <div className="panel-body" style={{ padding: 0 }}>
-          {loading ? (
-            <div style={{ padding: 40, textAlign: 'center' }}>
-              <div className="spinner" />
-            </div>
-          ) : error ? (
-            <div style={{ padding: 20, color: '#f85149' }}>{error}</div>
-          ) : reports.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#8b949e' }}>
-              No reports in the review queue.
-            </div>
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Report</th>
-                  <th>Type</th>
-                  <th>Request</th>
-                  <th>Status</th>
-                  <th>File</th>
-                  <th>Seal</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reports.map((report) => {
-                  const busy = actionLoading === report.id;
-                  const hasFile = report.has_file;
-                  const status = report.status;
-                  return (
-                    <tr key={report.id}>
-                      <td style={{ color: '#8b949e', fontSize: 11 }}>{report.id}</td>
-                      <td>
-                        <div style={{ fontWeight: 600, color: '#f0f6fc', fontSize: 13 }}>
-                          {report.title || `Report #${report.id}`}
-                        </div>
-                        {report.summary && (
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: '#8b949e',
-                              maxWidth: 240,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                            title={report.summary}
-                          >
-                            {report.summary}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ fontSize: 12 }}>{report.report_type}</td>
-                      <td style={{ fontSize: 12, color: '#8b949e' }}>
-                        {report.service_request_id ? `#${report.service_request_id}` : '—'}
-                      </td>
-                      <td><StatusPill value={status} /></td>
-                      <td style={{ fontSize: 12, color: hasFile ? '#3fb950' : '#8b949e' }}>
-                        {hasFile ? 'attached' : 'missing'}
-                      </td>
-                      <td><SealBadge report={report} /></td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                          {hasFile && (
-                            <button
-                              className="btn-secondary"
-                              style={{ fontSize: 11, padding: '4px 10px' }}
-                              disabled={busy}
-                              onClick={() => download(report)}
-                            >
-                              File
-                            </button>
-                          )}
-
-                          {/* Approve: READY_FOR_REVIEW / UNDER_REVIEW */}
-                          {['READY_FOR_REVIEW', 'UNDER_REVIEW'].includes(status) &&
-                            btn('Approve', 'secondary', busy, () => runAction(report, 'approve'))}
-
-                          {/* Sign: APPROVED (or re-seal after SIGNED) */}
-                          {['APPROVED', 'SIGNED'].includes(status) &&
-                            btn(
-                              status === 'SIGNED' ? 'Re-seal' : 'Seal',
-                              'primary',
-                              busy || !hasFile,
-                              () => runAction(report, 'sign')
-                            )}
-
-                          {/* Release: APPROVED or SIGNED */}
-                          {['APPROVED', 'SIGNED'].includes(status) &&
-                            btn('Release', 'primary', busy || !hasFile, () =>
-                              runAction(report, 'release')
-                            )}
-
-                          {/* Reject while pre-release */}
-                          {['READY_FOR_REVIEW', 'UNDER_REVIEW', 'APPROVED'].includes(status) &&
-                            btn('Reject', 'secondary', busy, () => runAction(report, 'reject'))}
-
-                          {status === 'RELEASED' && (
-                            <span style={{ fontSize: 11, color: '#3fb950' }}>
-                              Released {report.released_at ? new Date(report.released_at).toLocaleDateString() : ''}
-                            </span>
-                          )}
-
-                          {status === 'REJECTED' && (
-                            <span style={{ fontSize: 11, color: '#f85149' }}>Rejected — creator can revise</span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
+      {/* Header bar */}
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h4 className="text-white mb-1">Reports Review Queue</h4>
+          <div className="text-secondary small">Total Pending / Completed Reports: {reports.length}</div>
         </div>
+
+        <Button
+          variant="outline-secondary"
+          size="sm"
+          onClick={loadReports}
+          disabled={loading}
+          className="d-flex align-items-center gap-1.5"
+          style={{ backgroundColor: '#0d1117', borderColor: '#30363d', color: '#c9d1d9' }}
+        >
+          <RotateCw size={14} className={loading ? 'animate-spin' : ''} />
+          <span>Refresh</span>
+        </Button>
       </div>
 
-      <p style={{ fontSize: 11, color: '#8b949e', marginTop: 10 }}>
+      {/* Main Table Card */}
+      <Card className="shadow-sm mb-4" style={darkCardStyle}>
+        <Card.Body className="p-0" style={{ backgroundColor: '#0d1117' }}>
+          {loading ? (
+            <div className="p-5 text-center">
+              <Spinner animation="border" variant="info" />
+              <div className="text-secondary mt-3">Loading reports queue...</div>
+            </div>
+          ) : error ? (
+            <div className="p-4 text-danger">{error}</div>
+          ) : reports.length === 0 ? (
+            <div className="p-5 text-center text-secondary">
+              <FileCheck size={48} className="text-secondary opacity-50 mb-3" />
+              <h5 className="text-white">No reports in review queue</h5>
+              <p className="text-secondary mb-0">Reports created by TraceLab and InvoSpace will appear here for verification.</p>
+            </div>
+          ) : (
+            <div className="table-responsive">
+              <Table hover className="mb-0 align-middle" style={{ borderColor: '#21262d' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #21262d' }}>
+                    <th className="ps-4 py-3" style={cellStyle}>#</th>
+                    <th className="py-3" style={cellStyle}>Report</th>
+                    <th className="py-3" style={cellStyle}>Type</th>
+                    <th className="py-3" style={cellStyle}>Request</th>
+                    <th className="py-3" style={cellStyle}>Status</th>
+                    <th className="py-3" style={cellStyle}>File</th>
+                    <th className="py-3" style={cellStyle}>Seal</th>
+                    <th className="py-3 text-end pe-4" style={cellStyle}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reports.map((report) => {
+                    const busy = actionLoading === report.id;
+                    const hasFile = report.has_file;
+                    const status = report.status;
+                    return (
+                      <tr key={report.id}>
+                        <td className="ps-4" style={cellStyle}>
+                          <span className="text-secondary small">#{report.id}</span>
+                        </td>
+                        <td style={cellStyle}>
+                          <div className="fw-semibold text-white">
+                            {report.title || `Report #${report.id}`}
+                          </div>
+                          {report.summary && (
+                            <div
+                              className="text-secondary small text-truncate"
+                              style={{ maxWidth: 260 }}
+                              title={report.summary}
+                            >
+                              {report.summary}
+                            </div>
+                          )}
+                        </td>
+                        <td style={cellStyle}>
+                          <span className="text-light small">{report.report_type}</span>
+                        </td>
+                        <td style={cellStyle}>
+                          <span className="text-secondary small">
+                            {report.service_request_id ? `#${report.service_request_id}` : '—'}
+                          </span>
+                        </td>
+                        <td style={cellStyle}>
+                          <StatusPill value={status} />
+                        </td>
+                        <td style={cellStyle}>
+                          <span className={hasFile ? 'text-success small fw-semibold' : 'text-secondary small'}>
+                            {hasFile ? 'Attached' : 'Missing'}
+                          </span>
+                        </td>
+                        <td style={cellStyle}>
+                          <SealBadge report={report} />
+                        </td>
+                        <td className="text-end pe-4" style={cellStyle}>
+                          <div className="d-inline-flex gap-1.5 align-items-center">
+                            {hasFile && (
+                              <Button
+                                variant="outline-secondary"
+                                size="sm"
+                                disabled={busy}
+                                onClick={() => download(report)}
+                                className="d-inline-flex align-items-center gap-1"
+                                style={{ backgroundColor: '#161b22', borderColor: '#30363d', color: '#c9d1d9', fontSize: 11 }}
+                              >
+                                <Download size={12} />
+                                <span>File</span>
+                              </Button>
+                            )}
+
+                            {/* Approve */}
+                            {['READY_FOR_REVIEW', 'UNDER_REVIEW'].includes(status) && (
+                              <Button
+                                variant="outline-success"
+                                size="sm"
+                                disabled={busy}
+                                onClick={() => runAction(report, 'approve')}
+                                style={{ fontSize: 11 }}
+                              >
+                                Approve
+                              </Button>
+                            )}
+
+                            {/* Sign / Seal */}
+                            {['APPROVED', 'SIGNED'].includes(status) && (
+                              <Button
+                                variant="outline-info"
+                                size="sm"
+                                disabled={busy || !hasFile}
+                                onClick={() => runAction(report, 'sign')}
+                                className="d-inline-flex align-items-center gap-1"
+                                style={{ fontSize: 11 }}
+                              >
+                                <Lock size={12} />
+                                <span>{status === 'SIGNED' ? 'Re-seal' : 'Seal'}</span>
+                              </Button>
+                            )}
+
+                            {/* Release */}
+                            {['APPROVED', 'SIGNED'].includes(status) && (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                disabled={busy || !hasFile}
+                                onClick={() => runAction(report, 'release')}
+                                className="d-inline-flex align-items-center gap-1"
+                                style={{ fontSize: 11 }}
+                              >
+                                <Send size={12} />
+                                <span>Release</span>
+                              </Button>
+                            )}
+
+                            {/* Reject */}
+                            {['READY_FOR_REVIEW', 'UNDER_REVIEW', 'APPROVED'].includes(status) && (
+                              <Button
+                                variant="outline-danger"
+                                size="sm"
+                                disabled={busy}
+                                onClick={() => runAction(report, 'reject')}
+                                style={{ fontSize: 11 }}
+                              >
+                                Reject
+                              </Button>
+                            )}
+
+                            {status === 'RELEASED' && (
+                              <span className="text-success small fw-semibold">
+                                Released {report.released_at ? new Date(report.released_at).toLocaleDateString() : ''}
+                              </span>
+                            )}
+
+                            {status === 'REJECTED' && (
+                              <span className="text-danger small">Rejected</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </div>
+          )}
+        </Card.Body>
+      </Card>
+
+      <div className="text-secondary small" style={{ lineHeight: 1.6 }}>
         Pipeline: submit → approve → <strong style={{ color: '#a371f7' }}>seal (SHA-256 digital signature)</strong> →
-        release. Releasing requires an attached file. Editing a sealed report invalidates its seal automatically.
-      </p>
+        release. Releasing requires an attached file. Modifying a sealed report invalidates its digital seal automatically.
+      </div>
     </AppLayout>
   );
 }

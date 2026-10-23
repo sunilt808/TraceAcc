@@ -1,133 +1,138 @@
 /* App.css – Global Dark Theme Overrides */
 
-/* Body background – darkest */
+/* Body background – darkest charcoal */
 body {
-  background-color: #0A0E1A !important;
+  background-color: #090d12 !important;
   margin: 0;
   padding: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: #F7FAFC;
+  color: #f0f6fc;
 }
 
-/* Custom utility classes (already used) */
+/* Custom utility classes */
 .bg-darker {
-  background-color: #0A0E1A !important;
+  background-color: #05080c !important;
 }
 
 .bg-dark {
-  background-color: #141B2B !important;
+  background-color: #0d1117 !important;
 }
 
 .text-light {
-  color: #F7FAFC !important;
+  color: #f0f6fc !important;
 }
 
 .text-muted {
-  color: #A0AEC0 !important;
+  color: #8b949e !important;
 }
 
 .border-secondary {
-  border-color: #2D3748 !important;
+  border-color: #30363d !important;
 }
 
 /* Cards */
 .card {
-  background-color: #141B2B !important;
-  border: 1px solid #2D3748 !important;
+  background-color: #0d1117 !important;
+  border: 1px solid #30363d !important;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
 }
 
 .card-header {
-  background-color: #0A0E1A !important;
-  border-bottom: 1px solid #2D3748 !important;
-  color: #F7FAFC;
+  background-color: #161b22 !important;
+  border-bottom: 1px solid #30363d !important;
+  color: #f0f6fc;
 }
 
 .card-body {
-  color: #F7FAFC;
+  color: #f0f6fc;
 }
 
 /* Form controls */
-.form-control {
-  background-color: #0A0E1A !important;
-  border: 1px solid #2D3748 !important;
-  color: #F7FAFC !important;
+.form-control, .form-select {
+  background-color: #161b22 !important;
+  border: 1px solid #30363d !important;
+  color: #f0f6fc !important;
 }
 
-.form-control:focus {
-  background-color: #1A2335 !important;
-  border-color: #2F73FF !important;
-  box-shadow: 0 0 0 0.2rem rgba(47, 115, 255, 0.25) !important;
-  color: #F7FAFC !important;
+.form-control:focus, .form-select:focus {
+  background-color: #1c2128 !important;
+  border-color: #484f58 !important;
+  box-shadow: 0 0 0 0.2rem rgba(255, 255, 255, 0.08) !important;
+  color: #f0f6fc !important;
 }
 
 .form-control::placeholder {
-  color: #4A5568 !important;
+  color: #6e7681 !important;
   opacity: 1;
 }
 
 .form-label {
-  color: #A0AEC0 !important;
+  color: #c9d1d9 !important;
 }
 
 /* Buttons – primary, success, warning */
 .btn-primary {
-  background-color: #2F73FF !important;
-  border-color: #2F73FF !important;
+  background-color: #21262d !important;
+  border-color: #363e4f !important;
+  color: #f0f6fc !important;
 }
 
 .btn-primary:hover {
-  background-color: #1a5bcc !important;
-  border-color: #1a5bcc !important;
+  background-color: #30363d !important;
+  border-color: #484f58 !important;
+  color: #ffffff !important;
 }
 
 .btn-success {
-  background-color: #27AE60 !important;
-  border-color: #27AE60 !important;
+  background-color: #238636 !important;
+  border-color: #2ea043 !important;
+  color: #ffffff !important;
 }
 
 .btn-success:hover {
-  background-color: #1e8e4f !important;
-  border-color: #1e8e4f !important;
+  background-color: #2ea043 !important;
+  border-color: #3fb950 !important;
 }
 
 .btn-warning {
-  background-color: #F39C12 !important;
-  border-color: #F39C12 !important;
-  color: #1a202c !important;
+  background-color: #d29922 !important;
+  border-color: #d29922 !important;
+  color: #0d1117 !important;
 }
 
 .btn-warning:hover {
-  background-color: #d9820b !important;
-  border-color: #d9820b !important;
+  background-color: #bb8009 !important;
+  border-color: #bb8009 !important;
 }
 
 .btn-outline-light {
-  border-color: #2D3748 !important;
-  color: #F7FAFC !important;
+  border-color: #30363d !important;
+  color: #f0f6fc !important;
 }
 
 .btn-outline-light:hover {
-  background-color: #2D3748 !important;
-  border-color: #4A5568 !important;
-  color: #FFFFFF !important;
+  background-color: #21262d !important;
+  border-color: #484f58 !important;
+  color: #ffffff !important;
 }
 
 .btn-outline-primary {
-  border-color: #2F73FF !important;
-  color: #2F73FF !important;
+  border-color: #363e4f !important;
+  color: #f0f6fc !important;
+  background-color: #21262d !important;
 }
 
 .btn-outline-primary:hover {
-  background-color: #2F73FF !important;
-  color: #FFFFFF !important;
+  background-color: #30363d !important;
+  border-color: #484f58 !important;
+  color: #ffffff !important;
 }
 
 /* Alerts */
 .alert-danger {
-  background-color: rgba(229, 62, 62, 0.1) !important;
-  border: 1px solid #E53E3E !important;
-  color: #FCA5A5 !important;
+  background-color: rgba(248, 81, 73, 0.12) !important;
+  border: 1px solid #f85149 !important;
+  color: #ff7b72 !important;
 }
 
 /* Tables */

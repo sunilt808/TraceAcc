@@ -14,6 +14,8 @@ import AppLayout from './components/layout/AppLayout';
 import LandingPage from './components/pages/LandingPage';
 import WorkspaceSelector from './components/pages/WorkspaceSelector';
 import SampleGenerator from './components/dashboard/SampleGenerator';
+import LiveShieldPage from './components/liveshield/LiveShieldPage';
+import NotFoundPage from './components/pages/NotFoundPage';
 
 // Client
 import ClientPortal from './components/pages/ClientPortal';
@@ -41,6 +43,7 @@ import StatisticsPage from './components/pages/StatisticsPage';
 import ReportsPage from './components/pages/ReportsPage';
 import CasesPage from './components/pages/CasesPage';
 import CaseDetail from './components/pages/CaseDetail';
+import CaseReportPDFPage from './components/pages/CaseReportPDFPage';
 import AlertsPage from './components/pages/AlertsPage';
 import AnalystPatternsPage from './components/pages/AnalystPatternsPage';
 import InvestigatorIntelPage from './components/pages/InvestigatorIntelPage';
@@ -76,8 +79,8 @@ const routeMap = {
 
   upload: {
     CLIENT: '/client-dashboard',
-    TRACE_LAB_ANALYST: '/tracelab/upload',
-    INVESTIGATOR: '/invospace/upload',
+    TRACE_LAB_ANALYST: '/liveshield',
+    INVESTIGATOR: '/liveshield',
   },
 
   graph: {
@@ -118,7 +121,9 @@ const routeMap = {
 
   cases: {
     CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/invospace/cases',
     INVESTIGATOR: '/invospace/cases',
+    ADMIN: '/invospace/cases',
   },
 
   alerts: {
@@ -127,9 +132,23 @@ const routeMap = {
     INVESTIGATOR: '/invospace/alerts',
   },
 
+  liveshield: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/liveshield',
+    INVESTIGATOR: '/invospace/liveshield',
+  },
+
+  sampleGenerator: {
+    CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/tracelab/sample-generator',
+    INVESTIGATOR: '/invospace/sample-generator',
+  },
+
   caseDetail: {
     CLIENT: '/client-dashboard',
+    TRACE_LAB_ANALYST: '/invospace/cases',
     INVESTIGATOR: '/invospace/cases',
+    ADMIN: '/invospace/cases',
   },
 };
 
@@ -149,7 +168,11 @@ const adminWorkspacePaths = {
     timeline: '/tracelab/timeline',
     statistics: '/tracelab/statistics',
     reports: '/tracelab/reports',
+    cases: '/tracelab/cases',
     alerts: '/tracelab/alerts',
+    caseDetail: '/tracelab/cases',
+    liveshield: '/tracelab/liveshield',
+    sampleGenerator: '/tracelab/sample-generator',
   },
 
   invospace: {
@@ -165,6 +188,25 @@ const adminWorkspacePaths = {
     cases: '/invospace/cases',
     alerts: '/invospace/alerts',
     caseDetail: '/invospace/cases',
+    liveshield: '/invospace/liveshield',
+    sampleGenerator: '/invospace/sample-generator',
+  },
+
+  admin: {
+    overview: '/admin',
+    dashboard: '/admin',
+    upload: '/admin/operations',
+    graph: '/invospace/graph-viewer',
+    riskMap: '/invospace/risk-map',
+    communities: '/invospace/communities',
+    timeline: '/invospace/timeline',
+    statistics: '/invospace/statistics',
+    reports: '/admin/reports',
+    cases: '/invospace/cases',
+    alerts: '/invospace/alerts',
+    caseDetail: '/invospace/cases',
+    liveshield: '/admin/liveshield',
+    sampleGenerator: '/admin/sample-generator',
   },
 };
 
@@ -177,17 +219,14 @@ const WorkspaceRedirect = ({ page }) => {
   const { role, workspace } = useAuth();
   const params = useParams();
 
-  // ADMIN must select a workspace first.
+  // ADMIN routes
   if (role === 'ADMIN') {
-    if (!workspace || workspace === 'admin') {
-      return <Navigate to="/workspace-selector" replace />;
-    }
-
-    const adminPath = adminWorkspacePaths[workspace]?.[page];
-
-    if (!adminPath) {
-      return <Navigate to="/workspace-selector" replace />;
-    }
+    const ws = workspace && adminWorkspacePaths[workspace] ? workspace : 'invospace';
+    const adminPath =
+      adminWorkspacePaths[ws]?.[page] ||
+      adminWorkspacePaths.invospace?.[page] ||
+      adminWorkspacePaths.tracelab?.[page] ||
+      '/admin';
 
     return (
       <Navigate
@@ -271,13 +310,18 @@ function App() {
         <Route
           element={
             <RoleRoute
-              allowedRoles={['CLIENT']}
+              allowedRoles={['CLIENT', 'ADMIN', 'TRACE_LAB_ANALYST', 'INVESTIGATOR']}
               redirectPath="/overview"
             />
           }
         >
           <Route
             path="/client-dashboard"
+            element={<ClientPortal />}
+          />
+
+          <Route
+            path="/client-requests"
             element={<ClientPortal />}
           />
 
@@ -289,6 +333,11 @@ function App() {
           <Route
             path="/client-reports"
             element={<ClientReportsPage />}
+          />
+
+          <Route
+            path="/reports/client"
+            element={<Navigate to="/client-reports" replace />}
           />
         </Route>
 
@@ -331,11 +380,7 @@ function App() {
 
           <Route
             path="/tracelab/upload"
-            element={
-              <AppLayout title="Upload CSV">
-                <Dashboard />
-              </AppLayout>
-            }
+            element={<Navigate to="/liveshield" replace />}
           />
 
           <Route
@@ -374,12 +419,41 @@ function App() {
           />
 
           <Route
+            path="/tracelab/cases"
+            element={<CasesPage />}
+          />
+
+          <Route
+            path="/tracelab/cases/:id"
+            element={<CaseDetail />}
+          />
+
+          <Route
+            path="/tracelab/cases/:id/pdf"
+            element={<CaseReportPDFPage />}
+          />
+
+          <Route
             path="/tracelab/patterns"
             element={
               <AnalystOnly>
                 <AnalystPatternsPage />
               </AnalystOnly>
             }
+          />
+
+          <Route
+            path="/tracelab/sample-generator"
+            element={
+              <AppLayout title="Sample Generator">
+                <SampleGenerator />
+              </AppLayout>
+            }
+          />
+
+          <Route
+            path="/tracelab/liveshield"
+            element={<LiveShieldPage />}
           />
         </Route>
 
@@ -422,11 +496,7 @@ function App() {
 
           <Route
             path="/invospace/upload"
-            element={
-              <AppLayout title="Upload CSV">
-                <Dashboard />
-              </AppLayout>
-            }
+            element={<Navigate to="/liveshield" replace />}
           />
 
           <Route
@@ -470,6 +540,11 @@ function App() {
           />
 
           <Route
+            path="/invospace/cases/:id/pdf"
+            element={<CaseReportPDFPage />}
+          />
+
+          <Route
             path="/invospace/alerts"
             element={<AlertsPage />}
           />
@@ -477,6 +552,20 @@ function App() {
           <Route
             path="/invospace/intel"
             element={<InvestigatorIntelPage />}
+          />
+
+          <Route
+            path="/invospace/sample-generator"
+            element={
+              <AppLayout title="Sample Generator">
+                <SampleGenerator />
+              </AppLayout>
+            }
+          />
+
+          <Route
+            path="/invospace/liveshield"
+            element={<LiveShieldPage />}
           />
         </Route>
 
@@ -536,6 +625,30 @@ function App() {
             element={<AdminOperationsPage />}
           />
 
+          <Route
+            path="/admin/cases"
+            element={<CasesPage />}
+          />
+
+          <Route
+            path="/admin/cases/:id"
+            element={<CaseDetail />}
+          />
+
+          <Route
+            path="/admin/sample-generator"
+            element={
+              <AppLayout title="Sample Generator">
+                <SampleGenerator />
+              </AppLayout>
+            }
+          />
+
+          <Route
+            path="/admin/liveshield"
+            element={<LiveShieldPage />}
+          />
+
         </Route>
 
 
@@ -566,7 +679,6 @@ function App() {
           }
         />
 
-
         {/* ====================================================
             ROLE-AWARE SHORTCUT ROUTES
         ==================================================== */}
@@ -584,6 +696,16 @@ function App() {
         <Route
           path="/upload"
           element={<WorkspaceRedirect page="upload" />}
+        />
+
+        <Route
+          path="/sample-generator"
+          element={<WorkspaceRedirect page="sampleGenerator" />}
+        />
+
+        <Route
+          path="/liveshield"
+          element={<WorkspaceRedirect page="liveshield" />}
         />
 
         <Route
@@ -627,6 +749,11 @@ function App() {
         />
 
         <Route
+          path="/cases/:id/pdf"
+          element={<CaseReportPDFPage />}
+        />
+
+        <Route
           path="/alerts"
           element={<WorkspaceRedirect page="alerts" />}
         />
@@ -635,12 +762,12 @@ function App() {
 
 
       {/* ======================================================
-          FALLBACK
+          FALLBACK / 404
       ====================================================== */}
 
       <Route
         path="*"
-        element={<Navigate to="/" replace />}
+        element={<NotFoundPage />}
       />
 
     </Routes>

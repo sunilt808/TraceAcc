@@ -25,19 +25,68 @@ def _amount_bin(amount: float) -> int:
     return min(idx, NUM_VALUE_FIELDS - 1)
 
 
-def build_value_features(graph) -> Tuple[List[str], np.ndarray]:
+class FeatureScaler:
+    """
+    Standardization scaler for DC-LCG graph and behavioral features.
+    Fitted exclusively on training data and persisted with model artifacts
+    to guarantee exact consistency during evaluation and inference without leakage.
+    """
+
+    def __init__(self, mean: Optional[np.ndarray] = None, scale: Optional[np.ndarray] = None):
+        self.mean_: Optional[np.ndarray] = mean
+        self.scale_: Optional[np.ndarray] = scale
+
+    def fit(self, X: np.ndarray) -> "FeatureScaler":
+        X = np.asarray(X, dtype=np.float32)
+        self.mean_ = np.mean(X, axis=0)
+        std = np.std(X, axis=0)
+        self.scale_ = np.where(std < 1e-6, 1.0, std)
+        return self
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        if self.mean_ is None or self.scale_ is None:
+            return np.asarray(X, dtype=np.float32)
+        X = np.asarray(X, dtype=np.float32)
+        scaled = (X - self.mean_) / self.scale_
+        return np.nan_to_num(scaled, nan=0.0, posinf=10.0, neginf=-10.0)
+
+    def fit_transform(self, X: np.ndarray) -> np.ndarray:
+        return self.fit(X).transform(X)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "mean": self.mean_.tolist() if self.mean_ is not None else None,
+            "scale": self.scale_.tolist() if self.scale_ is not None else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "FeatureScaler":
+        if not data or data.get("mean") is None or data.get("scale") is None:
+            return cls()
+        return cls(
+            mean=np.array(data["mean"], dtype=np.float32),
+            scale=np.array(data["scale"], dtype=np.float32),
+        )
+
+
+def build_value_features(
+    graph,
+    scaler: Optional[FeatureScaler] = None,
+) -> Tuple[List[str], np.ndarray]:
     """
     Build per-account feature vectors from a TransactionGraph.
 
-    Feature layout (D = 6 + NUM_VALUE_FIELDS*2):
+    Feature layout (D = 6 + NUM_VALUE_FIELDS*2 = 22):
         0 log1p(total_sent)
         1 log1p(total_received)
         2 out_degree
         3 in_degree
         4 sent/received ratio (clipped)
         5 amount std (log1p)
-        6..6+N-1   sent value-field histogram (normalized)
-        6+N..end   received value-field histogram (normalized)
+        6..13   sent value-field histogram (normalized)
+        14..21  received value-field histogram (normalized)
+
+    If `scaler` is provided, features are normalized using its fitted parameters.
 
     Returns:
         (accounts, X) where accounts[i] corresponds to row X[i].
@@ -86,4 +135,8 @@ def build_value_features(graph) -> Tuple[List[str], np.ndarray]:
 
     # Guard against NaN/Inf
     X = np.nan_to_num(X, nan=0.0, posinf=50.0, neginf=0.0)
+
+    if scaler is not None:
+        X = scaler.transform(X)
+
     return accounts, X

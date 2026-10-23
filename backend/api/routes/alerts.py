@@ -618,3 +618,172 @@ def convert_alert_to_case(
         },
         "alert": _alert_to_dict(alert),
     }
+
+
+# ============================================================
+# ALERT ENTITIES & INTELLIGENCE DRILLDOWN
+# ============================================================
+
+class AlertDecisionBody(BaseModel):
+    action: str  # MARK_LEGIT | MARK_FRAUD | FALSE_POSITIVE | DISMISS | ESCALATE
+    reason: Optional[str] = None
+
+
+@router.get("/{alert_id}/entities")
+def get_alert_entities(
+    alert_id: int,
+    current_user: User = Depends(
+        require_any_permission("alert.view_all", "alert.view_assigned")
+    ),
+    org_id: int = Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    """
+    Fetch linked accounts, transactions, and typology intelligence for an alert.
+    Enables investigators to inspect the exact accounts and transactions that triggered the alert.
+    """
+    from models.transaction import Transaction
+    from models.liveshield import SimulationTransaction
+
+    alert = _get_alert(db, current_user, org_id, alert_id)
+    accounts = alert.related_accounts or []
+    
+    # 1. Fetch transactions from Transaction table
+    tx_query = db.query(Transaction).filter(
+        Transaction.organization_id == org_id
+    )
+    if accounts:
+        tx_query = tx_query.filter(
+            (Transaction.sender_account.in_(accounts)) | (Transaction.receiver_account.in_(accounts))
+        )
+    elif alert.service_request_id:
+        tx_query = tx_query.filter(Transaction.service_request_id == alert.service_request_id)
+    
+    tx_rows = tx_query.order_by(Transaction.transaction_date.desc()).limit(100).all()
+
+    # 2. Fetch from SimulationTransaction if empty
+    sim_tx_rows = []
+    if len(tx_rows) == 0 and accounts:
+        sim_tx_rows = db.query(SimulationTransaction).filter(
+            (SimulationTransaction.sender_account.in_(accounts)) | (SimulationTransaction.receiver_account.in_(accounts))
+        ).limit(100).all()
+
+    tx_list = []
+    account_stats = {}
+    for a in accounts:
+        account_stats[a] = {"account_id": a, "sent_volume": 0.0, "recv_volume": 0.0, "tx_count": 0, "max_risk": alert.risk_score}
+
+    for t in tx_rows:
+        tx_dict = {
+            "id": str(t.id),
+            "transaction_id": t.transaction_id or f"TX-{t.id}",
+            "sender_account": t.sender_account,
+            "receiver_account": t.receiver_account,
+            "amount": float(t.amount or 0.0),
+            "currency": t.currency or "USD",
+            "timestamp": t.transaction_date.isoformat() if t.transaction_date else None,
+            "is_suspicious": bool(t.is_suspicious),
+            "risk_score": float(t.risk_score or 0.0),
+            "risk_flags": t.risk_flags or alert.alert_type,
+            "transaction_type": t.transaction_type or "TRANSFER",
+        }
+        tx_list.append(tx_dict)
+
+        # Update stats
+        if t.sender_account in account_stats:
+            account_stats[t.sender_account]["sent_volume"] += float(t.amount or 0)
+            account_stats[t.sender_account]["tx_count"] += 1
+        if t.receiver_account in account_stats:
+            account_stats[t.receiver_account]["recv_volume"] += float(t.amount or 0)
+            account_stats[t.receiver_account]["tx_count"] += 1
+
+    for st in sim_tx_rows:
+        tx_dict = {
+            "id": f"sim-{st.id}",
+            "transaction_id": st.transaction_id or f"SIM-TX-{st.id}",
+            "sender_account": st.sender_account,
+            "receiver_account": st.receiver_account,
+            "amount": float(st.amount or 0.0),
+            "currency": "USD",
+            "timestamp": st.timestamp.isoformat() if st.timestamp else None,
+            "is_suspicious": st.synthetic_ground_truth == "fraudulent",
+            "risk_score": 0.95 if st.synthetic_ground_truth == "fraudulent" else 0.05,
+            "risk_flags": st.scenario_id or alert.alert_type,
+            "transaction_type": "SIMULATION_TRANSFER",
+        }
+        tx_list.append(tx_dict)
+
+        if st.sender_account in account_stats:
+            account_stats[st.sender_account]["sent_volume"] += float(st.amount or 0)
+            account_stats[st.sender_account]["tx_count"] += 1
+        if st.receiver_account in account_stats:
+            account_stats[st.receiver_account]["recv_volume"] += float(st.amount or 0)
+            account_stats[st.receiver_account]["tx_count"] += 1
+
+    total_volume = sum(t["amount"] for t in tx_list)
+    suspicious_count = sum(1 for t in tx_list if t["is_suspicious"])
+
+    return {
+        "alert": _alert_to_dict(alert),
+        "accounts": list(account_stats.values()),
+        "transactions": tx_list,
+        "summary": {
+            "total_accounts": len(accounts),
+            "total_transactions": len(tx_list),
+            "total_volume": round(total_volume, 2),
+            "suspicious_count": suspicious_count,
+            "pattern_type": alert.pattern_type or alert.alert_type,
+            "risk_score": alert.risk_score,
+        }
+    }
+
+
+@router.post("/{alert_id}/decision")
+def record_alert_decision(
+    alert_id: int,
+    body: AlertDecisionBody,
+    current_user: User = Depends(
+        require_any_permission("alert.update_status", "alert.triage", "alert.escalate")
+    ),
+    org_id: int = Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    """
+    Record an investigator determination (Legit vs. Fraud/Escalate) on an alert.
+    Updates alert status and workflow audit trail.
+    """
+    alert = _get_alert(db, current_user, org_id, alert_id)
+    action = body.action.upper()
+    is_legit = action in ("MARK_LEGIT", "FALSE_POSITIVE", "DISMISS", "CLEAR")
+
+    old_status = alert.status
+    if is_legit:
+        next_status = "FALSE_POSITIVE" if action in ("FALSE_POSITIVE", "MARK_LEGIT") else "DISMISSED"
+        note = body.reason or f"Alert marked as Legitimate ({next_status}) by {current_user.username}"
+    else:
+        next_status = "ESCALATED"
+        note = body.reason or f"Alert confirmed as Fraud / Escalated to Investigation by {current_user.username}"
+        alert.escalation_reason = body.reason
+        alert.escalated_at = datetime.now(timezone.utc)
+
+    alert.status = next_status
+    alert.updated_at = datetime.now(timezone.utc)
+
+    _sync_workflow_for_alert(
+        db=db,
+        org_id=org_id,
+        workflow_id=alert.workflow_instance_id,
+        actor_id=current_user.id,
+        to_status=next_status,
+        stage="TRIAGE" if is_legit else "INVESTIGATION",
+        note=note,
+    )
+
+    db.commit()
+    db.refresh(alert)
+
+    return {
+        "message": f"Alert #{alert.id} classified as {next_status}",
+        "alert": _alert_to_dict(alert),
+    }
+

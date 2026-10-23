@@ -37,15 +37,18 @@ MAX_TRAIN_NODES = 8000
 MAX_TRAIN_ROWS = 200_000
 
 
-def _graph_from_labeled_csv(content: str):
+def _graph_from_labeled_csv(content: str | pd.DataFrame):
     """
-    Parse a labeled transaction CSV into (TransactionGraph, labels).
+    Parse a labeled transaction CSV or DataFrame into (TransactionGraph, labels).
 
     Recognized label values: 1/0, true/false, illicit/licit, yes/no,
     fraud/normal (case-insensitive). Rows without a parsable label are
     treated as licit.
     """
-    df = pd.read_csv(io.StringIO(content), low_memory=False)
+    if isinstance(content, pd.DataFrame):
+        df = content.copy()
+    else:
+        df = pd.read_csv(io.StringIO(content), low_memory=False)
     df.columns = [c.strip().lower() for c in df.columns]
 
     def find(*keys):
@@ -105,17 +108,47 @@ def _graph_from_labeled_csv(content: str):
         timestamp = parsed_ts.to_pydatetime() if parsed_ts is not None else (
             base + __import__("datetime").timedelta(minutes=i)
         )
+        is_illicit_txn = False
+        if label_col is not None:
+            raw = str(row[label_col]).strip().lower()
+            is_illicit_txn = raw in {"1", "true", "illicit", "fraud", "yes", "bad"}
+
         graph.add_transaction(
             sender=sender, receiver=receiver, amount=amount, timestamp=timestamp
         )
+        if graph.transactions:
+            graph.transactions[-1]["is_fraud"] = is_illicit_txn
 
-        if label_col is not None:
-            raw = str(row[label_col]).strip().lower()
-            labels[sender] = 1 if raw in {
-                "1", "true", "illicit", "fraud", "yes", "bad"} else 0
-            labels[receiver] = labels.get(receiver, 0) or (
-                1 if raw in {"1", "true", "illicit", "fraud", "yes", "bad"} else 0
-            )
+    # Explicit Account Label Aggregation Policy:
+    # 1. Accounts that initiate fraudulent transactions are marked as illicit (label=1).
+    # 2. Receivers are marked as illicit if they receive multiple illicit transfers or high concentration,
+    #    preventing one-off innocent victims/merchants from being corrupted as fraud accounts.
+    # 3. Existing illicit labels are never overwritten by subsequent licit transactions.
+    labels: dict = {}
+    if label_col is not None:
+        sender_fraud_count = {}
+        receiver_fraud_count = {}
+        receiver_total_count = {}
+
+        for tx in graph.transactions:
+            s, r = tx["sender"], tx["receiver"]
+            is_f = tx.get("is_fraud", False)
+            if is_f:
+                sender_fraud_count[s] = sender_fraud_count.get(s, 0) + 1
+                receiver_fraud_count[r] = receiver_fraud_count.get(r, 0) + 1
+            receiver_total_count[r] = receiver_total_count.get(r, 0) + 1
+
+        for node in graph.nodes:
+            # Active fraud initiator
+            if sender_fraud_count.get(node, 0) > 0:
+                labels[node] = 1
+            # Primary aggregator / mule receiving repeated illicit inflows
+            elif receiver_fraud_count.get(node, 0) >= 2 or (
+                receiver_fraud_count.get(node, 0) >= 1 and receiver_total_count.get(node, 0) == 1
+            ):
+                labels[node] = 1
+            else:
+                labels[node] = 0
 
     if len(graph.nodes) > MAX_TRAIN_NODES:
         raise HTTPException(

@@ -256,6 +256,87 @@ export const casesAPI = {
     const res = await api.get(`/cases/${id}/report-draft`);
     return res.data;
   },
+
+  getIntelligence: async (id) => {
+    const res = await api.get(`/cases/${id}/intelligence`);
+    return res.data;
+  },
+
+  getAccountDetail: async (caseId, accountId) => {
+    const res = await api.get(`/cases/${caseId}/accounts/${accountId}`);
+    return res.data;
+  },
+
+  decideAlert: async (caseId, alertId, action, notes) => {
+    const res = await api.post(`/cases/${caseId}/alerts/${alertId}/decision`, {
+      action,
+      notes: notes || '',
+    });
+    return res.data;
+  },
+
+  overrideTransaction: async (caseId, transactionId, action, reason) => {
+    const res = await api.post(`/cases/${caseId}/transactions/${transactionId}/override`, {
+      action,
+      reason: reason || '',
+    });
+    return res.data;
+  },
+
+  overrideAccount: async (caseId, accountId, action, reason) => {
+    const res = await api.post(`/cases/${caseId}/accounts/${accountId}/override`, {
+      action,
+      reason: reason || '',
+    });
+    return res.data;
+  },
+
+  freezeAccount: async (caseId, accountId, isFrozen, reason) => {
+    const res = await api.post(`/cases/${caseId}/accounts/${accountId}/freeze`, {
+      is_frozen: isFrozen,
+      reason: reason || '',
+    });
+    return res.data;
+  },
+
+  addEntityNote: async (caseId, targetType, targetId, note) => {
+    const res = await api.post(`/cases/${caseId}/notes/entity`, {
+      target_type: targetType,
+      target_id: targetId,
+      note,
+    });
+    return res.data;
+  },
+
+  transitionStatus: async (id, targetStatus, notes = '', selfApprovalException = false, selfApprovalReason = '') => {
+    const res = await api.post(`/cases/${id}/transition`, {
+      target_status: targetStatus,
+      notes,
+      self_approval_exception: selfApprovalException,
+      self_approval_reason: selfApprovalReason,
+    });
+    return res.data;
+  },
+
+  releaseReport: async (id, recipientOrgId = null, releaseNotes = '', reportType = 'OFFICIAL_SAR', watermarkText = null) => {
+    const res = await api.post(`/cases/${id}/release-report`, {
+      recipient_organization_id: recipientOrgId,
+      release_notes: releaseNotes,
+      report_type: reportType,
+      watermark_text: watermarkText,
+    });
+    return res.data;
+  },
+
+  listReleases: async (id) => {
+    const res = await api.get(`/cases/${id}/releases`);
+    return res.data;
+  },
+
+  revokeRelease: async (caseId, releaseId) => {
+    const res = await api.post(`/cases/${caseId}/revoke-release/${releaseId}`);
+    return res.data;
+  },
 };
 
 // ============================================================
@@ -318,6 +399,21 @@ export const alertsAPI = {
     if (priority) body.priority = priority;
 
     const res = await api.post(`/alerts/${id}/convert-to-case`, body);
+    return res.data;
+  },
+
+  // Fetch linked accounts, transactions, and typology intelligence for an alert
+  getEntities: async (id) => {
+    const res = await api.get(`/alerts/${id}/entities`);
+    return res.data;
+  },
+
+  // Record investigator classification (Legit vs Fraud / Escalate)
+  decideAlert: async (id, action, reason = '') => {
+    const res = await api.post(`/alerts/${id}/decision`, {
+      action,
+      reason,
+    });
     return res.data;
   },
 };
@@ -760,3 +856,5 @@ export const intelAPI = {
 // ============================================================
 
 export default api;
+
+

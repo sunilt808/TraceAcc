@@ -475,7 +475,15 @@ function InvestigatorOverview() {
                         {Number(a.risk_score).toFixed(0)}
                       </td>
                       <td style={{ fontSize: 11, color: '#8b949e', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {(a.detection_reason || a.trigger_reason || '—').slice(0, 60)}
+                        {(
+                          typeof a.trigger_reason === 'string'
+                            ? a.trigger_reason
+                            : typeof a.detection_reason === 'string'
+                            ? a.detection_reason
+                            : typeof a.detection_reason === 'object' && a.detection_reason !== null
+                            ? JSON.stringify(a.detection_reason)
+                            : a.trigger_reason || '—'
+                        ).slice(0, 60)}
                       </td>
                       <td>
                         <button
@@ -616,11 +624,11 @@ function OverviewPage() {
   // Admin picks the view from the workspace path.
   if (role === 'ADMIN') {
     return location.pathname.startsWith('/invospace') ? (
-      <AppLayout title="InvoSpace Overview" subtitle="Investigation workbench">
+      <AppLayout title="InvoSpace Overview" >
         <InvestigatorOverview />
       </AppLayout>
     ) : (
-      <AppLayout title="TraceLab Overview" subtitle="Analysis workbench">
+      <AppLayout title="TraceLab Overview">
         <AnalystOverview />
       </AppLayout>
     );
@@ -628,14 +636,14 @@ function OverviewPage() {
 
   if (role === 'INVESTIGATOR') {
     return (
-      <AppLayout title="InvoSpace Overview" subtitle="Investigation workbench">
+      <AppLayout title="InvoSpace Overview">
         <InvestigatorOverview />
       </AppLayout>
     );
   }
 
   return (
-    <AppLayout title="TraceLab Overview" subtitle="Analysis workbench">
+    <AppLayout title="TraceLab Overview">
       <AnalystOverview />
     </AppLayout>
   );

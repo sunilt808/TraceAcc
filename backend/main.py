@@ -31,6 +31,7 @@ from api.routes.assignments import router as assignments_router
 from api.routes.dclcg import router as dclcg_router
 from api.routes.intel import router as intel_router
 from api.routes.patterns import router as patterns_router
+from api.routes.liveshield import router as liveshield_router
 from db.database import get_db, init_db
 from models.user import User
 from utils.csv_parser import parse_csv
@@ -82,6 +83,7 @@ app.include_router(assignments_router)
 app.include_router(dclcg_router)
 app.include_router(intel_router)
 app.include_router(patterns_router)
+app.include_router(liveshield_router)
 
 @app.get("/")
 async def root() -> Dict:

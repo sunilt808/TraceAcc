@@ -1,68 +1,59 @@
-def find_layered_shells(graph, min_chain_length: int = 3, max_degree: int = 3, max_rings: int = 200):
-    """
-    Optimized layered shell detection:
-    - Detect chains >= min_chain_length
-    - Intermediate nodes have low total degree
-    - Protected against explosion
-    """
+import time
 
-    import time
+def find_layered_shells(graph, min_chain_length: int = 3, max_degree: int = 8, max_rings: int = 200):
+    """
+    Optimized layered shell / linear pass-through chain detection:
+    - Detect multi-hop pass-through chains: Node_1 -> Node_2 -> Node_3 -> ...
+    - Intermediate shell nodes act as transit conduits with limited branching
+    - Deduplicates redundant sub-paths
+    """
     start_time = time.time()
-
     rings = {}
     ring_counter = 0
+    MAX_DEPTH = 6
 
-    MAX_DEPTH = 5  # Keep small for performance
-
-    # 🔥 Candidate start nodes:
-    # low incoming degree and at least one outgoing edge
+    # Candidate start nodes: accounts that initiate funds with outgoing transfers
     candidate_nodes = [
         node for node in graph.nodes
         if len(graph.get_outgoing(node)) > 0
-        and len(graph.get_incoming(node)) <= max_degree
     ]
 
-    def dfs(current, path, visited):
+    seen_chains = set()
 
+    def dfs(current, path, visited):
         nonlocal ring_counter
 
-        if ring_counter >= max_rings:
+        if ring_counter >= max_rings or len(path) > MAX_DEPTH:
             return
 
-        if len(path) > MAX_DEPTH:
-            return
+        if len(path) >= min_chain_length:
+            chain_key = "->".join(path)
+            if chain_key not in seen_chains:
+                seen_chains.add(chain_key)
+                ring_id = f"RING_{ring_counter:03d}"
+                rings[ring_id] = list(path)
+                ring_counter += 1
 
         outgoing = graph.get_outgoing(current)
-
         for (neighbor, _, _) in outgoing:
-
-            if neighbor in visited:
+            if neighbor in visited or neighbor == current:
                 continue
 
             in_deg = len(graph.get_incoming(neighbor))
             out_deg = len(graph.get_outgoing(neighbor))
             total_deg = in_deg + out_deg
 
-            # 🔥 Continue chain if shell node
-            if total_deg <= max_degree:
+            # Intermediary conduit node
+            if total_deg <= max_degree or out_deg > 0:
                 dfs(
                     neighbor,
                     path + [neighbor],
                     visited | {neighbor}
                 )
 
-            # 🔥 End chain when reaching higher-degree node
-            elif len(path) >= min_chain_length:
-                ring_id = f"RING_{ring_counter:03d}"
-                rings[ring_id] = path + [neighbor]
-                ring_counter += 1
-
-    # Run DFS safely
-    for node in candidate_nodes:
-
+    for node in sorted(candidate_nodes):
         if ring_counter >= max_rings:
             break
-
         dfs(node, [node], {node})
 
     print("Layered shell detection time:", time.time() - start_time)

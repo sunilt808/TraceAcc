@@ -80,7 +80,7 @@ function AnalystPatternsPage() {
   return (
     <AppLayout
       title="Pattern Detection Suite"
-      subtitle="15 laundering patterns · basic → intermediate → advanced ML"
+     
     >
       {/* ── Controls ─────────────────────────────────────────── */}
       <div style={{

@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 
-from .value_encoder import build_value_features
+from .value_encoder import build_value_features, FeatureScaler
 from .model import DCLCGModel, WalkGraph
 
 
@@ -45,8 +45,15 @@ def predict_graph(graph, bundle: dict) -> Dict[str, object]:
     config = bundle.get("config", {})
 
     # Build features over the CURRENT graph.
-    accounts, X_np = build_value_features(graph)
+    accounts, X_raw = build_value_features(graph)
     index = {a: i for i, a in enumerate(accounts)}
+
+    # Apply persisted FeatureScaler if available in artifact bundle
+    if bundle.get("scaler"):
+        scaler = FeatureScaler.from_dict(bundle["scaler"])
+        X_np = scaler.transform(X_raw)
+    else:
+        X_np = X_raw
 
     edges = [(tx["sender"], tx["receiver"]) for tx in graph.transactions]
     walk_graph = WalkGraph(accounts, edges)
@@ -78,10 +85,17 @@ def predict_graph(graph, bundle: dict) -> Dict[str, object]:
         shell_rings=shells, burst_accounts=bursts,
     )
     raw = {a["account_id"]: float(a["suspicion_score"]) for a in suspicious}
-    mx = max(raw.values(), default=1.0) or 1.0
-    soft_np = np.array(
-        [min(raw.get(a, 0.0) / mx, 1.0) for a in accounts], dtype=np.float32
-    )
+    # Calibrated absolute soft-label scaling: only genuinely high multi-pattern evidence elevates prior
+    soft_list = []
+    for a in accounts:
+        score = raw.get(a, 0.0)
+        if score >= 40.0:
+            soft_list.append(min(score / 100.0, 0.95))
+        elif score >= 20.0:
+            soft_list.append(0.30)
+        else:
+            soft_list.append(0.05)
+    soft_np = np.array(soft_list, dtype=np.float32)
 
     paths = walk_graph.random_walks(soft_np, seed=11)
 

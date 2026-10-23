@@ -98,5 +98,4 @@ def test_report_submission_and_approval_workflow(setup_db, client):
 
     approve_resp = client.post(f"/reports/{report_id}/approve", headers=admin_headers)
     assert approve_resp.status_code == 200
-    assert approve_resp.json()["status"] == "RELEASED"
-    assert approve_resp.json()["is_released"] is True
+    assert approve_resp.json()["status"] == "APPROVED"

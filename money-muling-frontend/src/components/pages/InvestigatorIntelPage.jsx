@@ -92,8 +92,7 @@ function InvestigatorIntelPage() {
   return (
     <AppLayout
       title="Investigation Intelligence Hub"
-      subtitle="One-stop account dossier · similar accounts · follow-the-money"
-    >
+      >
       {/* ── Query bar ─────────────────────────────────────────── */}
       <div style={{
         display: 'flex', gap: 10, marginBottom: 18,

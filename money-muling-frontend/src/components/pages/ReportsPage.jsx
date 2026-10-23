@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AppLayout from '../layout/AppLayout';
 import { useAnalysis } from '../../context/AnalysisContext';
-import { reportsAPI, serviceRequestsAPI } from '../../services/api';
+import { reportsAPI, serviceRequestsAPI, casesAPI } from '../../services/api';
+import CaseSelector from '../shared/CaseSelector';
 
 // ============================================================
 // WORKFLOW REPORTS SECTION
@@ -437,9 +438,211 @@ function ExportSection() {
 // ============================================================
 
 function ReportsPage() {
+  const [selectedCase, setSelectedCase] = useState(null);
+  const [caseIntel, setCaseIntel] = useState(null);
+  const [releases, setReleases] = useState([]);
+  const [loadingIntel, setLoadingIntel] = useState(false);
+
+  useEffect(() => {
+    if (!selectedCase) {
+      setCaseIntel(null);
+      setReleases([]);
+      return;
+    }
+    
+    const loadIntel = async () => {
+      setLoadingIntel(true);
+      try {
+        const intelData = await casesAPI.getIntelligence(selectedCase);
+        setCaseIntel(intelData);
+        
+        try {
+          const releasesData = await casesAPI.listReleases(selectedCase);
+          setReleases(releasesData?.items || releasesData || []);
+        } catch (e) {
+          console.error("Failed to load releases", e);
+          setReleases([]);
+        }
+      } catch (err) {
+        console.error("Failed to load case intelligence", err);
+      } finally {
+        setLoadingIntel(false);
+      }
+    };
+    loadIntel();
+  }, [selectedCase]);
+
+  const handleDownloadCSV = (data, filename) => {
+    if (!data || !data.length) return;
+    const keys = Object.keys(data[0]);
+    const csvContent = [
+      keys.join(','),
+      ...data.map(row => keys.map(k => `"${String(row[k] || '').replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadJSON = (data, filename) => {
+    if (!data) return;
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <AppLayout title="Reports" subtitle="Workflow reports and analysis exports">
-      <div style={{ maxWidth: 1000 }}>
+    <AppLayout title="Reports">
+      <div style={{ maxWidth: 1000, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <CaseSelector 
+          selectedCaseId={selectedCase} 
+          onChange={(id) => setSelectedCase(id)} 
+        />
+        
+        {selectedCase && (
+          <div className="panel">
+            <div className="panel-header">
+              <span style={{ fontSize: 16 }}>🧠</span>
+              <h3 className="panel-title">Case Intelligence Report</h3>
+            </div>
+            <div className="panel-body">
+              {loadingIntel ? (
+                <div style={{ padding: 30, textAlign: 'center' }}>
+                  <div className="spinner" />
+                </div>
+              ) : caseIntel ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {/* Case Summary */}
+                  <div style={{ border: '1px solid #30363d', borderRadius: 8, padding: 16, background: '#0d1117' }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+                      <h4 style={{ margin: 0, color: '#f0f6fc' }}>{caseIntel.case?.title || 'Case Summary'}</h4>
+                      <StatusPill value={caseIntel.case?.status} />
+                      <span style={{ 
+                        padding: '2px 8px', borderRadius: 12, fontSize: 10, fontWeight: 700,
+                        background: 'rgba(56,139,253,0.15)', color: '#58a6ff' 
+                      }}>
+                        {caseIntel.case?.priority}
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 13, color: '#8b949e' }}>
+                      {caseIntel.case?.description || 'No description provided.'}
+                    </p>
+                  </div>
+
+                  {/* Model Metrics */}
+                  {caseIntel.metrics && (
+                    <div style={{ border: '1px solid #30363d', borderRadius: 8, padding: 16, background: '#0d1117' }}>
+                      <h5 style={{ margin: '0 0 12px 0', color: '#f0f6fc' }}>Model Metrics</h5>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+                        <div style={{ padding: 12, background: '#161b22', borderRadius: 6, border: '1px solid #30363d' }}>
+                          <div style={{ fontSize: 11, color: '#8b949e', marginBottom: 4 }}>Accuracy</div>
+                          <div style={{ fontSize: 18, color: '#f0f6fc', fontWeight: 600 }}>
+                            {caseIntel.metrics.accuracy != null ? `${(caseIntel.metrics.accuracy * 100).toFixed(1)}%` : 'N/A'}
+                          </div>
+                        </div>
+                        <div style={{ padding: 12, background: '#161b22', borderRadius: 6, border: '1px solid #30363d' }}>
+                          <div style={{ fontSize: 11, color: '#8b949e', marginBottom: 4 }}>Precision</div>
+                          <div style={{ fontSize: 18, color: '#f0f6fc', fontWeight: 600 }}>
+                            {caseIntel.metrics.precision != null ? `${(caseIntel.metrics.precision * 100).toFixed(1)}%` : 'N/A'}
+                          </div>
+                        </div>
+                        <div style={{ padding: 12, background: '#161b22', borderRadius: 6, border: '1px solid #30363d' }}>
+                          <div style={{ fontSize: 11, color: '#8b949e', marginBottom: 4 }}>Recall</div>
+                          <div style={{ fontSize: 18, color: '#f0f6fc', fontWeight: 600 }}>
+                            {caseIntel.metrics.recall != null ? `${(caseIntel.metrics.recall * 100).toFixed(1)}%` : 'N/A'}
+                          </div>
+                        </div>
+                        <div style={{ padding: 12, background: '#161b22', borderRadius: 6, border: '1px solid #30363d' }}>
+                          <div style={{ fontSize: 11, color: '#8b949e', marginBottom: 4 }}>F1 Score</div>
+                          <div style={{ fontSize: 18, color: '#f0f6fc', fontWeight: 600 }}>
+                            {caseIntel.metrics.f1_score != null ? `${(caseIntel.metrics.f1_score * 100).toFixed(1)}%` : 'N/A'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {caseIntel.metrics.confusion_matrix && (
+                        <div>
+                          <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 8 }}>Confusion Matrix</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', gap: 2, background: '#30363d', border: '1px solid #30363d', width: 'fit-content', borderRadius: 6, overflow: 'hidden' }}>
+                            <div style={{ background: '#161b22', padding: 8 }}></div>
+                            <div style={{ background: '#161b22', padding: 8, fontSize: 11, color: '#8b949e', textAlign: 'center' }}>Pred Pos</div>
+                            <div style={{ background: '#161b22', padding: 8, fontSize: 11, color: '#8b949e', textAlign: 'center' }}>Pred Neg</div>
+                            
+                            <div style={{ background: '#161b22', padding: 8, fontSize: 11, color: '#8b949e' }}>True Pos</div>
+                            <div style={{ background: '#0d1117', padding: '8px 16px', color: '#3fb950', textAlign: 'center', fontWeight: 600 }}>
+                              {caseIntel.metrics.confusion_matrix.tp ?? 0}
+                            </div>
+                            <div style={{ background: '#0d1117', padding: '8px 16px', color: '#f85149', textAlign: 'center' }}>
+                              {caseIntel.metrics.confusion_matrix.fn ?? 0}
+                            </div>
+                            
+                            <div style={{ background: '#161b22', padding: 8, fontSize: 11, color: '#8b949e' }}>True Neg</div>
+                            <div style={{ background: '#0d1117', padding: '8px 16px', color: '#f85149', textAlign: 'center' }}>
+                              {caseIntel.metrics.confusion_matrix.fp ?? 0}
+                            </div>
+                            <div style={{ background: '#0d1117', padding: '8px 16px', color: '#3fb950', textAlign: 'center', fontWeight: 600 }}>
+                              {caseIntel.metrics.confusion_matrix.tn ?? 0}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Export Options */}
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button 
+                      className="btn-secondary" 
+                      onClick={() => handleDownloadCSV(caseIntel.accounts, `case_${selectedCase}_accounts.csv`)}
+                      disabled={!caseIntel.accounts?.length}
+                    >
+                      Export Accounts CSV
+                    </button>
+                    <button 
+                      className="btn-secondary" 
+                      onClick={() => handleDownloadCSV(caseIntel.transactions, `case_${selectedCase}_transactions.csv`)}
+                      disabled={!caseIntel.transactions?.length}
+                    >
+                      Export Transactions CSV
+                    </button>
+                    <button 
+                      className="btn-primary" 
+                      onClick={() => handleDownloadJSON(caseIntel, `case_${selectedCase}_intelligence.json`)}
+                    >
+                      Export Full Intelligence JSON
+                    </button>
+                  </div>
+
+                  {/* Releases */}
+                  {releases.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <h5 style={{ margin: '0 0 10px 0', color: '#f0f6fc' }}>Released Reports</h5>
+                      <ul style={{ margin: 0, padding: '0 0 0 20px', color: '#8b949e', fontSize: 13 }}>
+                        {releases.map(r => (
+                          <li key={r.id} style={{ marginBottom: 4 }}>
+                            <span style={{ color: '#f0f6fc' }}>{r.title}</span> (v{r.version || '1.0'}) - {new Date(r.created_at).toLocaleDateString()}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ color: '#8b949e', fontSize: 13 }}>No intelligence data available.</div>
+              )}
+            </div>
+          </div>
+        )}
+
         <WorkflowReports />
         <ExportSection />
       </div>

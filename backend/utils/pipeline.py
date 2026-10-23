@@ -75,8 +75,8 @@ def run_full_analysis(
     """
     t0 = time.perf_counter()
 
-    # ── STAGE 1: Core graph heuristics ────────────────────────────────
-    logger.info("Stage 1 — core heuristics (cycle/fan/layering/burst)")
+    # ── STAGE 1: Heuristic & Graph Structural Detectors ───────────────
+    logger.info("Stage 1 — Core heuristics (Cycles, Fan-In/Out, Layered Shells, Burst Activity)")
     cycle_rings    = find_cycles(graph, max_length=cycle_max_length, max_cycles=cycle_max_cycles)
     fan_rings      = detect_fan_patterns(graph, threshold=fan_threshold, time_window_hours=fan_time_window)
     shell_rings    = find_layered_shells(graph, min_chain_length=shell_min_chain, max_degree=shell_max_degree)
@@ -87,18 +87,8 @@ def run_full_analysis(
         burst_window_hours=burst_window_hours,
     )
 
-    # ── STAGE 2: Scoring ───────────────────────────────────────────────
-    logger.info("Stage 2 — scoring engine")
-    suspicious_accounts, fraud_rings = compute_scores_and_rings(
-        cycle_rings=cycle_rings,
-        fan_rings=fan_rings,
-        shell_rings=shell_rings,
-        burst_accounts=burst_accounts,
-    )
-    base_scores = {a["account_id"]: a["suspicion_score"] for a in suspicious_accounts}
-
-    # ── STAGE 3: Extended graph analytics ─────────────────────────────
-    logger.info("Stage 3 — extended analytics")
+    # ── STAGE 2: Extended Graph, Temporal & Amount Analytics ───────────
+    logger.info("Stage 2 — Extended analytics (Centrality, Communities, K-Core, Bridges, Temporal, Structuring/Smurfing, Motifs)")
     centrality  = compute_centrality(graph)
     community   = detect_communities(graph)
     components  = detect_components(graph)
@@ -111,12 +101,27 @@ def run_full_analysis(
     motifs      = detect_motifs(graph)
     profiles    = build_account_profiles(graph)
 
-    # ── STAGE 4: ML anomaly detection ─────────────────────────────────
-    logger.info("Stage 4 — ML anomaly detection")
+    # ── STAGE 3: ML Anomaly Detection (Isolation Forest, LOF, DBSCAN) ───
+    logger.info("Stage 3 — ML Unsupervised Anomaly Detection")
     ml = detect_ml_anomalies(graph)
 
-    # ── STAGE 5: Hybrid scoring & risk propagation ─────────────────────
-    logger.info("Stage 5 — hybrid scoring + risk propagation")
+    # ── STAGE 4: Multi-Typology Scoring & Ring Aggregation ────────────
+    logger.info("Stage 4 — Scoring engine & ring synthesis across 19 typologies")
+    suspicious_accounts, fraud_rings = compute_scores_and_rings(
+        cycle_rings=cycle_rings,
+        fan_rings=fan_rings,
+        shell_rings=shell_rings,
+        burst_accounts=burst_accounts,
+        amount_patterns=amount_pats,
+        temporal_patterns=temporal,
+        bridge_patterns=bridges,
+        ml_anomalies=ml,
+        community_patterns=community,
+    )
+    base_scores = {a["account_id"]: a["suspicion_score"] for a in suspicious_accounts}
+
+    # ── STAGE 5: Hybrid Scoring & PageRank Risk Propagation ───────────
+    logger.info("Stage 5 — Hybrid scoring and graph risk propagation")
     hybrid_scores = compute_hybrid_scores(
         graph_scores=base_scores,
         profile_result=profiles,
@@ -140,7 +145,14 @@ def run_full_analysis(
     ]
 
     processing_time = round(time.perf_counter() - t0, 3)
-    logger.info("Pipeline complete in %.3fs", processing_time)
+    logger.info(
+        "Pipeline complete in %.3fs: %d accounts, %d txns, %d rings, %d suspicious accounts",
+        processing_time,
+        len(graph.nodes),
+        len(graph.transactions),
+        len(fraud_rings),
+        len(suspicious_accounts),
+    )
 
     return {
         # ── Meta ──────────────────────────────────────────────────────

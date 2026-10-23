@@ -9,8 +9,8 @@ from collections import defaultdict, Counter
 from utils.graph import TransactionGraph
 
 # ── Constants ─────────────────────────────────────────────────
-STRUCTURING_THRESHOLD = 9000   # just-below reporting thresholds (USD)
-STRUCTURING_BAND      = 1000   # range below threshold
+STRUCTURING_THRESHOLD = 10000  # just-below reporting thresholds ($10k CTR limit)
+STRUCTURING_BAND      = 2000   # captures $8,000 - $9,999 range
 ROUND_NUMBER_MODULO   = 1000   # amounts divisible by this
 MICRO_TRANSFER_MAX    = 10     # very small test transactions
 MIN_REPEATED_COUNT    = 3      # same amount repeated this many times

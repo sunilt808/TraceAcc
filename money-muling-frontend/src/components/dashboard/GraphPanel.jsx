@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Spinner, Card, Form, Button, InputGroup, OverlayTrigger, Tooltip, Modal, Table, Badge } from 'react-bootstrap';
+import { Spinner, Card, Form, Button, InputGroup, OverlayTrigger, Tooltip, Modal, Table } from 'react-bootstrap';
+import { Search, ZoomIn, ZoomOut, Maximize2, RotateCcw, Layers } from 'lucide-react';
 import cytoscape from 'cytoscape';
 
-const ringColors = ['#3182CE', '#DD6B20', '#805AD5', '#38A169', '#D53F8C', '#718096'];
+const ringColors = ['#388bfd', '#d29922', '#a371f7', '#3fb950', '#f85149', '#58a6ff'];
 
 const getRingColor = (ringId) => {
   if (!ringId) return null;
@@ -60,35 +61,39 @@ const GraphPanel = ({ elements = [], loading, highlightedRing, transactions = []
         {
           selector: 'node',
           style: {
-            'background-color': '#4A5568',
+            'background-color': '#21262d',
             'label': 'data(label)',
-            'color': '#F7FAFC',
+            'color': '#c9d1d9',
             'font-size': '10px',
-            'text-outline-color': '#0A0E1A',
-            'text-outline-width': 1,
+            'font-family': 'Inter, sans-serif',
+            'text-outline-color': '#000000',
+            'text-outline-width': 1.5,
             'width': (ele) => {
               const score = ele.data('score');
-              return score ? 20 + (score / 100) * 20 : 20;
+              return score ? 20 + (score / 100) * 18 : 20;
             },
             'height': (ele) => {
               const score = ele.data('score');
-              return score ? 20 + (score / 100) * 20 : 20;
+              return score ? 20 + (score / 100) * 18 : 20;
             },
+            'border-width': 1.5,
+            'border-color': '#30363d',
           }
         },
         {
-          selector: 'node[burst = true]',   // burst style (orange) – applies only if not suspicious (because suspicious style overrides later)
+          selector: 'node[burst = true]',
           style: {
-            'background-color': '#F39C12',
+            'background-color': '#d29922',
+            'border-color': '#e3b341',
           }
         },
         {
-          selector: 'node[suspicious = true]', // overrides burst if also suspicious
+          selector: 'node[suspicious = true]',
           style: {
-            'background-color': '#E53E3E',
+            'background-color': '#f85149',
             'border-width': 2,
             'border-color': '#FFFFFF',
-            'border-opacity': 0.8,
+            'border-opacity': 0.9,
           }
         },
         {
@@ -101,18 +106,19 @@ const GraphPanel = ({ elements = [], loading, highlightedRing, transactions = []
         {
           selector: 'edge',
           style: {
-            'width': 2,
-            'line-color': '#718096',
-            'target-arrow-color': '#718096',
+            'width': 1.5,
+            'line-color': '#30363d',
+            'target-arrow-color': '#30363d',
             'target-arrow-shape': 'triangle',
             'curve-style': 'bezier',
+            'opacity': 0.7,
           }
         },
         {
           selector: '.highlighted',
           style: {
             'border-width': 4,
-            'border-color': '#FFD700',
+            'border-color': '#58a6ff',
             'border-opacity': 1,
             'z-index': 10,
           }
@@ -121,7 +127,7 @@ const GraphPanel = ({ elements = [], loading, highlightedRing, transactions = []
           selector: '.search-match',
           style: {
             'border-width': 4,
-            'border-color': '#2F73FF',
+            'border-color': '#a371f7',
             'border-opacity': 1,
             'z-index': 11,
           }
@@ -262,159 +268,244 @@ const GraphPanel = ({ elements = [], loading, highlightedRing, transactions = []
 
   return (
     <>
-      <Card className={`h-100 bg-dark border-secondary position-relative ${isFullscreen ? 'fullscreen-graph' : ''}`}>
-        <Card.Body className="p-0 position-relative h-100">
-          <div ref={containerRef} className="w-100 h-100" style={{ minHeight: '400px' }} />
+      <Card
+        className={`h-100 shadow-none position-relative ${isFullscreen ? 'fullscreen-graph' : ''}`}
+        style={{
+          backgroundColor: '#000000',
+          borderColor: '#1f242c',
+          borderRadius: 8,
+          overflow: 'hidden',
+        }}
+      >
+        <Card.Body className="p-0 position-relative h-100" style={{ backgroundColor: '#000000' }}>
+          <div ref={containerRef} className="w-100 h-100" style={{ minHeight: '380px', backgroundColor: '#000000' }} />
 
           {loading && (
-            <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-75">
-              <Spinner animation="border" variant="primary" />
-              <span className="ms-2 text-light">Building graph...</span>
+            <div
+              className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+              style={{ backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 600 }}
+            >
+              <Spinner animation="border" size="sm" style={{ color: '#58a6ff' }} />
+              <span className="ms-2 text-white small">Synthesizing network topology...</span>
             </div>
           )}
 
           {tooltip.visible && (
             <div
-              className="position-absolute bg-dark text-light p-2 rounded border border-secondary shadow"
+              className="position-absolute p-2 rounded shadow"
               style={{
                 left: tooltip.x,
                 top: tooltip.y,
                 transform: 'translate(-50%, -100%)',
                 pointerEvents: 'none',
                 zIndex: 1000,
-                fontSize: '0.875rem',
-                maxWidth: '200px',
+                backgroundColor: '#0d1117',
+                border: '1px solid #30363d',
+                maxWidth: '220px',
               }}
               dangerouslySetInnerHTML={{ __html: tooltip.content }}
             />
           )}
 
-          {/* Control Panel */}
-          <div className="position-absolute top-0 end-0 m-3 p-2 bg-darker rounded border border-secondary shadow" style={{ minWidth: '240px', zIndex: 500 }}>
+          {/* Floating Controls Overlay */}
+          <div
+            className="position-absolute top-0 end-0 m-3 p-2 rounded shadow"
+            style={{
+              backgroundColor: '#05070a',
+              border: '1px solid #21262d',
+              minWidth: '220px',
+              zIndex: 500,
+            }}
+          >
             <InputGroup size="sm" className="mb-2">
               <Form.Control
                 type="text"
-                placeholder="Search account ID..."
+                placeholder="Search account..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="bg-dark text-light border-secondary"
+                style={{
+                  backgroundColor: '#000000',
+                  borderColor: '#30363d',
+                  color: '#f0f6fc',
+                  fontSize: 11,
+                }}
               />
-              <Button variant="primary" onClick={handleSearch} size="sm">Go</Button>
+              <Button
+                variant="outline-secondary"
+                onClick={handleSearch}
+                size="sm"
+                style={{ backgroundColor: '#161b22', borderColor: '#30363d', color: '#c9d1d9' }}
+              >
+                <Search size={12} />
+              </Button>
             </InputGroup>
 
             <div className="d-flex justify-content-between align-items-center mb-2">
-              <Form.Label className="text-light small mb-0">Filter:</Form.Label>
+              <span className="text-secondary small fw-medium" style={{ fontSize: 10, textTransform: 'uppercase' }}>Filter</span>
               <Form.Select
                 size="sm"
                 value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                className="bg-dark text-light border-secondary"
-                style={{ width: '130px' }}
+                onChange={(e) => {
+                  setFilterCategory(e.target.value);
+                  applyFilter(cyRef.current, e.target.value);
+                }}
+                style={{
+                  backgroundColor: '#000000',
+                  borderColor: '#30363d',
+                  color: '#c9d1d9',
+                  fontSize: 11,
+                  width: '120px',
+                  padding: '2px 8px',
+                }}
               >
-                <option value="all">All</option>
+                <option value="all">All Nodes</option>
                 <option value="suspicious">Suspicious</option>
                 <option value="normal">Normal</option>
-                <option value="ring">Ringed</option>
+                <option value="ring">In Rings</option>
                 <option value="burst">Burst</option>
               </Form.Select>
             </div>
 
-            <div className="d-flex justify-content-between mb-2">
-              <Button variant="outline-secondary" size="sm" onClick={zoomOut}>−</Button>
-              <Button variant="outline-secondary" size="sm" onClick={fitGraph}>⤢</Button>
-              <Button variant="outline-secondary" size="sm" onClick={zoomIn}>+</Button>
-              <OverlayTrigger
-                placement="bottom"
-                overlay={<Tooltip id="fullscreen-tooltip">Full screen</Tooltip>}
+            <div className="d-flex justify-content-between gap-1 mb-2">
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={zoomOut}
+                className="flex-grow-1 p-1"
+                style={{ backgroundColor: '#000000', borderColor: '#30363d', color: '#c9d1d9' }}
+                title="Zoom Out"
               >
-                <Button variant="outline-secondary" size="sm" onClick={toggleFullscreen}>
-                  ⛶
-                </Button>
-              </OverlayTrigger>
+                <ZoomOut size={12} />
+              </Button>
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={fitGraph}
+                className="flex-grow-1 p-1"
+                style={{ backgroundColor: '#000000', borderColor: '#30363d', color: '#c9d1d9' }}
+                title="Fit to Screen"
+              >
+                <Layers size={12} />
+              </Button>
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={zoomIn}
+                className="flex-grow-1 p-1"
+                style={{ backgroundColor: '#000000', borderColor: '#30363d', color: '#c9d1d9' }}
+                title="Zoom In"
+              >
+                <ZoomIn size={12} />
+              </Button>
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={toggleFullscreen}
+                className="flex-grow-1 p-1"
+                style={{ backgroundColor: '#000000', borderColor: '#30363d', color: '#c9d1d9' }}
+                title="Fullscreen"
+              >
+                <Maximize2 size={12} />
+              </Button>
             </div>
 
-            <Button variant="outline-warning" size="sm" onClick={handleReset} className="w-100">
-              Reset
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              onClick={handleReset}
+              className="w-100 d-flex align-items-center justify-content-center gap-1 py-1"
+              style={{
+                backgroundColor: '#161b22',
+                borderColor: '#30363d',
+                color: '#8b949e',
+                fontSize: 11,
+              }}
+            >
+              <RotateCcw size={11} />
+              <span>Reset View</span>
             </Button>
           </div>
 
           {/* Legend (bottom left) */}
-          <div className="position-absolute bottom-0 start-0 m-3 p-2 bg-dark bg-opacity-75 rounded border border-secondary">
+          <div
+            className="position-absolute bottom-0 start-0 m-3 p-2 rounded"
+            style={{
+              backgroundColor: 'rgba(5, 7, 10, 0.85)',
+              border: '1px solid #1f242c',
+              fontSize: 11,
+              zIndex: 500,
+            }}
+          >
             <div className="d-flex align-items-center mb-1">
-              <span className="d-inline-block me-2" style={{ width: '12px', height: '12px', backgroundColor: '#4A5568', borderRadius: '50%' }}></span>
-              <span className="text-light small">Normal</span>
+              <span className="d-inline-block me-1.5" style={{ width: 8, height: 8, backgroundColor: '#21262d', borderRadius: '50%', border: '1px solid #30363d' }}></span>
+              <span className="text-secondary small" style={{ fontSize: 10 }}>Normal</span>
             </div>
             <div className="d-flex align-items-center mb-1">
-              <span className="d-inline-block me-2" style={{ width: '12px', height: '12px', backgroundColor: '#F39C12', borderRadius: '50%' }}></span>
-              <span className="text-light small">Burst</span>
+              <span className="d-inline-block me-1.5" style={{ width: 8, height: 8, backgroundColor: '#d29922', borderRadius: '50%' }}></span>
+              <span className="text-secondary small" style={{ fontSize: 10 }}>Burst</span>
             </div>
             <div className="d-flex align-items-center mb-1">
-              <span className="d-inline-block me-2" style={{ width: '12px', height: '12px', backgroundColor: '#E53E3E', borderRadius: '50%', border: '1px solid white' }}></span>
-              <span className="text-light small">Suspicious</span>
+              <span className="d-inline-block me-1.5" style={{ width: 8, height: 8, backgroundColor: '#f85149', borderRadius: '50%' }}></span>
+              <span className="text-secondary small" style={{ fontSize: 10 }}>Suspicious</span>
             </div>
             <div className="d-flex align-items-center">
-              <span className="d-inline-block me-2" style={{ width: '12px', height: '12px', backgroundColor: 'transparent', borderRadius: '50%', border: '2px solid #3182CE' }}></span>
-              <span className="text-light small">Ring border</span>
+              <span className="d-inline-block me-1.5" style={{ width: 8, height: 8, backgroundColor: 'transparent', borderRadius: '50%', border: '1.5px solid #388bfd' }}></span>
+              <span className="text-secondary small" style={{ fontSize: 10 }}>Ring Member</span>
             </div>
           </div>
         </Card.Body>
       </Card>
 
-      {/* Transaction Details Modal */}
-      <Modal show={showTransactionModal} onHide={() => setShowTransactionModal(false)} size="lg" centered className="text-light">
-        <Modal.Header closeButton className="bg-darker border-secondary">
-          <Modal.Title className="d-flex align-items-center">
-            <span>Transactions for Account: {selectedNodeData?.id}</span>
+      {/* Node Transaction Modal */}
+      <Modal show={showTransactionModal} onHide={() => setShowTransactionModal(false)} size="lg" centered>
+        <Modal.Header closeButton style={{ backgroundColor: '#05070a', borderColor: '#1f242c', color: '#f0f6fc' }}>
+          <Modal.Title className="d-flex align-items-center gap-2" style={{ fontSize: 14 }}>
+            <span>Account Ledger: {selectedNodeData?.id}</span>
             {selectedNodeData && (
-              <Badge 
-                bg={
-                  selectedNodeData.suspicious ? 'danger' : 
-                  selectedNodeData.burst ? 'warning' : 
-                  'secondary'
-                }
-                className="ms-2"
+              <span
+                style={{
+                  padding: '1px 8px',
+                  borderRadius: 10,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  backgroundColor: selectedNodeData.suspicious ? 'rgba(248,81,73,0.15)' : 'rgba(139,148,158,0.15)',
+                  color: selectedNodeData.suspicious ? '#f85149' : '#8b949e',
+                }}
               >
-                {selectedNodeData.suspicious ? 'Suspicious' : 
-                 selectedNodeData.burst ? 'Burst' : 
-                 'Normal'}
-              </Badge>
+                {selectedNodeData.suspicious ? 'Suspicious' : 'Normal'}
+              </span>
             )}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body className="bg-dark border-secondary">
+        <Modal.Body style={{ backgroundColor: '#000000', borderColor: '#1f242c', padding: 0 }}>
           {nodeTransactions.length === 0 ? (
-            <p className="text-muted">No transactions found for this account.</p>
+            <div className="p-4 text-center text-secondary small">No direct transactions loaded in memory</div>
           ) : (
-            <Table striped bordered hover variant="dark" size="sm">
+            <Table hover className="mb-0 align-middle" style={{ borderColor: '#161b22', backgroundColor: '#000000', fontSize: 12 }}>
               <thead>
-                <tr>
-                  <th>Transaction ID</th>
-                  <th>Sender</th>
-                  <th>Receiver</th>
-                  <th>Amount</th>
-                  <th>Timestamp</th>
+                <tr style={{ backgroundColor: '#05070a', borderBottom: '1px solid #1f242c' }}>
+                  <th className="ps-3 py-2 text-secondary small">Txn ID</th>
+                  <th className="py-2 text-secondary small">Sender</th>
+                  <th className="py-2 text-secondary small">Receiver</th>
+                  <th className="py-2 text-secondary small text-end">Amount</th>
+                  <th className="py-2 pe-3 text-secondary small text-end">Timestamp</th>
                 </tr>
               </thead>
               <tbody>
                 {nodeTransactions.map((tx, idx) => (
-                  <tr key={idx}>
-                    <td>{tx.transaction_id}</td>
-                    <td>{tx.sender_id}</td>
-                    <td>{tx.receiver_id}</td>
-                    <td>{tx.amount}</td>
-                    <td>{tx.timestamp}</td>
+                  <tr key={idx} style={{ borderBottom: '1px solid #161b22', backgroundColor: '#000000' }}>
+                    <td className="ps-3 text-secondary font-monospace" style={{ fontSize: 11 }}>{tx.transaction_id || `tx-${idx}`}</td>
+                    <td className="text-light">{tx.sender_id}</td>
+                    <td className="text-light">{tx.receiver_id}</td>
+                    <td className="text-end text-success font-monospace" style={{ fontSize: 11 }}>${Number(tx.amount || 0).toLocaleString()}</td>
+                    <td className="pe-3 text-end text-secondary font-monospace" style={{ fontSize: 11 }}>{tx.timestamp || '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </Table>
           )}
         </Modal.Body>
-        <Modal.Footer className="bg-darker border-secondary">
-          <Button variant="secondary" onClick={() => setShowTransactionModal(false)}>
-            Close
-          </Button>
-        </Modal.Footer>
       </Modal>
     </>
   );

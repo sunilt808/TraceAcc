@@ -256,7 +256,19 @@ def register(
     _validate_password_strength(password)
 
     any_user = db.query(User).first()
-    if any_user is not None:
+    caller = None
+    auth_hdr = request.headers.get("Authorization")
+    if auth_hdr and auth_hdr.startswith("Bearer "):
+        token = auth_hdr.split(" ")[1]
+        try:
+            from services.auth_service import decode_access_token
+            payload = decode_access_token(token)
+            caller = get_user_by_username(db, payload.get("sub"))
+        except Exception:
+            caller = None
+
+    is_authorized_admin = caller and caller.role in ("ADMIN", "SUPER_ADMIN")
+    if any_user is not None and not is_authorized_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
@@ -268,13 +280,17 @@ def register(
     if get_user_by_username(db, username):
         raise HTTPException(status_code=409, detail="Username already registered.")
 
+    target_role = body.get("role", Role.ADMIN.value if any_user is None else Role.CLIENT_USER.value)
+    if isinstance(target_role, Role):
+        target_role = target_role.value
+
     user = create_user(
         db=db,
         username=username,
         password=password,
         email=email,
-        role=Role.ADMIN,
-        organization_id=None,
+        role=target_role,
+        organization_id=body.get("organization_id"),
     )
 
     log_event(

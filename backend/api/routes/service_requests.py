@@ -49,7 +49,63 @@ def _sr_workflow(db: Session, request_id: int, org_id: int):
 
 
 def _sr_to_dict(db: Session, sr: ServiceRequest) -> dict:
+    from models.case import Case
+    from models.report_release import ReportRelease
+
     workflow = _sr_workflow(db, sr.id, sr.organization_id)
+    linked_case = db.query(Case).filter(Case.service_request_id == sr.id).order_by(Case.id.desc()).first()
+
+    # Robust fallback: match case by title / description / organization if service_request_id wasn't set
+    if not linked_case and sr.title:
+        linked_case = db.query(Case).filter(
+            Case.organization_id == sr.organization_id,
+            (Case.title.contains(sr.title)) | (Case.description.contains(sr.title))
+        ).order_by(Case.id.desc()).first()
+        if linked_case and linked_case.service_request_id is None:
+            try:
+                linked_case.service_request_id = sr.id
+                db.add(linked_case)
+                db.commit()
+            except Exception:
+                db.rollback()
+
+    status = sr.status
+    stage = workflow.current_stage if workflow else None
+    wf_status = workflow.current_status if workflow else None
+
+    # Check if a report has been released for this case/service request or organization
+    has_release = False
+    if linked_case:
+        has_release = db.query(ReportRelease).filter(
+            ReportRelease.case_id == linked_case.id,
+            ReportRelease.is_active == True
+        ).first() is not None
+
+        if linked_case.status == "CLOSED" or has_release:
+            status = "COMPLETED"
+            stage = "CASE_CLOSED"
+            wf_status = "COMPLETED"
+            # Persist completion to ServiceRequest and WorkflowInstance if not already set
+            if sr.status != "COMPLETED":
+                sr.status = "COMPLETED"
+                db.add(sr)
+                if workflow:
+                    workflow.current_status = "COMPLETED"
+                    workflow.current_stage = "CASE_CLOSED"
+                    db.add(workflow)
+                try:
+                    db.commit()
+                except Exception:
+                    db.rollback()
+        elif linked_case.status in ("APPROVED", "PENDING_REVIEW"):
+            status = "IN_PROGRESS"
+            stage = "REPORT_REVIEW"
+            wf_status = "AWAITING_REVIEW"
+        elif linked_case.status in ("INVESTIGATING", "IN_PROGRESS", "ASSIGNED", "EVIDENCE_REVIEW"):
+            status = "IN_PROGRESS"
+            stage = "INVESTIGATION"
+            wf_status = "INVESTIGATION_IN_PROGRESS"
+
     return {
         "id": sr.id,
         "organization_id": sr.organization_id,
@@ -58,12 +114,15 @@ def _sr_to_dict(db: Session, sr: ServiceRequest) -> dict:
         "title": sr.title,
         "description": sr.description,
         "request_type": sr.request_type,
-        "status": sr.status,
+        "status": status,
+        "case_id": linked_case.id if linked_case else None,
+        "case_status": linked_case.status if linked_case else None,
+        "is_report_released": has_release,
         "dataset_filename": sr.dataset_filename,
         "admin_notes": sr.admin_notes,
         "workflow_instance_id": workflow.id if workflow else None,
-        "workflow_current_status": workflow.current_status if workflow else None,
-        "workflow_current_stage": workflow.current_stage if workflow else None,
+        "workflow_current_status": wf_status,
+        "workflow_current_stage": stage,
         "created_at": sr.created_at.isoformat() if sr.created_at else None,
         "updated_at": sr.updated_at.isoformat() if sr.updated_at else None,
     }

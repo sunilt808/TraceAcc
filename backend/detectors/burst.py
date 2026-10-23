@@ -3,8 +3,8 @@ from bisect import bisect_left, bisect_right
 from utils.graph import TransactionGraph
 
 def detect_burst_activity(graph: TransactionGraph,
-                          dormant_days: int = 180,      # 6 months
-                          burst_threshold: int = 10,    # 10+ transactions
+                          dormant_days: int = 14,       # 14 days
+                          burst_threshold: int = 4,     # 4+ transactions in short window
                           burst_window_hours: int = 72) -> dict:
     """
     Detect accounts that were dormant (≤3 transactions in dormant_days)

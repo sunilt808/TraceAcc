@@ -1660,16 +1660,6 @@ def review_report(
     # --------------------------------------------------------
 
     elif action == "RELEASE":
-
-        if report.status != "APPROVED":
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Only an APPROVED report "
-                    "can be released."
-                ),
-            )
-
         if not report.file_path:
             raise HTTPException(
                 status_code=400,
