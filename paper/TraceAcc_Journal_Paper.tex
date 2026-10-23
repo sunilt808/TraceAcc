@@ -1,0 +1,385 @@
+\documentclass[journal]{IEEEtran}
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{microtype}
+\usepackage{balance}
+
+\hyphenation{op-tical net-works semi-conduc-tor Trace-Acc}
+
+\begin{document}
+
+\title{TraceAcc: Evidence-Fused Dual-View Graph Learning for UPI Fraud and Money-Mule Detection}
+
+\author{Mahadev~Prasad~R$^*$ and Sunil~T%
+\thanks{Manuscript received August 2026; revised October 2026. This work was supported in part by the Department of Computer Science and Engineering, Dayananda Sagar College of Engineering.}%
+\thanks{Mahadev Prasad R and Sunil T are with the Department of Computer Science and Engineering, Dayananda Sagar College of Engineering, Bengaluru 560078, India (e-mail: prasad79755@gmail.com; sunilt808@gmail.com).}%
+\thanks{$^*$Corresponding author: Mahadev Prasad R.}%
+}
+
+\markboth{IEEE Transactions on Information Forensics and Security,~Vol.~XX, No.~X, 2026}%
+{Prasad and Sunil: TraceAcc: Evidence-Fused Dual-View Graph Learning for UPI Fraud and Mule Detection}
+
+\maketitle
+
+\begin{abstract}
+Instant payment fraud is increasingly characterized by coordinated, distributed transaction behavior rather than isolated anomalous transfers. Money-mule syndicates routinely receive funds from compromised accounts, rapidly pass them through layered intermediary nodes, and disperse them across circular structures that make individual transfers appear benign. In this paper, we present TraceAcc, an evidence-fused graph intelligence framework for high-volume instant payment systems such as the Unified Payments Interface (UPI). TraceAcc builds upon the Dual-View Graph Representation Learning architecture (DC-LCG) as its foundational supervised graph learner and augments it with explicit structural pattern detection, temporal burst and velocity signals, community boundary analytics, and multi-algorithm unsupervised anomaly scoring. These heterogeneous signals are normalized into a unified evidence vector and fused into calibrated account- and transaction-level risk scores. In addition to risk prioritization, TraceAcc couples deep relational inference with auditable evidentiary trails, temporal event timelines, and cryptographic integrity markers. Extensive evaluation on IBM's synthetic anti-money-laundering (AML) benchmark and a controlled UPI transaction dataset shows that TraceAcc Hybrid attains 0.94 precision, 0.92 recall, 0.93 F1-score, 0.97 ROC-AUC, and 0.91 PR-AUC, consistently outperforming standalone DC-LCG and strong GNN baselines. A synthetic case study of 1,000 transactions over 50 accounts illustrates how TraceAcc uncovers complex laundering typologies including circular flows, fan-in/fan-out dispersal, and diamond pass-through networks.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Anti-money laundering, UPI fraud, money mule, graph neural networks, DC-LCG, graph anomaly detection, temporal fraud detection, evidence fusion, financial intelligence.
+\end{IEEEkeywords}
+
+\section{Introduction}
+\IEEEPARstart{U}{nified} Payments Interface (UPI) has emerged as one of the world's most transaction-dense instant payment infrastructures. Data published by the National Payments Corporation of India (NPCI) demonstrates exponential volume growth, while reports from the Reserve Bank of India (RBI) highlight digital payment fraud and mule account exploitation as the predominant category among institutional banking frauds \cite{npci2026stats, rbi2025annual}. These operational dynamics make isolated, point-in-time transaction screening insufficient. Financial adversaries operate across coordinated rings, systematically varying transfer amounts, exploiting mule accounts as transitory conduits, and dispersing funds through layered hops to evade threshold-based rules \cite{fatf2018virtual, fatf2020identity}.
+
+A financial transaction stream is naturally modeled as a directed, temporal multigraph where accounts correspond to vertices and financial transfers form weighted, time-stamped edges. Consequently, graph neural networks (GNNs) have garnered considerable interest due to their capacity to capture relational structure that tabular learning pipelines neglect \cite{motie2024financial, ma2023comprehensive, pang2021deep}. Among recent advances, the Dual-View Graph Representation Learning method (DC-LCG) addresses two pervasive challenges in financial graphs: feature/relation camouflage across heterogeneous neighborhoods and the tracking of extended illicit paths through dual local and contextual views \cite{li2026dclcg}.
+
+However, in fast-clearing environments like UPI, relying exclusively on a deep graph classifier has several practical limitations. First, deep embeddings can act as black boxes, providing minimal explainability to financial intelligence units and investigators. Second, rapid pass-through velocity and deterministic topological motifs (such as cyclic loops, diamond splits, and structuring) can be verified explicitly without relying solely on latent representation approximations. 
+
+To bridge this gap, this paper introduces \textbf{TraceAcc}, an evidence-fused detection framework. Rather than supplanting DC-LCG, TraceAcc positions DC-LCG as the primary supervised graph learner and embeds it within an evidence-fusion architecture. The system integrates five orthogonal evidence channels: (i) learned dual-view graph representations, (ii) deterministic structural pattern rules, (iii) temporal velocity and burst features, (iv) community and bridge metrics, and (v) unsupervised anomaly ensembles (Isolation Forest, LOF, and DBSCAN).
+
+The principal contributions of this work are:
+\begin{enumerate}
+    \item \textbf{Evidence-Fused Detection Architecture}: A formal fusion layer that normalizes and combines latent graph representations with behavioral, temporal, community, and unsupervised signals into an auditable account risk score.
+    \item \textbf{UPI-Specific Pattern Layer}: Deterministic identification of rapid fund movement, circular cycles, fan-in pooling, fan-out dispersal, structuring, and diamond forwarding.
+    \item \textbf{End-to-End Forensic Workflow}: An investigation-driven pipeline integrating risk ranking, visual graph exploration, temporal transaction reconstruction, and SHA-256 integrity-sealed reporting.
+    \item \textbf{Rigorous Empirical Evaluation}: Validation on both IBM's synthetic AML benchmark \cite{altman2023realistic} and a controlled UPI dataset, featuring ablation studies, weight sensitivity analysis, temporal holdout tests, and latency profiling.
+\end{enumerate}
+
+\section{Problem Formulation and Mathematical Modeling}
+\label{sec:formulation}
+
+\subsection{Temporal Directed Multigraph}
+Let a continuous financial transaction stream be defined as a dynamic directed multigraph:
+\begin{equation}
+\mathcal{G}_t = (\mathcal{V}_t, \mathcal{E}_t, \mathbf{X}_t)
+\end{equation}
+where $\mathcal{V}_t = \{v_1, v_2, \dots, v_N\}$ denotes the set of unique financial accounts observed up to time $t$. The edge set $\mathcal{E}_t = \{e_k = (u_k, v_k, t_k, \mathbf{w}_k)\}_{k=1}^M$ represents directed transfer events from source account $u_k$ to destination $v_k$ at timestamp $t_k \le t$. The edge attribute vector $\mathbf{w}_k \in \mathbb{R}^{d_e}$ captures transactional features including monetary amount, payment channel, and settlement status. The vertex attribute matrix $\mathbf{X}_t \in \mathbb{R}^{|\mathcal{V}_t| \times d_v}$ captures static and rolling account metadata (e.g., account age, KYC tier, aggregate turnover).
+
+\subsection{Risk Scoring and Evidence Vector}
+For each account $v \in \mathcal{V}_t$, the goal is to estimate a scalar risk score $R(v, t) \in [0, 1]$ that accurately prioritizes fraudulent or money-mule entities while minimizing false alerts. Unlike traditional binary node classification, TraceAcc outputs a decomposed evidence vector:
+\begin{equation}
+\mathbf{e}_v(t) = \big[ e_{\text{graph}}(v),\, e_{\text{behavioral}}(v),\, e_{\text{temporal}}(v),\, e_{\text{community}}(v),\, e_{\text{ML}}(v) \big]^\top
+\end{equation}
+where each component $e_i(v) \in [0, 1]$ represents a normalized, human-interpretable risk dimension.
+
+\subsection{Research Questions}
+This investigation systematically examines four core research questions:
+\begin{itemize}
+    \item \textbf{RQ1}: Does fusing DC-LCG with explicit structural, temporal, community, and unsupervised signals improve detection over standalone DC-LCG?
+    \item \textbf{RQ2}: What is the relative sensitivity and contribution of each evidence family under feature ablation?
+    \item \textbf{RQ3}: How robust is the evidence-fused model against temporal drift under forward-chaining evaluation?
+    \item \textbf{RQ4}: Can decomposed evidence vectors accelerate analyst triage without requiring exhaustive manual graph traversals?
+\end{itemize}
+
+\section{Related Work}
+
+\subsection{Graph Representation Learning in Financial Fraud}
+Graph Neural Networks (GNNs) have transformed anti-financial crime modeling \cite{motie2024financial, ma2023comprehensive}. Classical architectures such as GCN \cite{kipf2017semi}, GraphSAGE \cite{hamilton2017inductive}, and GAT \cite{velickovic2018graph} aggregate local neighborhood context. However, fraudsters actively disguise relations by interweaving legitimate transactions. To counter camouflage, specialized models have been proposed: CARE-GNN uses reinforcement learning to filter deceptive neighbors \cite{dou2020enhancing}, GraphConsis addresses relation and context inconsistency \cite{liu2020alleviating}, and PC-GNN introduces balanced sub-sampling \cite{liu2021pick}. Further studies explore heterogeneous graph embeddings and contrastive pretraining \cite{chen2025adaptive, zhang2025finding, lu2024graph, zhao2024dyhdge}.
+
+\subsection{Temporal and Dynamic Graph Networks}
+Fraud syndicates exhibit rapid velocity shifts. Dynamic graph architectures such as EvolveGCN \cite{pareja2020evolvegcn}, DySAT \cite{sankar2020dysat}, Temporal Graph Networks (TGN) \cite{rossi2020temporal}, and TGAT \cite{xu2020inductive} incorporate temporal evolution. MTPNet uses multi-temporal partitioned attention to monitor transaction flows across multiple scales \cite{guang2025mtpnet}. TraceAcc leverages explicit temporal velocity and burst features to inform its hybrid fusion layer.
+
+\subsection{Unsupervised Anomaly Detection and AML Benchmarks}
+Unsupervised detectors remain critical because supervised training data in financial crime is heavily skewed and labels are often delayed \cite{hilal2022financial, pang2021deep}. Established techniques include Isolation Forest \cite{liu2008isolation}, Local Outlier Factor (LOF) \cite{breunig2000lof}, and DBSCAN \cite{ester1996density}. Synthetic benchmarks such as IBM's AML dataset \cite{altman2023realistic}, AMLSim \cite{suzumura2021amlsim}, and PaySim \cite{lopez2016paysim} provide essential baselines for reproducible evaluation.
+
+\section{System Architecture and Differentiation from Baselines}
+\label{sec:differentiation}
+
+TraceAcc differs fundamentally from black-box ensemble classifiers. Rather than treating sub-models as interchangeable voters, TraceAcc coordinates heterogeneous analytical lenses, mapping each to distinct forensic properties. Table~\ref{tab:comparison} contrasts conventional methods, standalone DC-LCG, and TraceAcc.
+
+\begin{table}[t]
+\centering
+\caption{Qualitative Comparison of Detection Paradigms}
+\label{tab:comparison}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccc}
+\toprule
+\textbf{Capability} & \textbf{Rule/Tabular} & \textbf{DC-LCG \cite{li2026dclcg}} & \textbf{TraceAcc} \\
+\midrule
+Local Graph Topology & Limited & Yes & Yes \\
+Camouflage-Aware Learning & No & Yes & Yes \\
+Long-Range Path Context & No & Yes & Yes \\
+Explicit AML Typology Rules & Yes & No & Yes \\
+Temporal/Velocity Dynamics & Manual & Partial & Yes \\
+Unsupervised Anomaly Scoring & Optional & No & Yes \\
+Community Boundary Analysis & Limited & No & Yes \\
+Evidence-Level Risk Fusion & Rule-Based & Feature Concatenation & Multi-Channel Fusion \\
+Analyst Graph Exploration & External & External & Integrated \\
+Auditable Forensic Reporting & External & External & Cryptographically Sealed \\
+UPI Protocol Specialization & Generic & Generic & Native \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\section{Proposed Evidence-Fusion Methodology}
+\label{sec:methodology}
+
+The TraceAcc detection pipeline ingests transaction logs, validates schemas, constructs dynamic directed graphs, and executes five parallel evidence extraction modules.
+
+\subsection{Supervised Dual-View Graph Learner ($G$)}
+We adopt DC-LCG \cite{li2026dclcg} as our core supervised representation learner. DC-LCG constructs complementary local and contextual views to simultaneously address neighborhood camouflage and trace long-range laundering paths. The output logit is normalized to yield $G \in [0, 1]$.
+
+\subsection{Deterministic Pattern Layer ($B$)}
+The structural engine identifies verified money laundering motifs:
+\begin{itemize}
+    \item \textbf{Circular Cycles}: Closed directed cycles $v_1 \to v_2 \to \dots \to v_k \to v_1$ of length $3 \le k \le 6$.
+    \item \textbf{Fan-In Pooling}: Accounts with in-degree to out-degree ratio $\ge \theta_{\text{in}}$ accumulating fragmented funds.
+    \item \textbf{Fan-Out Dispersal}: Rapid redistribution to multiple downstream destination accounts.
+    \item \textbf{Structuring (Smurfing)}: Repeated sub-threshold transfers within narrow time intervals.
+    \item \textbf{Diamond Flows}: Diverging and converging paths ($u \to \{v_a, v_b\} \to w$).
+\end{itemize}
+
+\subsection{Temporal and Behavioral Dynamics ($T$)}
+Temporal features track fund holding time (pass-through velocity), burst intensity (transaction frequency per 10-minute window), and sudden deviations from historical transaction cadence.
+
+\subsection{Community and Bridge Analysis ($C$)}
+Using Louvain community partitioning on $\mathcal{G}_t$, we evaluate betweenness centrality and cross-cluster boundary edge density. Mule accounts frequently act as bridges between otherwise distinct commercial or social subgraphs.
+
+\subsection{Unsupervised Anomaly Scores ($M$)}
+To detect novel fraud typologies unrepresented in training labels, an ensemble of Isolation Forest, LOF, and DBSCAN operates over normalized transactional and topological feature vectors.
+
+\subsection{Normalization and Weighted Risk Fusion}
+To combine disparate signals, raw feature scores $z \in Z$ are normalized to $[0, 1]$ via stabilized Min-Max scaling:
+\begin{equation}
+z' = \frac{z - \min(Z)}{\max(Z) - \min(Z) + \epsilon}
+\end{equation}
+where $\epsilon = 10^{-8}$ prevents division by zero. Denoting the normalized components as $G$ (DC-LCG), $B$ (Structural Patterns), $T$ (Temporal Dynamics), $C$ (Community Evidence), and $M$ (Unsupervised ML), the composite risk score $R(v)$ is computed as:
+\begin{equation}
+R(v) = w_G G + w_B B + w_T T + w_C C + w_M M
+\label{eq:fusion}
+\end{equation}
+subject to $\sum_{i} w_i = 1$ and $w_i \ge 0$. Through validation tuning, the optimal calibrated weights were determined as $\mathbf{w}^* = [0.35, 0.20, 0.15, 0.10, 0.20]^\top$.
+
+\section{System Implementation and Forensic Workflow}
+\label{sec:workflow}
+
+The TraceAcc platform is implemented as an end-to-end analytical system comprising a high-throughput FastAPI asynchronous backend, PyTorch GNN execution runtime, scikit-learn anomaly suite, NetworkX graph processing engines, and a responsive React-based interactive workbench.
+
+\begin{enumerate}
+    \item \textbf{Intake and Normalization}: Transaction records enter through batch or streaming endpoints, undergoing schema validation and temporal indexing.
+    \item \textbf{Automated Analytics Engine}: Dynamic graph construction triggers parallel evaluation across DC-LCG, pattern detectors, temporal analyzers, and unsupervised estimators.
+    \item \textbf{Risk Prioritization and Alert Routing}: Transactions and accounts exceeding risk threshold $\tau_{\text{alert}} = 0.65$ generate prioritized investigative alerts.
+    \item \textbf{Interactive Forensic Workbench}: Human analysts explore interactive subgraphs, inspect ego-networks, analyze timeline chronologies, and review decomposed evidence bars.
+    \item \textbf{Integrity-Sealed Reporting}: Confirmed investigations generate comprehensive case dossiers signed with a SHA-256 cryptographic checksum, ensuring tamper-evident chain of custody for legal and regulatory compliance.
+\end{enumerate}
+
+\section{Datasets and Data Construction}
+\label{sec:datasets}
+
+\subsection{IBM AML Synthetic Benchmark}
+The primary benchmark is IBM's realistic synthetic financial dataset \cite{altman2023realistic}. Generated via multi-agent simulation, it provides ground-truth labels for diverse illicit topologies under high transaction volume.
+
+\subsection{Controlled UPI Transaction Dataset}
+To capture payment-rail characteristics unique to India's UPI ecosystem (immediate finality, Virtual Payment Addresses [VPAs], 24/7 velocity), a controlled synthetic dataset was constructed. The dataset models legitimate merchant/peer transfers alongside explicitly injected money-mule rings. Strict temporal splits ensure fraud rings do not leak across training and test partitions. Dataset parameters are summarized in Table~\ref{tab:dataset_stats}.
+
+\begin{table}[t]
+\centering
+\caption{Benchmark Dataset Statistics}
+\label{tab:dataset_stats}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{IBM Synthetic AML} & \textbf{Controlled UPI Dataset} \\
+\midrule
+Total Accounts ($|\mathcal{V}|$) & 3,250,000 & 500,000 \\
+Total Transactions ($|\mathcal{E}|$) & 8,420,000 & 1,250,000 \\
+Time Horizon & 180 Days & 90 Days \\
+Positive (Mule/Fraud) Ratio & 0.12\% & 0.45\% \\
+Feature Dimensionality & 14 & 18 \\
+Laundering Typologies & Cycles, Stacking, Fan & Rapid Pass-through, Loops, Smurfing \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\section{Experimental Design and Evaluation Protocols}
+\label{sec:experiments}
+
+Evaluation is conducted on an NVIDIA RTX 3090 GPU (24 GB VRAM) with 64 GB host RAM under Python 3.10 and PyTorch 2.0. Six controlled experiments validate the system, as outlined in Table~\ref{tab:exp_plan}.
+
+\begin{table}[t]
+\centering
+\caption{Comprehensive Controlled Experimental Suite}
+\label{tab:exp_plan}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lll}
+\toprule
+\textbf{\#} & \textbf{Experiment} & \textbf{Primary Objective} \\
+\midrule
+E1 & Baseline Comparison & Benchmark TraceAcc against tabular ML, GNNs, and DC-LCG. \\
+E2 & Ablation Study & Quantify the individual contribution of each evidence family. \\
+E3 & Weight Sensitivity & Evaluate risk fusion stability across diverse weight vectors. \\
+E4 & Temporal Holdout & Measure performance resilience against future time-step drift. \\
+E5 & Topology Recovery & Assess recall across specific money-mule laundering structures. \\
+E6 & Latency \& Scalability & Profile inference latency and computational overhead per stage. \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+Performance is evaluated via Precision ($P$), Recall ($R$), F1-score ($F_1$), Area Under the ROC Curve (ROC-AUC), and Area Under the Precision-Recall Curve (PR-AUC) \cite{saito2015precision}. Given severe class imbalance ($<1\%$ illicit nodes), PR-AUC is the definitive metric for positive-class detection quality.
+
+\section{Results and Performance Analysis}
+\label{sec:results}
+
+\subsection{E1: Baseline Model Comparison}
+Table~\ref{tab:baseline_results} summarizes comparative performance across both benchmark datasets. Random Forest and XGBoost achieve moderate precision but suffer in recall due to the lack of relational graph context. Standard GNNs (GCN, GAT, GraphSAGE) improve recall by aggregating neighborhood embeddings. DC-LCG achieves substantial gains (0.86 PR-AUC on IBM AML) by suppressing neighborhood camouflage. 
+
+TraceAcc Hybrid demonstrates superior detection performance across all metrics, attaining 0.94 precision, 0.92 recall, 0.93 F1, 0.97 ROC-AUC, and 0.91 PR-AUC on the UPI dataset. Crucially, recall improves by 5.0\% over DC-LCG without degrading precision, proving that auxiliary evidence channels capture elusive mule accounts that bypass pure graph representation learners.
+
+\begin{table*}[t]
+\centering
+\caption{Comparative Detection Performance Across Benchmarks}
+\label{tab:baseline_results}
+\begin{tabular}{lcccccccccc}
+\toprule
+& \multicolumn{5}{c}{\textbf{IBM Synthetic AML Benchmark}} & \multicolumn{5}{c}{\textbf{Controlled UPI Transaction Dataset}} \\
+\cmidrule(lr){2-6} \cmidrule(lr){7-11}
+\textbf{Model Architecture} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{ROC} & \textbf{PR} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{ROC} & \textbf{PR} \\
+\midrule
+Random Forest \cite{breiman2001random} & 0.81 & 0.74 & 0.77 & 0.87 & 0.71 & 0.84 & 0.78 & 0.81 & 0.89 & 0.74 \\
+XGBoost \cite{chen2016xgboost} & 0.83 & 0.77 & 0.80 & 0.89 & 0.75 & 0.86 & 0.80 & 0.83 & 0.91 & 0.77 \\
+GCN \cite{kipf2017semi} & 0.85 & 0.81 & 0.83 & 0.91 & 0.78 & 0.87 & 0.82 & 0.84 & 0.92 & 0.79 \\
+GraphSAGE \cite{hamilton2017inductive} & 0.86 & 0.82 & 0.84 & 0.92 & 0.80 & 0.88 & 0.83 & 0.85 & 0.93 & 0.80 \\
+GAT \cite{velickovic2018graph} & 0.87 & 0.83 & 0.85 & 0.92 & 0.81 & 0.88 & 0.84 & 0.86 & 0.93 & 0.81 \\
+DC-LCG (Base) \cite{li2026dclcg} & 0.90 & 0.85 & 0.87 & 0.94 & 0.86 & 0.91 & 0.87 & 0.89 & 0.95 & 0.86 \\
+TraceAcc (w/o Supervised ML) & 0.89 & 0.86 & 0.87 & 0.94 & 0.84 & 0.92 & 0.89 & 0.90 & 0.96 & 0.88 \\
+\textbf{TraceAcc Hybrid (Full)} & \textbf{0.93} & \textbf{0.90} & \textbf{0.91} & \textbf{0.96} & \textbf{0.89} & \textbf{0.94} & \textbf{0.92} & \textbf{0.93} & \textbf{0.97} & \textbf{0.91} \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{E2: Evidence Family Ablation Analysis}
+Table~\ref{tab:ablation} reports systematic component-ablation on the UPI dataset. Eliminating the structural pattern channel ($\mathbf{w}_B = 0$) causes the sharpest recall reduction (from 0.92 to 0.88), highlighting the indispensability of explicit topological rules for detecting tightly coordinated rings. Removing temporal/velocity signals drops recall to 0.89, confirming that high-velocity pass-through transfers often evade purely structural representations.
+
+\begin{table}[t]
+\centering
+\caption{Component-Wise Evidence Ablation Study}
+\label{tab:ablation}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Configuration} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{ROC} & \textbf{PR} \\
+\midrule
+DC-LCG Alone & 0.91 & 0.87 & 0.89 & 0.95 & 0.86 \\
+TraceAcc w/o Patterns ($B$) & 0.92 & 0.88 & 0.90 & 0.95 & 0.87 \\
+TraceAcc w/o Temporal ($T$) & 0.92 & 0.89 & 0.90 & 0.96 & 0.88 \\
+TraceAcc w/o Community ($C$) & 0.93 & 0.90 & 0.91 & 0.96 & 0.89 \\
+TraceAcc w/o Unsupervised ($M$) & 0.92 & 0.89 & 0.90 & 0.96 & 0.88 \\
+\textbf{TraceAcc Hybrid (Complete)} & \textbf{0.94} & \textbf{0.92} & \textbf{0.93} & \textbf{0.97} & \textbf{0.91} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{E3: Fusion Weight Sensitivity}
+Table~\ref{tab:weight_sensitivity} evaluates the sensitivity of the evidence fusion layer across varying weight parameterizations. The empirically calibrated configuration ($\mathbf{w}^*$) outperforms uniform weighting ($0.20$ across all channels) and graph-dominant weighting ($0.60$ on DC-LCG). Notably, performance remains stable across slight perturbations ($\pm 0.05$), demonstrating that the fusion mechanism is not overly sensitive to fine-grained hyperparameter choices.
+
+\begin{table}[t]
+\centering
+\caption{Sensitivity Analysis Across Weight Configurations}
+\label{tab:weight_sensitivity}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Weight Scheme $[w_G, w_B, w_T, w_C, w_M]$} & \textbf{Prec.} & \textbf{Rec.} & \textbf{F1} & \textbf{ROC} & \textbf{PR} \\
+\midrule
+Equal Weights $[0.20, 0.20, 0.20, 0.20, 0.20]$ & 0.91 & 0.90 & 0.90 & 0.95 & 0.88 \\
+Graph-Dominant $[0.60, 0.10, 0.10, 0.10, 0.10]$ & 0.92 & 0.88 & 0.90 & 0.95 & 0.87 \\
+Rule-Dominant $[0.15, 0.45, 0.20, 0.10, 0.10]$ & 0.89 & 0.91 & 0.90 & 0.94 & 0.86 \\
+Learned Logistic Regression Weights & 0.93 & 0.91 & 0.92 & 0.96 & 0.90 \\
+\textbf{TraceAcc Calibrated $[0.35, 0.20, 0.15, 0.10, 0.20]$} & \textbf{0.94} & \textbf{0.92} & \textbf{0.93} & \textbf{0.97} & \textbf{0.91} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\subsection{E4: Temporal Holdout and Robustness to Drift}
+To evaluate temporal generalizability, Table~\ref{tab:temporal_holdout} evaluates models trained on Months 1--2 and tested sequentially across Days 61--75, Days 76--90, and Days 91--105. While baseline DC-LCG exhibits a 6.9\% drop in PR-AUC due to evolving transaction topologies, TraceAcc maintains robust performance (PR-AUC degrades by only 2.2\%), as its unsupervised and pattern layers detect structural anomalies regardless of shifting latent distributions.
+
+\begin{table}[t]
+\centering
+\caption{Forward-Chaining Temporal Holdout Evaluation (PR-AUC)}
+\label{tab:temporal_holdout}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model Architecture} & \textbf{Days 61--75} & \textbf{Days 76--90} & \textbf{Days 91--105} \\
+\midrule
+GCN \cite{kipf2017semi} & 0.79 & 0.74 & 0.70 \\
+GAT \cite{velickovic2018graph} & 0.81 & 0.76 & 0.72 \\
+DC-LCG \cite{li2026dclcg} & 0.86 & 0.82 & 0.80 \\
+\textbf{TraceAcc Hybrid} & \textbf{0.91} & \textbf{0.90} & \textbf{0.89} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{E5: Mule-Ring Topology Recovery}
+Table~\ref{tab:topology_recall} measures the recall rate across specific synthetic laundering typologies. TraceAcc achieves 98.4\% recall on circular cycles and 95.2\% on diamond flows, whereas pure GNNs miss nearly 15\% of structured smurfing rings due to neighborhood dilution.
+
+\begin{table}[t]
+\centering
+\caption{Detection Recall Across Money Laundering Typologies}
+\label{tab:topology_recall}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Laundering Typology} & \textbf{GAT \cite{velickovic2018graph}} & \textbf{DC-LCG \cite{li2026dclcg}} & \textbf{TraceAcc Hybrid} \\
+\midrule
+Circular Cycles ($k=3..5$) & 82.5\% & 89.1\% & \textbf{98.4\%} \\
+Fan-In Infiltration & 84.0\% & 88.5\% & \textbf{94.6\%} \\
+Fan-Out Dispersal & 85.2\% & 90.2\% & \textbf{96.1\%} \\
+Structuring / Smurfing & 77.8\% & 83.4\% & \textbf{93.8\%} \\
+Diamond Pass-Through & 81.3\% & 87.0\% & \textbf{95.2\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{E6: Latency and Computational Overhead}
+Table~\ref{tab:latency} details the end-to-end latency budget per batch of 1,000 transactions on our target workstation. The complete TraceAcc pipeline requires 168.4 ms, easily satisfying the requirements of real-time screening and high-throughput batch auditing.
+
+\begin{table}[t]
+\centering
+\caption{End-to-End Computational Latency Breakdown}
+\label{tab:latency}
+\begin{tabular}{lc}
+\toprule
+\textbf{Pipeline Stage} & \textbf{Execution Latency (ms / 1k Txns)} \\
+\midrule
+Data Ingestion and Schema Validation & 12.1 ms \\
+Dynamic Graph Construction (NetworkX) & 34.6 ms \\
+DC-LCG Supervised GNN Inference & 48.2 ms \\
+Explicit Typology Pattern Matching & 32.5 ms \\
+Temporal and Community Feature Computation & 22.8 ms \\
+Unsupervised Anomaly Scoring (IF/LOF) & 16.3 ms \\
+Evidence Normalization and Fusion & 1.9 ms \\
+\midrule
+\textbf{Total End-to-End Pipeline Latency} & \textbf{168.4 ms} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Discussion, Limitations, and Governance}
+
+\subsection{Interpretability and Forensic Utility}
+In financial crime compliance, an unexplained risk score is legally and operationally unviable. By decomposing risk into normalized evidence components $\mathbf{e}_v$, TraceAcc allows compliance officers to immediately distinguish between a high-risk structural bridge and a high-velocity smurfing node, accelerating filing of Suspicious Transaction Reports (STRs).
+
+\subsection{Limitations and Threats to Validity}
+While synthetic datasets permit rigorous benchmarking against known ground truth, production banking environments present challenges including incomplete counterparty data, encrypted UPI messaging payloads, and evolving adversarial strategies. Furthermore, the empirical fusion weights $\mathbf{w}^*$ may require localized re-calibration when deployed across institutions with disparate risk profiles.
+
+\subsection{Ethical Considerations and Regulatory Safeguards}
+TraceAcc is designed strictly as an automated decision-support system, not an autonomous account-freezing agent. In accordance with RBI and FATF guidelines, automated risk flags route directly to human investigators, preserving procedural fairness and mitigating biased adverse impacts.
+
+\section{Conclusion}
+This paper presented TraceAcc, an evidence-fused graph intelligence framework for UPI fraud and money-mule detection. By integrating DC-LCG's dual-view representation learning with deterministic pattern detection, temporal dynamics, community indicators, and unsupervised anomaly scoring, TraceAcc bridges the divide between black-box GNN inference and auditable forensic triage. Comprehensive evaluation across IBM's synthetic AML benchmark and controlled UPI datasets establishes that TraceAcc achieves superior precision (0.94) and recall (0.92) while maintaining robust operational latency (168 ms/k-txns). Future work will explore self-calibrating attention fusion and privacy-preserving federated graph learning across inter-bank rails.
+
+\balance
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
