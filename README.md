@@ -1,4 +1,4 @@
-# TraceAcc Pro — Enterprise AML Operations Platform <a href="https://deepwiki.com/sunilt808/TraceAcc1">
+# TraceAcc — Enterprise AML Operations Platform <a href="https://deepwiki.com/sunilt808/TraceAcc1">
   <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki">
 </a>
 
